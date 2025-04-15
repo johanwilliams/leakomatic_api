@@ -14,7 +14,10 @@
             "unknown": "Ett oväntat fel inträffade",
             "cannot_connect": "Kunde inte ansluta till Leakomatic",
             "invalid_auth": "Ogiltig autentisering",
-            "invalid_credentials": "Ogiltig e-post eller lösenord"
+            "invalid_credentials": "Ogiltig e-post eller lösenord",
+            "auth_token_missing": "Kunde inte hämta autentiseringstoken",
+            "xsrf_token_missing": "Kunde inte hämta XSRF-token",
+            "no_devices_found": "Inga Leakomatic-enheter hittades i ditt konto"
         },
         "abort": {
             "already_configured": "Enheten är redan konfigurerad"

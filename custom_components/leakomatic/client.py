@@ -24,6 +24,7 @@ class LeakomaticClient:
         self._device_id: Optional[str] = None
         self._user_id: Optional[str] = None
         self._session: Optional[aiohttp.ClientSession] = None
+        self._error_code: Optional[str] = None
 
     async def async_authenticate(self) -> bool:
         """Authenticate with the Leakomatic API."""
@@ -36,26 +37,32 @@ class LeakomaticClient:
             # Get the auth token from the start page
             self._auth_token = await self._async_get_startpage()
             if not self._auth_token:
-                _LOGGER.error("Failed to get auth token from start page")
+                _LOGGER.warning("Failed to get auth token from start page")
+                self._error_code = "auth_token_missing"
                 return False
             
             # Login with the auth token
             login_success = await self._async_login()
             if not login_success:
-                _LOGGER.error("Failed to login with provided credentials")
+                _LOGGER.warning("Failed to login with provided credentials")
                 return False
             
             _LOGGER.info("Successfully authenticated with Leakomatic API")
             return True
             
         except Exception as err:
-            _LOGGER.exception("Error authenticating with Leakomatic API: %s", err)
+            _LOGGER.error("Unexpected error during authentication: %s", err)
             return False
         finally:
             # Close the session when we're done
             if self._session:
                 await self._session.close()
                 self._session = None
+    
+    @property
+    def error_code(self) -> Optional[str]:
+        """Get the error code if authentication failed."""
+        return self._error_code
 
     async def _async_get_startpage(self) -> Optional[str]:
         """Get the auth token from the start page."""
@@ -64,7 +71,7 @@ class LeakomaticClient:
             
             async with self._session.get(START_URL) as response:
                 if response.status != 200:
-                    _LOGGER.error("Failed to get login page: %s", response.status)
+                    _LOGGER.warning("Failed to get login page: %s", response.status)
                     return None
                 
                 text = await response.text()
@@ -73,14 +80,14 @@ class LeakomaticClient:
                 # Find the auth token
                 auth_token = soup.find('meta', {'name': 'csrf-token'})
                 if not auth_token or not auth_token.get('content'):
-                    _LOGGER.error("Could not find auth token in login page")
+                    _LOGGER.warning("Could not find auth token in login page")
                     return None
                 
                 _LOGGER.debug("Successfully retrieved auth token")
                 return auth_token['content']
                 
         except Exception as err:
-            _LOGGER.error("Error getting start page: %s", err)
+            _LOGGER.error("Unexpected error getting start page: %s", err)
             return None
 
     async def _async_login(self) -> bool:
@@ -105,14 +112,16 @@ class LeakomaticClient:
             
             async with self._session.post(LOGIN_URL, data=login_data, headers=headers) as response:
                 if response.status != 200:
-                    _LOGGER.error("Login failed with status: %s", response.status)
+                    _LOGGER.warning("Login failed with status: %s", response.status)
+                    self._error_code = "invalid_credentials"
                     return False
                 
                 # Get the XSRF token from cookies
                 cookies = response.cookies
                 xsrf_token = cookies.get('XSRF-TOKEN')
                 if not xsrf_token:
-                    _LOGGER.error("Failed to get XSRF token from cookies")
+                    _LOGGER.warning("Failed to get XSRF token from cookies")
+                    self._error_code = "xsrf_token_missing"
                     return False
                 
                 # Set the XSRF token in session headers - convert to string first
@@ -127,13 +136,15 @@ class LeakomaticClient:
                 error_messages = soup.find_all('div', class_='alert-danger')
                 if error_messages:
                     for error in error_messages:
-                        _LOGGER.error("Login error: %s", error.text.strip())
+                        _LOGGER.warning("Login error: %s", error.text.strip())
+                    self._error_code = "invalid_credentials"
                     return False
                 
                 # Find all <tr> elements with an id attribute starting with 'device_'
                 device_elements = soup.find_all('tr', {'id': lambda x: x and x.startswith('device_')})
                 if not device_elements:
-                    _LOGGER.error("No devices found after login - authentication may have failed")
+                    _LOGGER.warning("No devices found after login - authentication may have failed")
+                    self._error_code = "no_devices_found"
                     return False
                 
                 # Get the first device ID (we'll handle multiple devices later)
@@ -150,16 +161,16 @@ class LeakomaticClient:
                             self._user_id = user_id
                             _LOGGER.debug("Found user ID: %s", user_id)
                         else:
-                            _LOGGER.warning("User ID not found in href attribute")
+                            _LOGGER.debug("User ID not found in href attribute")
                     else:
-                        _LOGGER.warning("User ID not found, but continuing with device ID: %s", device_id)
+                        _LOGGER.debug("User ID not found, but continuing with device ID: %s", device_id)
                 except Exception as user_id_err:
-                    _LOGGER.warning("Error extracting user ID: %s", user_id_err)
-                    _LOGGER.warning("Continuing with device ID: %s", device_id)
+                    _LOGGER.debug("Error extracting user ID: %s", user_id_err)
+                    _LOGGER.debug("Continuing with device ID: %s", device_id)
                 
                 _LOGGER.debug("Successfully logged in and found device ID: %s", device_id)
                 return True
                 
         except Exception as err:
-            _LOGGER.error("Error during login: %s", err)
+            _LOGGER.error("Unexpected error during login: %s", err)
             return False 

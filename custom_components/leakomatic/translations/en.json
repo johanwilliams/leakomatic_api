@@ -14,7 +14,10 @@
             "unknown": "Unexpected error occurred",
             "cannot_connect": "Failed to connect to Leakomatic",
             "invalid_auth": "Invalid authentication",
-            "invalid_credentials": "Invalid email or password"
+            "invalid_credentials": "Invalid email or password",
+            "auth_token_missing": "Could not retrieve authentication token",
+            "xsrf_token_missing": "Could not retrieve XSRF token",
+            "no_devices_found": "No Leakomatic devices found in your account"
         },
         "abort": {
             "already_configured": "Device is already configured"
