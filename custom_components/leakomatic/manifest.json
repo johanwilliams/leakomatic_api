@@ -5,7 +5,10 @@
   "issue_tracker": "https://github.com/johanwilliams/leakomatic_api/issues",
   "dependencies": [],
   "codeowners": ["@johanwilliams"],
-  "requirements": [],
+  "requirements": [
+    "aiohttp>=3.8.0",
+    "beautifulsoup4>=4.9.3"
+  ],
   "version": "0.1.0",
   "iot_class": "local_polling",
   "config_flow": true
