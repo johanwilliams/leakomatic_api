@@ -1,0 +1,35 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "Anslut till Leakomatic",
+                "description": "Ange dina Leakomatic-kontouppgifter.",
+                "data": {
+                    "email": "E-post",
+                    "password": "Lösenord"
+                }
+            }
+        },
+        "error": {
+            "unknown": "Ett oväntat fel inträffade",
+            "cannot_connect": "Kunde inte ansluta till Leakomatic",
+            "invalid_auth": "Ogiltig autentisering",
+            "invalid_credentials": "Ogiltig e-post eller lösenord"
+        },
+        "abort": {
+            "already_configured": "Enheten är redan konfigurerad"
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Leakomatic-alternativ",
+                "description": "Konfigurera Leakomatic-integrationsalternativ",
+                "data": {
+                    "scan_interval": "Sökningsintervall (sekunder)"
+                }
+            }
+        }
+    },
+    "title": "Leakomatic"
+} 
