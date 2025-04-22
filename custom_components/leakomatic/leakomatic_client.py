@@ -63,6 +63,11 @@ class LeakomaticClient:
     def error_code(self) -> Optional[str]:
         """Get the error code if authentication failed."""
         return self._error_code
+    
+    @property
+    def device_id(self) -> Optional[str]:
+        """Get the device ID."""
+        return self._device_id
 
     async def _async_get_startpage(self) -> Optional[str]:
         """Get the auth token from the start page."""
@@ -173,4 +178,81 @@ class LeakomaticClient:
                 
         except Exception as err:
             _LOGGER.error("Unexpected error during login: %s", err)
-            return False 
+            return False
+            
+    async def async_get_device_data(self) -> Optional[dict[str, Any]]:
+        """Get device data from the Leakomatic API."""
+        if not self._device_id:
+            _LOGGER.error("No device ID available")
+            return None
+            
+        if not self._session:
+            _LOGGER.debug("Creating a new session for device data request")
+            self._session = aiohttp.ClientSession()
+            
+        try:
+            _LOGGER.debug("Getting device data for device ID: %s", self._device_id)
+            
+            # Construct the URL for the device status
+            url = f"{STATUS_URL}/{self._device_id}"
+            _LOGGER.debug("Requesting URL: %s", url)
+            
+            async with self._session.get(url) as response:
+                if response.status != 200:
+                    _LOGGER.warning("Failed to get device data: %s", response.status)
+                    return None
+                
+                # Parse the response
+                text = await response.text()
+                soup = BeautifulSoup(text, 'html.parser')
+                
+                # Extract device data
+                device_data = {}
+                
+                # Get device name
+                device_name_elem = soup.find('h1')
+                if device_name_elem:
+                    device_data["name"] = device_name_elem.text.strip()
+                
+                # Get device status
+                status_elem = soup.find('div', class_='status')
+                if status_elem:
+                    device_data["status"] = status_elem.text.strip()
+                
+                # Get device model
+                model_elem = soup.find('div', class_='model')
+                if model_elem:
+                    device_data["model"] = model_elem.text.strip()
+                
+                # Get device location
+                location_elem = soup.find('div', class_='location')
+                if location_elem:
+                    device_data["location"] = location_elem.text.strip()
+                
+                # Get device battery level
+                battery_elem = soup.find('div', class_='battery')
+                if battery_elem:
+                    battery_text = battery_elem.text.strip()
+                    battery_match = re.search(r'(\d+)%', battery_text)
+                    if battery_match:
+                        device_data["battery"] = int(battery_match.group(1))
+                
+                # Get device moisture level
+                moisture_elem = soup.find('div', class_='moisture')
+                if moisture_elem:
+                    moisture_text = moisture_elem.text.strip()
+                    moisture_match = re.search(r'(\d+(?:\.\d+)?)%', moisture_text)
+                    if moisture_match:
+                        device_data["moisture"] = float(moisture_match.group(1))
+                
+                _LOGGER.debug("Device data: %s", device_data)
+                return device_data
+                
+        except Exception as err:
+            _LOGGER.error("Unexpected error getting device data: %s", err)
+            return None
+        finally:
+            # Close the session when we're done
+            if self._session:
+                await self._session.close()
+                self._session = None 

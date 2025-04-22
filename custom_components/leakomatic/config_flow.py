@@ -13,7 +13,7 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 
 from .const import DOMAIN, LOGGER_NAME
-from .client import LeakomaticClient
+from .leakomatic_client import LeakomaticClient
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
 
@@ -52,12 +52,33 @@ class LeakomaticConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         errors=errors,
                     )
                 
+                # Get the device ID
+                device_id = client.device_id
+                if not device_id:
+                    _LOGGER.warning("No device ID found after authentication")
+                    errors["base"] = "no_devices_found"
+                    return self.async_show_form(
+                        step_id="user",
+                        data_schema=vol.Schema(
+                            {
+                                vol.Required("email"): str,
+                                vol.Required("password"): str,
+                            }
+                        ),
+                        errors=errors,
+                    )
+                
+                _LOGGER.debug("Found device ID: %s", device_id)
+                
                 # Check if this email is already configured
                 existing_entries = self._async_current_entries()
                 for entry in existing_entries:
                     if entry.data.get("email") == user_input["email"]:
                         _LOGGER.info("Email %s is already configured", user_input["email"])
                         return self.async_abort(reason="already_configured")
+                
+                # Store the device ID in the config entry data
+                user_input["device_id"] = device_id
                 
                 # Authentication successful, create the config entry
                 _LOGGER.info("Successfully configured Leakomatic for email: %s", user_input["email"])
