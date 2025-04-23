@@ -29,7 +29,7 @@ class LeakomaticClient:
     async def async_authenticate(self) -> bool:
         """Authenticate with the Leakomatic API."""
         try:
-            _LOGGER.debug("Authenticating with Leakomatic API")
+            _LOGGER.debug("Initiating authentication process with Leakomatic")
             
             # Create a new session
             self._session = aiohttp.ClientSession()
@@ -37,21 +37,21 @@ class LeakomaticClient:
             # Get the auth token from the start page
             self._auth_token = await self._async_get_startpage()
             if not self._auth_token:
-                _LOGGER.warning("Failed to get auth token from start page")
+                _LOGGER.warning("Authentication failed - could not establish connection with Leakomatic")
                 self._error_code = "auth_token_missing"
                 return False
             
             # Login with the auth token
             login_success = await self._async_login()
             if not login_success:
-                _LOGGER.warning("Failed to login with provided credentials")
+                _LOGGER.warning("Authentication failed - invalid credentials or connection error")
                 return False
             
-            _LOGGER.info("Successfully authenticated with Leakomatic API")
+            _LOGGER.debug("Authentication successful with Leakomatic API")
             return True
             
         except Exception as err:
-            _LOGGER.error("Unexpected error during authentication: %s", err)
+            _LOGGER.error("Authentication error: %s", err)
             return False
         # Don't close the session here, we'll keep it open for subsequent requests
     
@@ -68,11 +68,11 @@ class LeakomaticClient:
     async def _async_get_startpage(self) -> Optional[str]:
         """Get the auth token from the start page."""
         try:
-            _LOGGER.debug("Getting auth token from start page")
+            _LOGGER.debug("Requesting authentication token from Leakomatic")
             
             async with self._session.get(START_URL) as response:
                 if response.status != 200:
-                    _LOGGER.warning("Failed to get login page: %s", response.status)
+                    _LOGGER.warning("Connection failed - server returned %s", response.status)
                     return None
                 
                 text = await response.text()
@@ -81,20 +81,20 @@ class LeakomaticClient:
                 # Find the auth token
                 auth_token = soup.find('meta', {'name': 'csrf-token'})
                 if not auth_token or not auth_token.get('content'):
-                    _LOGGER.warning("Could not find auth token in login page")
+                    _LOGGER.warning("Connection failed - authentication token not found")
                     return None
                 
-                _LOGGER.debug("Successfully retrieved auth token")
+                _LOGGER.debug("Authentication token successfully retrieved")
                 return auth_token['content']
                 
         except Exception as err:
-            _LOGGER.error("Unexpected error getting start page: %s", err)
+            _LOGGER.error("Connection error: %s", err)
             return None
 
     async def _async_login(self) -> bool:
         """Login to the Leakomatic API."""
         try:
-            _LOGGER.debug("Attempting to login")
+            _LOGGER.debug("Attempting login with provided credentials")
             
             # Prepare login data
             login_data = {
@@ -113,7 +113,7 @@ class LeakomaticClient:
             
             async with self._session.post(LOGIN_URL, data=login_data, headers=headers) as response:
                 if response.status != 200:
-                    _LOGGER.warning("Login failed with status: %s", response.status)
+                    _LOGGER.warning("Login failed - server returned %s", response.status)
                     self._error_code = "invalid_credentials"
                     return False
                 
@@ -121,7 +121,7 @@ class LeakomaticClient:
                 cookies = response.cookies
                 xsrf_token = cookies.get('XSRF-TOKEN')
                 if not xsrf_token:
-                    _LOGGER.warning("Failed to get XSRF token from cookies")
+                    _LOGGER.warning("Login failed - security token not received")
                     self._error_code = "xsrf_token_missing"
                     return False
                 
@@ -137,14 +137,14 @@ class LeakomaticClient:
                 error_messages = soup.find_all('div', class_='alert-danger')
                 if error_messages:
                     for error in error_messages:
-                        _LOGGER.warning("Login error: %s", error.text.strip())
+                        _LOGGER.warning("Login failed - %s", error.text.strip())
                     self._error_code = "invalid_credentials"
                     return False
                 
                 # Find all <tr> elements with an id attribute starting with 'device_'
                 device_elements = soup.find_all('tr', {'id': lambda x: x and x.startswith('device_')})
                 if not device_elements:
-                    _LOGGER.warning("No devices found after login - authentication may have failed")
+                    _LOGGER.warning("No Leakomatic devices found in account")
                     self._error_code = "no_devices_found"
                     return False
                 
@@ -169,31 +169,30 @@ class LeakomaticClient:
                     _LOGGER.debug("Error extracting user ID: %s", user_id_err)
                     _LOGGER.debug("Continuing with device ID: %s", device_id)
                 
-                _LOGGER.debug("Successfully logged in and found device ID: %s", device_id)
+                _LOGGER.debug("Found Leakomatic device: %s", device_id)
                 return True
                 
         except Exception as err:
-            _LOGGER.error("Unexpected error during login: %s", err)
+            _LOGGER.error("Login error: %s", err)
             return False
             
     async def async_get_device_data(self) -> Optional[dict[str, Any]]:
         """Get device data from the Leakomatic API."""
         if not self._device_id:
-            _LOGGER.error("No device ID available")
+            _LOGGER.error("Cannot fetch data - no device configured")
             return None
             
         if not self._session:
-            _LOGGER.debug("Creating a new session for device data request")
+            _LOGGER.debug("Reconnecting to Leakomatic API")
             self._session = aiohttp.ClientSession()
             
-            # If we're creating a new session, we need to re-authenticate
             auth_success = await self.async_authenticate()
             if not auth_success:
-                _LOGGER.error("Failed to re-authenticate for device data request")
+                _LOGGER.error("Failed to reconnect to Leakomatic API")
                 return None
             
         try:
-            _LOGGER.debug("Getting device data for device ID: %s", self._device_id)
+            _LOGGER.debug("Fetching data for device %s", self._device_id)
             
             # Construct the URL for the device status JSON
             url = f"{STATUS_URL}/{self._device_id}.json"
@@ -201,7 +200,7 @@ class LeakomaticClient:
             
             async with self._session.get(url) as response:
                 if response.status != 200:
-                    _LOGGER.warning("Failed to get device data: %s", response.status)
+                    _LOGGER.warning("Failed to fetch device data - server returned %s", response.status)
                     return None
                 
                 # Parse the JSON response
@@ -209,11 +208,9 @@ class LeakomaticClient:
                 
                 # Log only key information instead of the full JSON
                 if device_data:
-                    _LOGGER.debug("Device data received: name=%s, sw_version=%s, mode=%s, alarm=%s",
-                                 device_data.get("name", "unknown"),
-                                 device_data.get("sw_version", "unknown"),
+                    _LOGGER.debug("Device data received - Mode: %s, Status: %s",
                                  device_data.get("mode", "unknown"),
-                                 device_data.get("alarm", "unknown"))
+                                 "ALARM" if device_data.get("alarm") else "OK")
                     
                     # Log the raw mode value for debugging
                     _LOGGER.debug("Raw mode value: %s, type: %s", 
@@ -223,7 +220,7 @@ class LeakomaticClient:
                 return device_data
                 
         except Exception as err:
-            _LOGGER.error("Unexpected error getting device data: %s", err)
+            _LOGGER.error("Failed to fetch device data: %s", err)
             return None
         # Don't close the session here, we'll keep it open for subsequent requests
 
@@ -232,4 +229,4 @@ class LeakomaticClient:
         if self._session:
             await self._session.close()
             self._session = None
-            _LOGGER.debug("Closed client session") 
+            _LOGGER.debug("Closed connection to Leakomatic API") 
