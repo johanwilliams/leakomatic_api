@@ -35,7 +35,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.debug("Found device ID: %s", device_id)
     
     # Fetch device data to get the sw_version
-    device_data = await client.async_get_device_data()        
+    device_data = await client.async_get_device_data()   
+
+    name = f"{DEFAULT_NAME} {device_id}"
+    if device_data and "name" in device_data:
+        name = device_data["name"]
+        _LOGGER.debug("Found name: %s", name)
+    else:
+        _LOGGER.warning("Could not find name in device data, using default")
     
     # If device data is available and contains sw_version, use it
     sw_version = "Unknown"  # Default value
@@ -52,16 +59,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.debug("Found model: %s", model)
     else:
         _LOGGER.warning("Could not find model in device data, using default")
+
+    location = None
+    if device_data and "location" in device_data:
+        location = device_data["location"]
+        _LOGGER.debug("Found location: %s", location)
+    else:
+        _LOGGER.warning("Could not find location in device data, using default")
     
     # Create a device in Home Assistant
     device_registry = async_get_device_registry(hass)
     device_entry = device_registry.async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, device_id)},
-        name=f"{DEFAULT_NAME} {device_id}",
+        name=name,
         manufacturer="Leakomatic",
         model=model,
         sw_version=sw_version,
+        suggested_area=location
     )
     
     # Update the device's sw_version if it changed
