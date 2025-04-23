@@ -53,11 +53,7 @@ class LeakomaticClient:
         except Exception as err:
             _LOGGER.error("Unexpected error during authentication: %s", err)
             return False
-        finally:
-            # Close the session when we're done
-            if self._session:
-                await self._session.close()
-                self._session = None
+        # Don't close the session here, we'll keep it open for subsequent requests
     
     @property
     def error_code(self) -> Optional[str]:
@@ -190,11 +186,17 @@ class LeakomaticClient:
             _LOGGER.debug("Creating a new session for device data request")
             self._session = aiohttp.ClientSession()
             
+            # If we're creating a new session, we need to re-authenticate
+            auth_success = await self.async_authenticate()
+            if not auth_success:
+                _LOGGER.error("Failed to re-authenticate for device data request")
+                return None
+            
         try:
             _LOGGER.debug("Getting device data for device ID: %s", self._device_id)
             
-            # Construct the URL for the device status
-            url = f"{STATUS_URL}/{self._device_id}"
+            # Construct the URL for the device status JSON
+            url = f"{STATUS_URL}/{self._device_id}.json"
             _LOGGER.debug("Requesting URL: %s", url)
             
             async with self._session.get(url) as response:
@@ -202,57 +204,27 @@ class LeakomaticClient:
                     _LOGGER.warning("Failed to get device data: %s", response.status)
                     return None
                 
-                # Parse the response
-                text = await response.text()
-                soup = BeautifulSoup(text, 'html.parser')
+                # Parse the JSON response
+                device_data = await response.json()
                 
-                # Extract device data
-                device_data = {}
+                # Log only key information instead of the full JSON
+                if device_data:
+                    _LOGGER.debug("Device data received: name=%s, sw_version=%s, mode=%s, alarm=%s",
+                                 device_data.get("name", "unknown"),
+                                 device_data.get("sw_version", "unknown"),
+                                 device_data.get("mode", "unknown"),
+                                 device_data.get("alarm", "unknown"))
                 
-                # Get device name
-                device_name_elem = soup.find('h1')
-                if device_name_elem:
-                    device_data["name"] = device_name_elem.text.strip()
-                
-                # Get device status
-                status_elem = soup.find('div', class_='status')
-                if status_elem:
-                    device_data["status"] = status_elem.text.strip()
-                
-                # Get device model
-                model_elem = soup.find('div', class_='model')
-                if model_elem:
-                    device_data["model"] = model_elem.text.strip()
-                
-                # Get device location
-                location_elem = soup.find('div', class_='location')
-                if location_elem:
-                    device_data["location"] = location_elem.text.strip()
-                
-                # Get device battery level
-                battery_elem = soup.find('div', class_='battery')
-                if battery_elem:
-                    battery_text = battery_elem.text.strip()
-                    battery_match = re.search(r'(\d+)%', battery_text)
-                    if battery_match:
-                        device_data["battery"] = int(battery_match.group(1))
-                
-                # Get device moisture level
-                moisture_elem = soup.find('div', class_='moisture')
-                if moisture_elem:
-                    moisture_text = moisture_elem.text.strip()
-                    moisture_match = re.search(r'(\d+(?:\.\d+)?)%', moisture_text)
-                    if moisture_match:
-                        device_data["moisture"] = float(moisture_match.group(1))
-                
-                _LOGGER.debug("Device data: %s", device_data)
                 return device_data
                 
         except Exception as err:
             _LOGGER.error("Unexpected error getting device data: %s", err)
             return None
-        finally:
-            # Close the session when we're done
-            if self._session:
-                await self._session.close()
-                self._session = None 
+        # Don't close the session here, we'll keep it open for subsequent requests
+
+    async def async_close(self) -> None:
+        """Close the client session."""
+        if self._session:
+            await self._session.close()
+            self._session = None
+            _LOGGER.debug("Closed client session") 

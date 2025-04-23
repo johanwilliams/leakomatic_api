@@ -42,13 +42,13 @@ async def async_setup_entry(
         _LOGGER.error("Missing client, device ID, or device entry")
         return
     
-    # Create device info dictionary
+    # Create device info dictionary using the device entry's information
     device_info = {
         "identifiers": {(DOMAIN, device_id)},
-        "name": f"{DEFAULT_NAME} {device_id}",
-        "manufacturer": "Leakomatic",
-        "model": "Water Leak Sensor",
-        "sw_version": "1.0.0",
+        "name": device_entry.name,
+        "manufacturer": device_entry.manufacturer,
+        "model": device_entry.model,
+        "sw_version": device_entry.sw_version,
     }
     
     # Create a coordinator to fetch data
@@ -89,6 +89,10 @@ class LeakomaticSensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
+        # Update sw_version if coordinator data is available
+        if self.coordinator.data and "sw_version" in self.coordinator.data:
+            self._device_info["sw_version"] = self.coordinator.data["sw_version"]
+        
         return self._device_info
 
     @property
@@ -107,5 +111,39 @@ class LeakomaticSensor(CoordinatorEntity, SensorEntity):
         if not self.coordinator.data:
             return {}
         
-        # Return the raw device data as attributes
-        return self.coordinator.data 
+        # Extract relevant attributes from the device data
+        attributes = {}
+        
+        # Add device mode
+        if "mode" in self.coordinator.data:
+            mode = self.coordinator.data["mode"]
+            if mode == 0:
+                attributes["mode"] = "Home"
+            elif mode == 1:
+                attributes["mode"] = "Away"
+            elif mode == 2:
+                attributes["mode"] = "Pause"
+            else:
+                attributes["mode"] = f"Unknown ({mode})"
+        
+        # Add alarm status
+        if "alarm" in self.coordinator.data:
+            attributes["alarm"] = self.coordinator.data["alarm"]
+        
+        # Add device name
+        if "name" in self.coordinator.data:
+            attributes["name"] = self.coordinator.data["name"]
+        
+        # Add device model
+        if "model" in self.coordinator.data:
+            attributes["model"] = self.coordinator.data["model"]
+        
+        # Add software version
+        if "sw_version" in self.coordinator.data:
+            attributes["sw_version"] = self.coordinator.data["sw_version"]
+        
+        # Add last seen time
+        if "last_seen_at" in self.coordinator.data:
+            attributes["last_seen_at"] = self.coordinator.data["last_seen_at"]
+        
+        return attributes 
