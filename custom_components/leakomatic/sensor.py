@@ -24,6 +24,13 @@ from .const import DOMAIN, DEFAULT_NAME, DEFAULT_SCAN_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
 
+# Define mode translations
+MODE_TRANSLATIONS = {
+    0: "Home",
+    1: "Away",
+    2: "Pause"
+}
+
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
@@ -85,6 +92,7 @@ class LeakomaticSensor(CoordinatorEntity, SensorEntity):
         self._attr_icon = "mdi:home"  # Icon for mode
         self._attr_entity_registry_enabled_default = True
         self._attr_should_poll = True
+        self._attr_translation_key = "mode"  # This tells Home Assistant to use the translation system
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -106,16 +114,12 @@ class LeakomaticSensor(CoordinatorEntity, SensorEntity):
         mode = self.coordinator.data.get("mode")
         _LOGGER.debug("Mode value from device data: %s", mode)
         
-        # Map the mode to a human-readable state
-        if mode == 0:
-            return "Home"
-        elif mode == 1:
-            return "Away"
-        elif mode == 2:
-            return "Pause"
+        # Return the numeric value directly
+        if mode in (0, 1, 2):
+            return mode
         else:
             _LOGGER.debug("Unknown mode value: %s", mode)
-            return None
+            return "unknown"  # Return "unknown" as a string to match the translation key
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

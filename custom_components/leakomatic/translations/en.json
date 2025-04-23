@@ -34,5 +34,18 @@
             }
         }
     },
-    "title": "Leakomatic"
+    "title": "Leakomatic",
+    "entity": {
+        "sensor": {
+            "mode": {
+                "name": "Mode",
+                "state": {
+                    "0": "Home",
+                    "1": "Away",
+                    "2": "Pause",
+                    "unknown": "Unknown"
+                }
+            }
+        }
+    }
 } 
