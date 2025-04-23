@@ -214,6 +214,11 @@ class LeakomaticClient:
                                  device_data.get("sw_version", "unknown"),
                                  device_data.get("mode", "unknown"),
                                  device_data.get("alarm", "unknown"))
+                    
+                    # Log the raw mode value for debugging
+                    _LOGGER.debug("Raw mode value: %s, type: %s", 
+                                 device_data.get("mode"), 
+                                 type(device_data.get("mode")).__name__)
                 
                 return device_data
                 

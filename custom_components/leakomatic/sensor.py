@@ -77,12 +77,12 @@ class LeakomaticSensor(CoordinatorEntity, SensorEntity):
         super().__init__(coordinator)
         self._device_info = device_info
         self._device_id = device_id
-        self._attr_name = f"{DEFAULT_NAME} {device_id}"
-        self._attr_unique_id = f"{device_id}_status"
-        self._attr_device_class = SensorDeviceClass.MOISTURE
-        self._attr_native_unit_of_measurement = "%"
-        self._attr_state_class = SensorStateClass.MEASUREMENT
-        self._attr_icon = "mdi:water"
+        self._attr_name = f"{DEFAULT_NAME} Mode"
+        self._attr_unique_id = f"{device_id}_mode"
+        self._attr_device_class = None  # No specific device class for mode
+        self._attr_native_unit_of_measurement = None  # No unit for mode
+        self._attr_state_class = None  # No state class for mode
+        self._attr_icon = "mdi:home"  # Icon for mode
         self._attr_entity_registry_enabled_default = True
         self._attr_should_poll = True
 
@@ -99,11 +99,23 @@ class LeakomaticSensor(CoordinatorEntity, SensorEntity):
     def native_value(self) -> StateType:
         """Return the state of the sensor."""
         if not self.coordinator.data:
+            _LOGGER.debug("No coordinator data available")
             return None
         
-        # For now, just return a dummy value
-        # In a real implementation, you would extract the actual moisture level from the device data
-        return 0.0
+        # Get the mode from the device data
+        mode = self.coordinator.data.get("mode")
+        _LOGGER.debug("Mode value from device data: %s", mode)
+        
+        # Map the mode to a human-readable state
+        if mode == 0:
+            return "Home"
+        elif mode == 1:
+            return "Away"
+        elif mode == 2:
+            return "Pause"
+        else:
+            _LOGGER.debug("Unknown mode value: %s", mode)
+            return None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -113,18 +125,6 @@ class LeakomaticSensor(CoordinatorEntity, SensorEntity):
         
         # Extract relevant attributes from the device data
         attributes = {}
-        
-        # Add device mode
-        if "mode" in self.coordinator.data:
-            mode = self.coordinator.data["mode"]
-            if mode == 0:
-                attributes["mode"] = "Home"
-            elif mode == 1:
-                attributes["mode"] = "Away"
-            elif mode == 2:
-                attributes["mode"] = "Pause"
-            else:
-                attributes["mode"] = f"Unknown ({mode})"
         
         # Add alarm status
         if "alarm" in self.coordinator.data:
