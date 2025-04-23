@@ -24,13 +24,6 @@ from .const import DOMAIN, DEFAULT_NAME, DEFAULT_SCAN_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
 
-# Define mode translations
-MODE_TRANSLATIONS = {
-    0: "Home",
-    1: "Away",
-    2: "Pause"
-}
-
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
