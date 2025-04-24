@@ -37,6 +37,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Fetch device data to get the sw_version
     device_data = await client.async_get_device_data()   
 
+    # Get the websocket token
+    ws_token = await client.async_get_websocket_token()
+    if not ws_token:
+        _LOGGER.warning("Could not get websocket token, websocket functionality will not be available")
+    else:
+        _LOGGER.debug("Successfully retrieved websocket token")
+
     name = f"{DEFAULT_NAME} {device_id}"
     if device_data and "name" in device_data:
         name = device_data["name"]
@@ -45,7 +52,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.warning("Could not find name in device data, using default")
     
     # If device data is available and contains sw_version, use it
-    sw_version = "Unknown"  # Default value
+    sw_version = "Unknown"
     if device_data and "sw_version" in device_data:
         sw_version = device_data["sw_version"]
         _LOGGER.debug("Found sw_version: %s", sw_version)
@@ -95,6 +102,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "client": client,
         "device_id": device_id,
         "device_entry": device_entry,
+        "ws_token": ws_token,  # Store the websocket token
     }
     
     # Set up platforms

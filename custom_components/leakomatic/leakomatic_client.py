@@ -229,4 +229,52 @@ class LeakomaticClient:
         if self._session:
             await self._session.close()
             self._session = None
-            _LOGGER.debug("Closed connection to Leakomatic API") 
+            _LOGGER.debug("Closed connection to Leakomatic API")
+
+    async def async_get_websocket_token(self) -> Optional[str]:
+        """Get the websocket token from the device page."""
+        if not self._device_id:
+            _LOGGER.error("Cannot fetch websocket token - no device configured")
+            return None
+            
+        if not self._session:
+            _LOGGER.debug("Reconnecting to Leakomatic API")
+            self._session = aiohttp.ClientSession()
+            
+            auth_success = await self.async_authenticate()
+            if not auth_success:
+                _LOGGER.error("Failed to reconnect to Leakomatic API")
+                return None
+            
+        try:
+            _LOGGER.debug("Fetching websocket token for device %s", self._device_id)
+            
+            # Construct the URL for the device status page (not JSON)
+            url = f"{STATUS_URL}/{self._device_id}"
+            _LOGGER.debug("Requesting URL: %s", url)
+            
+            async with self._session.get(url) as response:
+                if response.status != 200:
+                    _LOGGER.warning("Failed to fetch websocket token - server returned %s", response.status)
+                    return None
+                
+                # Get the response text
+                text = await response.text()
+                
+                # Define a regular expression pattern to match the ws token
+                pattern = re.compile(r'token=([a-zA-Z0-9_.-]+)')
+                
+                # Search for the pattern in the response
+                match = pattern.search(text)
+                
+                if not match:
+                    _LOGGER.warning("Websocket token not found in the response")
+                    return None
+                
+                ws_token = match.group(1)
+                _LOGGER.debug("Websocket token retrieved successfully")
+                return ws_token
+                
+        except Exception as err:
+            _LOGGER.error("Failed to fetch websocket token: %s", err)
+            return None 
