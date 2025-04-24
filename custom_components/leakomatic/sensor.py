@@ -76,9 +76,13 @@ async def async_setup_entry(
     @callback
     def handle_ws_message(message: dict) -> None:
         """Handle WebSocket messages."""
+        _LOGGER.debug("Sensor received message: %s", message)
         if message.get("type") == "device_updated":
-            # Update the sensor state with the new data
-            sensor.handle_update(message.get("message", {}).get("data", {}))
+            data = message.get("message", {}).get("data", {})
+            _LOGGER.debug("Updating sensor with new device data: %s", data)
+            sensor.handle_update(data)
+        else:
+            _LOGGER.debug("Ignoring message of type: %s", message.get("type"))
 
     # Store the callback in hass.data for the WebSocket client to use
     domain_data["ws_callback"] = handle_ws_message

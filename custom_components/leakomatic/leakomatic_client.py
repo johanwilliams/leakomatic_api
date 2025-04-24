@@ -352,17 +352,14 @@ class LeakomaticClient:
                 ws_url,
                 subprotocols=['actioncable-v1-json'],
                 additional_headers=ws_headers,
-                ssl=ssl_context  # Use the pre-created SSL context
+                ssl=ssl_context
             ) as websocket:
                 _LOGGER.debug("Connected to websocket server")
 
                 # Send subscription message
                 msg_subscribe = {
                     "command": "subscribe",
-                    "identifier": json.dumps({
-                        "channel": "BroadcastChannel",
-                        "user_id": self._user_id
-                    })
+                    "identifier": f"{{\"channel\":\"BroadcastChannel\",\"user_id\":{self._user_id}}}"
                 }
                 await websocket.send(json.dumps(msg_subscribe))
                 _LOGGER.debug("Sent subscription message: %s", msg_subscribe)
@@ -372,6 +369,7 @@ class LeakomaticClient:
                     try:
                         response = await websocket.recv()
                         parsed_response = json.loads(response)
+                        _LOGGER.debug("Raw WebSocket message received: %s", parsed_response)
 
                         # Extract message type
                         msg_type = ""
@@ -396,7 +394,9 @@ class LeakomaticClient:
                         else:
                             # For all other message types, call the callback
                             if msg_type:
-                                _LOGGER.debug("Received message of type: %s", msg_type)
+                                _LOGGER.debug("Received message of type: %s with data: %s", 
+                                           msg_type, 
+                                           parsed_response.get('message', {}).get('data', {}))
                                 message_callback(parsed_response)
                             else:
                                 _LOGGER.warning("Unknown message type in response: %s", parsed_response)
