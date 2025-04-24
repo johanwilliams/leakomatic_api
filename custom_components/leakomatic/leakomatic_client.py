@@ -1,4 +1,11 @@
-"""Client for the Leakomatic API."""
+"""Client for the Leakomatic API.
+
+This module provides a client for interacting with the Leakomatic API, including:
+- Authentication and session management
+- Device data retrieval
+- Real-time updates via WebSocket connection
+- Message handling for various device events
+"""
 from __future__ import annotations
 
 import logging
@@ -23,23 +30,36 @@ ssl_context.load_default_certs()
 ssl_context.set_default_verify_paths()
 
 class MessageType(Enum):
-    """Message types from the Leakomatic websocket."""
-    WELCOME = "welcome"
-    PING = "ping"
-    CONFIRM_SUBSCRIPTION = "confirm_subscription"
-    QUICK_TEST_UPDATED = "quick_test_updated"
-    TIGHTNESS_TEST_UPDATED = "tightness_test_updated"
-    FLOW_UPDATED = "flow_updated"
-    DEVICE_UPDATED = "device_updated"
-    STATUS_MESSAGE = "status_message"
-    CONFIGURATION_ADDED = "configuration_added"
-    ALARM_TRIGGERED = "alarm_triggered"
+    """Message types from the Leakomatic websocket.
+    
+    These types represent the various messages that can be received from the
+    Leakomatic WebSocket API, including system messages and device updates.
+    """
+    WELCOME = "welcome"  # Initial connection welcome message
+    PING = "ping"  # Keep-alive ping message
+    CONFIRM_SUBSCRIPTION = "confirm_subscription"  # Subscription confirmation
+    QUICK_TEST_UPDATED = "quick_test_updated"  # Quick test status update
+    TIGHTNESS_TEST_UPDATED = "tightness_test_updated"  # Tightness test status update
+    FLOW_UPDATED = "flow_updated"  # Water flow status update
+    DEVICE_UPDATED = "device_updated"  # General device status update
+    STATUS_MESSAGE = "status_message"  # General status message
+    CONFIGURATION_ADDED = "configuration_added"  # Configuration change notification
+    ALARM_TRIGGERED = "alarm_triggered"  # Alarm event notification
 
 class LeakomaticClient:
-    """Client for the Leakomatic API."""
+    """Client for the Leakomatic API.
+    
+    This class handles all communication with the Leakomatic API, including
+    authentication, data retrieval, and WebSocket connections for real-time updates.
+    """
 
     def __init__(self, email: str, password: str) -> None:
-        """Initialize the client."""
+        """Initialize the client.
+        
+        Args:
+            email: The email address for authentication
+            password: The password for authentication
+        """
         self._email = email
         self._password = password
         self._auth_token: Optional[str] = None

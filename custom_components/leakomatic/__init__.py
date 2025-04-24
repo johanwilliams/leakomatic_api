@@ -1,4 +1,12 @@
-"""The Leakomatic integration."""
+"""The Leakomatic integration.
+
+This integration connects Home Assistant to Leakomatic water leak detection devices.
+It provides real-time monitoring of device status, including:
+- Device mode (Home/Away/Pause)
+- Alarm status
+- Device information and metrics
+- Real-time updates via WebSocket connection
+"""
 import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -14,11 +22,33 @@ _LOGGER = logging.getLogger(LOGGER_NAME)
 PLATFORMS = ["sensor"]
 
 async def handle_ws_message(message: dict) -> None:
-    """Handle websocket messages by logging them."""
+    """Handle websocket messages by logging them.
+    
+    This function serves as a callback for the WebSocket connection,
+    processing incoming messages from the Leakomatic device.
+    
+    Args:
+        message: The message received from the WebSocket connection
+    """
     _LOGGER.debug("Received websocket message: %s", message)
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Leakomatic from a config entry."""
+    """Set up Leakomatic from a config entry.
+    
+    This function:
+    1. Authenticates with the Leakomatic API
+    2. Retrieves device information
+    3. Sets up the WebSocket connection for real-time updates
+    4. Creates the device entity in Home Assistant
+    5. Sets up the sensor platform
+    
+    Args:
+        hass: The Home Assistant instance
+        entry: The config entry to set up
+        
+    Returns:
+        bool: True if setup was successful, False otherwise
+    """
     _LOGGER.debug("Setting up Leakomatic integration with config entry: %s", entry.entry_id)
     
     # Initialize the client
@@ -119,7 +149,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload a config entry."""
+    """Unload a config entry.
+    
+    This function:
+    1. Unloads all platforms
+    2. Closes the client session
+    3. Cleans up the integration data
+    
+    Args:
+        hass: The Home Assistant instance
+        entry: The config entry to unload
+        
+    Returns:
+        bool: True if unload was successful, False otherwise
+    """
     _LOGGER.debug("Unloading Leakomatic integration for config entry: %s", entry.entry_id)
     
     # Unload platforms

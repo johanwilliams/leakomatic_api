@@ -1,4 +1,13 @@
-"""Support for Leakomatic sensors."""
+"""Support for Leakomatic sensors.
+
+This module implements the sensor platform for the Leakomatic integration.
+It provides sensors for:
+- Device mode (Home/Away/Pause)
+- Device status and metrics
+- Alarm conditions
+
+The sensors are updated both through polling and real-time WebSocket updates.
+"""
 from __future__ import annotations
 
 import logging
@@ -29,7 +38,18 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up the Leakomatic sensor."""
+    """Set up the Leakomatic sensor.
+    
+    This function:
+    1. Gets the device information from the config entry
+    2. Creates a DataUpdateCoordinator for polling updates
+    3. Creates and adds the sensor entities
+    
+    Args:
+        hass: The Home Assistant instance
+        config_entry: The config entry to set up sensors for
+        async_add_entities: Callback to register new entities
+    """
     _LOGGER.debug("Setting up Leakomatic sensor for config entry: %s", config_entry.entry_id)
     
     # Get the client and device ID from hass.data
@@ -65,7 +85,18 @@ async def async_setup_entry(
 
 
 class LeakomaticSensor(CoordinatorEntity, SensorEntity):
-    """Representation of a Leakomatic sensor."""
+    """Representation of a Leakomatic sensor.
+    
+    This sensor represents the mode of the Leakomatic device (Home/Away/Pause).
+    It is updated both through regular polling and WebSocket updates.
+    
+    Attributes:
+        _device_info: Information about the physical device
+        _device_id: The unique identifier of the device
+        _attr_name: The name of the sensor
+        _attr_unique_id: The unique identifier for this sensor
+        _attr_icon: The icon to use for this sensor
+    """
 
     def __init__(
         self,

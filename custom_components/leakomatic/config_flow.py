@@ -1,4 +1,9 @@
-"""Config flow for Leakomatic integration."""
+"""Config flow for Leakomatic integration.
+
+This module handles the configuration flow for the Leakomatic integration,
+including user authentication and device discovery. It manages the setup
+process through the Home Assistant UI.
+"""
 from __future__ import annotations
 
 import logging
@@ -18,26 +23,41 @@ from .leakomatic_client import LeakomaticClient
 _LOGGER = logging.getLogger(LOGGER_NAME)
 
 class LeakomaticConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Leakomatic."""
+    """Handle a config flow for Leakomatic.
+    
+    This class guides the user through the setup process, validates their
+    credentials, and creates the necessary config entries in Home Assistant.
+    """
 
     VERSION = 1
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Handle the initial step."""
+        """Handle the initial step.
+        
+        This step collects and validates user credentials, tests the connection
+        to the Leakomatic API, and creates the config entry if successful.
+
+        Args:
+            user_input: Dictionary containing user provided configuration data.
+                       None if this is the first time showing the form.
+
+        Returns:
+            FlowResult: The result of the config flow step.
+        """
         errors = {}
 
         if user_input is not None:
             try:
-                _LOGGER.debug("Attempting to create config entry with email: %s", user_input["email"])
+                _LOGGER.debug("Attempting to validate Leakomatic credentials")
                 
                 # Create a client and authenticate
                 client = LeakomaticClient(user_input["email"], user_input["password"])
                 auth_success = await client.async_authenticate()
                 
                 if not auth_success:
-                    _LOGGER.warning("Authentication failed for email: %s", user_input["email"])
+                    _LOGGER.warning("Authentication failed")
                     # Use the specific error code from the client if available
                     error_code = client.error_code or "invalid_credentials"
                     errors["base"] = error_code
@@ -74,23 +94,23 @@ class LeakomaticConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 existing_entries = self._async_current_entries()
                 for entry in existing_entries:
                     if entry.data.get("email") == user_input["email"]:
-                        _LOGGER.info("Email %s is already configured", user_input["email"])
+                        _LOGGER.info("Account is already configured")
                         return self.async_abort(reason="already_configured")
                 
                 # Store the device ID in the config entry data
                 user_input["device_id"] = device_id
                 
                 # Authentication successful, create the config entry
-                _LOGGER.info("Successfully configured Leakomatic for email: %s", user_input["email"])
+                _LOGGER.info("Successfully configured Leakomatic device: %s", device_id)
                 return self.async_create_entry(
                     title=user_input["email"],
                     data=user_input,
                 )
             except aiohttp.ClientError:
-                _LOGGER.warning("Connection error during config flow setup for email: %s", user_input["email"])
+                _LOGGER.warning("Connection error during setup")
                 errors["base"] = "cannot_connect"
             except Exception:  # pylint: disable=broad-except
-                _LOGGER.error("Unexpected exception during config flow setup: %s", user_input["email"])
+                _LOGGER.error("Unexpected error during setup")
                 errors["base"] = "unknown"
 
         _LOGGER.debug("Showing config flow form")
