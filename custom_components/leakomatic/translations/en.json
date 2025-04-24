@@ -3,7 +3,7 @@
         "step": {
             "user": {
                 "title": "Connect to Leakomatic",
-                "description": "Please enter your Leakomatic account credentials.",
+                "description": "Enter your Leakomatic account credentials.",
                 "data": {
                     "email": "Email",
                     "password": "Password"
@@ -11,12 +11,12 @@
             }
         },
         "error": {
-            "unknown": "Unexpected error occurred",
-            "cannot_connect": "Failed to connect to Leakomatic",
+            "unknown": "An unexpected error occurred",
+            "cannot_connect": "Could not connect to Leakomatic",
             "invalid_auth": "Invalid authentication",
             "invalid_credentials": "Invalid email or password",
-            "auth_token_missing": "Could not retrieve authentication token",
-            "xsrf_token_missing": "Could not retrieve XSRF token",
+            "auth_token_missing": "Could not get authentication token",
+            "xsrf_token_missing": "Could not get XSRF token",
             "no_devices_found": "No Leakomatic devices found in your account"
         },
         "abort": {
@@ -27,7 +27,7 @@
     "entity": {
         "sensor": {
             "mode": {
-                "name": "Mode",
+                "name": "Operating Mode",
                 "state": {
                     "0": "Home",
                     "1": "Away",
@@ -43,6 +43,9 @@
             },
             "flow_duration": {
                 "name": "Last Flow Duration"
+            },
+            "signal_strength": {
+                "name": "Signal Strength"
             }
         }
     }

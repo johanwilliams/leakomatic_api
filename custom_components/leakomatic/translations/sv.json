@@ -43,6 +43,9 @@
             },
             "flow_duration": {
                 "name": "Senaste flödestid"
+            },
+            "signal_strength": {
+                "name": "Signalstyrka"
             }
         }
     }

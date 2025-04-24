@@ -23,7 +23,7 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.typing import StateType
 
 from .const import DOMAIN, DEFAULT_NAME
@@ -74,7 +74,8 @@ async def async_setup_entry(
     mode_sensor = ModeSensor(device_info, device_id, device_data)
     quick_test_sensor = QuickTestSensor(device_info, device_id, device_data)
     flow_duration_sensor = FlowDurationSensor(device_info, device_id, device_data)
-    async_add_entities([mode_sensor, quick_test_sensor, flow_duration_sensor])
+    signal_strength_sensor = SignalStrengthSensor(device_info, device_id, device_data)
+    async_add_entities([mode_sensor, quick_test_sensor, flow_duration_sensor, signal_strength_sensor])
 
     # Register callback for WebSocket updates
     @callback
@@ -113,6 +114,11 @@ async def async_setup_entry(
             # Only update the sensor if flow_mode is 0
             if flow_mode == 0:
                 flow_duration_sensor.handle_update({"current_flow_duration": flow_duration})
+        elif msg_type == "status_message":
+            data = message.get("message", {}).get("data", {})
+            if "rssi" in data:
+                _LOGGER.debug("Updating signal strength with new value: %s", data["rssi"])
+                signal_strength_sensor.handle_update({"rssi": data["rssi"]})
 
     # Store the callback in hass.data for the WebSocket client to use
     domain_data["ws_callback"] = handle_ws_message
@@ -344,6 +350,52 @@ class FlowDurationSensor(LeakomaticSensor):
             except (ValueError, TypeError):
                 _LOGGER.warning("Invalid flow duration value: %s (type: %s)", 
                               value, type(value).__name__)
+                return None
+        
+        return None
+
+
+class SignalStrengthSensor(LeakomaticSensor):
+    """Representation of a Leakomatic Signal Strength sensor.
+    
+    This sensor represents the WiFi signal strength (RSSI) of the Leakomatic device.
+    It is updated through WebSocket updates with status_message operation.
+    """
+
+    def __init__(
+        self,
+        device_info: dict[str, Any],
+        device_id: str,
+        device_data: dict[str, Any] | None,
+    ) -> None:
+        """Initialize the signal strength sensor."""
+        super().__init__(
+            device_info=device_info,
+            device_id=device_id,
+            device_data=device_data,
+            key="signal_strength",
+            icon="mdi:wifi",
+            device_class=SensorDeviceClass.SIGNAL_STRENGTH,
+            state_class=SensorStateClass.MEASUREMENT,
+            native_unit_of_measurement="dBm"
+        )
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    @property
+    def native_value(self) -> StateType:
+        """Return the state of the sensor."""
+        if not self._device_data:
+            _LOGGER.debug("No device data available")
+            return None
+        
+        # Get the RSSI value
+        rssi = self._device_data.get("rssi")
+        if rssi is not None:
+            try:
+                return int(rssi)  # RSSI should be an integer
+            except (ValueError, TypeError):
+                _LOGGER.warning("Invalid RSSI value: %s (type: %s)", 
+                              rssi, type(rssi).__name__)
                 return None
         
         return None 
