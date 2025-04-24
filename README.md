@@ -6,9 +6,21 @@ This integration allows you to connect your Leakomatic water leak sensors to Hom
 
 - Real-time updates via WebSocket connection
 - Device mode monitoring (Home/Away/Pause)
-- Alarm status monitoring
+- Quick test index monitoring
 - Device information display (model, software version, location)
 - Automatic reconnection handling
+
+## Available Sensors
+
+The integration provides the following sensors:
+
+- **Mode Sensor**: Shows the current operating mode of your Leakomatic device
+  - States: Home (0), Away (1), Pause (2)
+  - Includes device status attributes like alarm state and last seen time
+
+- **Quick Test Index**: Displays the current quick test measurement value
+  - Numerical value indicating water flow characteristics
+  - Updates in real-time when quick tests are performed
 
 ## Supported Languages
 
@@ -34,8 +46,8 @@ The integration will automatically use the language that matches your Home Assis
 
 The integration will automatically:
 - Connect to your Leakomatic device
-- Set up real-time monitoring
-- Create sensors for device status
+- Set up real-time monitoring via WebSocket
+- Create sensors for device status and measurements
 
 ## Debug Logging
 
@@ -60,6 +72,7 @@ If you encounter any issues with the integration:
    - Authentication failures: Verify your email and password
    - Connection issues: Check your network connection
    - Missing updates: The WebSocket connection might be interrupted
+   - Sensor state issues: Check if the device is reachable and sending data
 
 ## Development Status
 
@@ -67,4 +80,6 @@ This integration is currently in development. Future enhancements planned:
 - Additional sensor types for various device metrics
 - Configuration options for update intervals
 - Enhanced error handling and recovery
-- Support for multiple devices 
+- Support for multiple devices
+- More detailed alarm state reporting
+- Historical data analysis features 
