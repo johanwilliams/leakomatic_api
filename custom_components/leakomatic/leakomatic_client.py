@@ -3,15 +3,37 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Optional
+import ssl
+from enum import Enum
+from typing import Any, Optional, Callable
 
 import aiohttp
+import websockets
 from bs4 import BeautifulSoup
 import urllib.parse
+import json
 
 from .const import LOGGER_NAME, START_URL, LOGIN_URL, STATUS_URL, WEBSOCKET_URL
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
+
+# Create SSL context at module level
+ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+ssl_context.load_default_certs()
+ssl_context.set_default_verify_paths()
+
+class MessageType(Enum):
+    """Message types from the Leakomatic websocket."""
+    WELCOME = "welcome"
+    PING = "ping"
+    CONFIRM_SUBSCRIPTION = "confirm_subscription"
+    QUICK_TEST_UPDATED = "quick_test_updated"
+    TIGHTNESS_TEST_UPDATED = "tightness_test_updated"
+    FLOW_UPDATED = "flow_updated"
+    DEVICE_UPDATED = "device_updated"
+    STATUS_MESSAGE = "status_message"
+    CONFIGURATION_ADDED = "configuration_added"
+    ALARM_TRIGGERED = "alarm_triggered"
 
 class LeakomaticClient:
     """Client for the Leakomatic API."""
@@ -277,4 +299,93 @@ class LeakomaticClient:
                 
         except Exception as err:
             _LOGGER.error("Failed to fetch websocket token: %s", err)
-            return None 
+            return None
+
+    async def connect_to_websocket(self, ws_token: str, message_callback: Callable[[dict], None]) -> None:
+        """Connect to the websocket server and listen for messages.
+        
+        Args:
+            ws_token: The websocket token to use for authentication
+            message_callback: Callback function to handle received messages
+        """
+        if not self._user_id:
+            _LOGGER.error("Cannot connect to websocket - no user ID available")
+            return
+
+        # Construct the websocket URL
+        ws_url = f"{WEBSOCKET_URL}?token={ws_token}"
+        _LOGGER.debug("Connecting to websocket server at: %s", WEBSOCKET_URL)
+
+        # Define custom headers
+        ws_headers = {
+            "Accept-Encoding": "gzip, deflate, br",
+            "Accept-Language": "en-US,en;q=0.9,sv;q=0.8",
+            "Cache-Control": "no-cache",
+            "Host": "ws-api.leakomatic.com",
+            "Origin": "https://cloud.leakomatic.com",
+            "Pragma": "no-cache",
+            "User-Agent": "Mozilla/5.0"
+        }
+
+        try:
+            async with websockets.connect(
+                ws_url,
+                subprotocols=['actioncable-v1-json'],
+                additional_headers=ws_headers,
+                ssl=ssl_context  # Use the pre-created SSL context
+            ) as websocket:
+                _LOGGER.debug("Connected to websocket server")
+
+                # Send subscription message
+                msg_subscribe = {
+                    "command": "subscribe",
+                    "identifier": json.dumps({
+                        "channel": "BroadcastChannel",
+                        "user_id": self._user_id
+                    })
+                }
+                await websocket.send(json.dumps(msg_subscribe))
+                _LOGGER.debug("Sent subscription message: %s", msg_subscribe)
+
+                # Listen for messages
+                while True:
+                    try:
+                        response = await websocket.recv()
+                        parsed_response = json.loads(response)
+
+                        # Extract message type
+                        msg_type = ""
+                        # Try to extract the "type" (which exists in some messages)
+                        attr_type = parsed_response.get("type")
+                        if attr_type is not None:
+                            msg_type = attr_type
+                        else:
+                            # Look for "operation" attribute in message
+                            attr_operation = parsed_response.get('message', {}).get('operation', '')
+                            if attr_operation is not None:
+                                msg_type = attr_operation
+
+                        # Handle different message types
+                        if msg_type == MessageType.WELCOME.value:
+                            _LOGGER.debug("Received welcome message")
+                        elif msg_type == MessageType.PING.value:
+                            _LOGGER.debug("Received ping")
+                            # TODO: Implement reconnect if no ping received in X time
+                        elif msg_type == MessageType.CONFIRM_SUBSCRIPTION.value:
+                            _LOGGER.debug("Subscription confirmed")
+                        else:
+                            # For all other message types, call the callback
+                            if msg_type:
+                                _LOGGER.debug("Received message of type: %s", msg_type)
+                                message_callback(parsed_response)
+                            else:
+                                _LOGGER.warning("Unknown message type in response: %s", parsed_response)
+
+                    except websockets.ConnectionClosed:
+                        _LOGGER.warning("Websocket connection closed, attempting to reconnect...")
+                        break  # Break out of the inner loop to attempt reconnection
+                    except Exception as err:
+                        _LOGGER.error("Error processing websocket message: %s", err)
+
+        except Exception as err:
+            _LOGGER.error("Failed to connect to websocket: %s", err) 

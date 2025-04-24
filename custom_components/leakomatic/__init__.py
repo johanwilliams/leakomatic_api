@@ -13,6 +13,10 @@ _LOGGER = logging.getLogger(LOGGER_NAME)
 
 PLATFORMS = ["sensor"]
 
+async def handle_ws_message(message: dict) -> None:
+    """Handle websocket messages by logging them."""
+    _LOGGER.debug("Received websocket message: %s", message)
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Leakomatic from a config entry."""
     _LOGGER.debug("Setting up Leakomatic integration with config entry: %s", entry.entry_id)
@@ -43,6 +47,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.warning("Could not get websocket token, websocket functionality will not be available")
     else:
         _LOGGER.debug("Successfully retrieved websocket token")
+        # Start websocket connection
+        hass.async_create_task(client.connect_to_websocket(ws_token, handle_ws_message))
+        _LOGGER.debug("Started websocket connection task")
 
     name = f"{DEFAULT_NAME} {device_id}"
     if device_data and "name" in device_data:
