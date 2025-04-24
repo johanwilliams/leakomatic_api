@@ -270,13 +270,23 @@ class QuickTestSensor(LeakomaticSensor):
             _LOGGER.debug("No device data available")
             return None
         
-        # Get the quick test value from the device data
-        value = self._device_data.get("current_quick_test")
+        # Get the quick test value - try both possible field names
+        value = self._device_data.get("value")
+        if value is not None:
+            _LOGGER.debug("Found quick test value in 'value' field: %s (type: %s)", 
+                         value, type(value).__name__)
+        else:
+            value = self._device_data.get("current_quick_test")
+            if value is not None:
+                _LOGGER.debug("Found quick test value in 'current_quick_test' field: %s (type: %s)", 
+                             value, type(value).__name__)
+        
         if value is not None:
             try:
                 return round(float(value), 2)  # Round to 2 decimal places
             except (ValueError, TypeError):
-                _LOGGER.warning("Invalid quick test value: %s", value)
+                _LOGGER.warning("Invalid quick test value: %s (type: %s)", 
+                              value, type(value).__name__)
                 return None
         
         return None
@@ -316,15 +326,24 @@ class FlowDurationSensor(LeakomaticSensor):
             _LOGGER.debug("No device data available")
             return None
         
-        # Get the flow duration value from the device data
-        value = self._device_data.get("current_flow_duration")
+        # Get the flow duration value - try both possible field names
+        value = self._device_data.get("value")
+        if value is not None:
+            _LOGGER.debug("Found flow duration in 'value' field: %s (type: %s)", 
+                         value, type(value).__name__)
+        else:
+            value = self._device_data.get("current_flow_duration")
+            if value is not None:
+                _LOGGER.debug("Found flow duration in 'current_flow_duration' field: %s (type: %s)", 
+                             value, type(value).__name__)
+        
         if value is not None:
             try:
                 # Ensure the value is an integer number of seconds
-                # This helps Home Assistant format it properly
                 return int(float(value))
             except (ValueError, TypeError):
-                _LOGGER.warning("Invalid flow duration value: %s", value)
+                _LOGGER.warning("Invalid flow duration value: %s (type: %s)", 
+                              value, type(value).__name__)
                 return None
         
         return None 
