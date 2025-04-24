@@ -107,7 +107,82 @@ async def async_setup_entry(
     domain_data["ws_callback"] = handle_ws_message
 
 
-class ModeSensor(SensorEntity):
+class LeakomaticSensor(SensorEntity):
+    """Base class for all Leakomatic sensors.
+    
+    This class implements common functionality shared between all Leakomatic sensors.
+    """
+
+    def __init__(
+        self,
+        device_info: dict[str, Any],
+        device_id: str,
+        device_data: dict[str, Any] | None,
+        *,
+        name: str,
+        key: str,
+        icon: str,
+        device_class: SensorDeviceClass | None = None,
+        state_class: SensorStateClass | None = None,
+        native_unit_of_measurement: str | None = None,
+    ) -> None:
+        """Initialize the sensor.
+        
+        Args:
+            device_info: Information about the physical device
+            device_id: The unique identifier of the device
+            device_data: The current device data
+            name: Display name of the sensor
+            key: Unique key/identifier for the sensor
+            icon: MDI icon to use
+            device_class: The device class of the sensor
+            state_class: The state class of the sensor
+            native_unit_of_measurement: The unit of measurement
+        """
+        self._device_info = device_info
+        self._device_id = device_id
+        self._device_data = device_data or {}
+        
+        self._attr_name = name
+        self._attr_unique_id = f"{device_id}_{key}"
+        self._attr_device_class = device_class
+        self._attr_native_unit_of_measurement = native_unit_of_measurement
+        self._attr_state_class = state_class
+        self._attr_icon = icon
+        self._attr_entity_registry_enabled_default = True
+        self._attr_should_poll = False  # No polling needed with WebSocket
+        self._attr_translation_key = key
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return the device info."""
+        return self._device_info
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the state attributes."""
+        if not self._device_data:
+            return {}
+        
+        # Extract relevant attributes from the device data
+        attributes = {}
+        
+        # Add common attributes that all sensors might want to expose
+        for attr in ["alarm", "name", "model", "sw_version", "last_seen_at"]:
+            if attr in self._device_data:
+                attributes[attr] = self._device_data[attr]
+        
+        return attributes
+
+    @callback
+    def handle_update(self, data: dict[str, Any]) -> None:
+        """Handle updated data from WebSocket."""
+        self._device_data = data
+        self.async_write_ha_state()
+        _LOGGER.debug("%s value updated: %s", self.name, self.native_value)
+
+
+class ModeSensor(LeakomaticSensor):
     """Representation of a Leakomatic Mode sensor.
     
     This sensor represents the mode of the Leakomatic device (Home/Away/Pause).
@@ -128,24 +203,15 @@ class ModeSensor(SensorEntity):
         device_id: str,
         device_data: dict[str, Any] | None,
     ) -> None:
-        """Initialize the sensor."""
-        self._device_info = device_info
-        self._device_id = device_id
-        self._device_data = device_data or {}
-        self._attr_name = f"{DEFAULT_NAME} Mode"
-        self._attr_unique_id = f"{device_id}_mode"
-        self._attr_device_class = None  # No specific device class for mode
-        self._attr_native_unit_of_measurement = None  # No unit for mode
-        self._attr_state_class = None  # No state class for mode
-        self._attr_icon = "mdi:home"  # Icon for mode
-        self._attr_entity_registry_enabled_default = True
-        self._attr_should_poll = False  # No polling needed with WebSocket
-        self._attr_translation_key = "mode"  # Key for state translations
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        return self._device_info
+        """Initialize the mode sensor."""
+        super().__init__(
+            device_info=device_info,
+            device_id=device_id,
+            device_data=device_data,
+            name=f"{DEFAULT_NAME} Mode",
+            key="mode",
+            icon="mdi:home",
+        )
 
     @property
     def native_value(self) -> StateType:
@@ -165,48 +231,8 @@ class ModeSensor(SensorEntity):
             _LOGGER.debug("Unknown mode value: %s", mode)
             return "unknown"
 
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        """Return the state attributes."""
-        if not self._device_data:
-            return {}
-        
-        # Extract relevant attributes from the device data
-        attributes = {}
-        
-        # Add alarm status
-        if "alarm" in self._device_data:
-            attributes["alarm"] = self._device_data["alarm"]
-        
-        # Add device name
-        if "name" in self._device_data:
-            attributes["name"] = self._device_data["name"]
-        
-        # Add device model
-        if "model" in self._device_data:
-            attributes["model"] = self._device_data["model"]
-        
-        # Add software version
-        if "sw_version" in self._device_data:
-            attributes["sw_version"] = self._device_data["sw_version"]
-        
-        # Add last seen time
-        if "last_seen_at" in self._device_data:
-            attributes["last_seen_at"] = self._device_data["last_seen_at"]
-        
-        return attributes
 
-    @callback
-    def handle_update(self, device_data: dict[str, Any]) -> None:
-        """Handle updated data from WebSocket."""
-        _LOGGER.debug("Handling update with device data: %s", device_data)
-        self._device_data = device_data
-        _LOGGER.debug("Mode value before state update: %s", self._device_data.get("mode"))
-        self.async_write_ha_state()
-        _LOGGER.debug("State update completed. Current mode: %s", self.native_value)
-
-
-class QuickTestSensor(SensorEntity):
+class QuickTestSensor(LeakomaticSensor):
     """Representation of a Leakomatic Quick Test sensor.
     
     This sensor represents the quick test index of the Leakomatic device.
@@ -219,24 +245,16 @@ class QuickTestSensor(SensorEntity):
         device_id: str,
         device_data: dict[str, Any] | None,
     ) -> None:
-        """Initialize the sensor."""
-        self._device_info = device_info
-        self._device_id = device_id
-        self._device_data = device_data or {}
-        self._attr_name = "Quick test index"
-        self._attr_unique_id = f"{device_id}_quick_test"
-        self._attr_device_class = None  # No specific device class since it's just a numerical value
-        self._attr_native_unit_of_measurement = None  # No unit
-        self._attr_state_class = SensorStateClass.MEASUREMENT  # This is a current measurement value
-        self._attr_icon = "mdi:water"  # Water-related icon
-        self._attr_entity_registry_enabled_default = True
-        self._attr_should_poll = False  # No polling needed with WebSocket
-        self._attr_translation_key = "quick_test"  # Key for translations
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        return self._device_info
+        """Initialize the quick test sensor."""
+        super().__init__(
+            device_info=device_info,
+            device_id=device_id,
+            device_data=device_data,
+            name="Quick test index",
+            key="quick_test",
+            icon="mdi:water",
+            state_class=SensorStateClass.MEASUREMENT,
+        )
 
     @property
     def native_value(self) -> StateType:
@@ -254,12 +272,4 @@ class QuickTestSensor(SensorEntity):
                 _LOGGER.warning("Invalid quick test value: %s", value)
                 return None
         
-        return None
-
-    @callback
-    def handle_update(self, data: dict[str, Any]) -> None:
-        """Handle updated data from WebSocket."""
-        if "value" in data:
-            self._device_data = {"current_quick_test": data["value"]}
-            self.async_write_ha_state()
-            _LOGGER.debug("Quick test value updated to: %s", data["value"]) 
+        return None 
