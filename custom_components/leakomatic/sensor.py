@@ -133,6 +133,7 @@ class LeakomaticSensor(SensorEntity):
         self._attr_icon = "mdi:home"  # Icon for mode
         self._attr_entity_registry_enabled_default = True
         self._attr_should_poll = False  # No polling needed with WebSocket
+        self._attr_translation_key = "mode"  # Key for state translations
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -150,13 +151,12 @@ class LeakomaticSensor(SensorEntity):
         mode = self._device_data.get("mode")
         _LOGGER.debug("Reading mode value: %s (type: %s)", mode, type(mode).__name__)
         
-        # Return the numeric value directly
+        # Return the numeric value as a string - translations will be handled by HA
         if mode in (0, 1, 2):
-            _LOGGER.debug("Returning valid mode value: %s", mode)
-            return mode
+            return str(mode)
         else:
             _LOGGER.debug("Unknown mode value: %s", mode)
-            return "unknown"  # Return "unknown" as a string to match the translation key
+            return "unknown"
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
