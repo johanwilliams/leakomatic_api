@@ -9,7 +9,7 @@ It provides real-time monitoring of device status, including:
 """
 import logging
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceEntry, DeviceRegistry, async_get as async_get_device_registry
 from homeassistant.helpers.entity_registry import EntityRegistry
 
@@ -22,14 +22,7 @@ _LOGGER = logging.getLogger(LOGGER_NAME)
 PLATFORMS = ["sensor"]
 
 async def handle_ws_message(message: dict) -> None:
-    """Handle websocket messages by logging them.
-    
-    This function serves as a callback for the WebSocket connection,
-    processing incoming messages from the Leakomatic device.
-    
-    Args:
-        message: The message received from the WebSocket connection
-    """
+    """Handle websocket messages by passing them to the sensor callback."""
     _LOGGER.debug("Received websocket message: %s", message)
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -68,7 +61,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     _LOGGER.debug("Found device ID: %s", device_id)
     
-    # Fetch device data to get the sw_version
+    # Fetch initial device data
     device_data = await client.async_get_device_data()   
 
     # Get the websocket token
@@ -77,9 +70,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.warning("Could not get websocket token, websocket functionality will not be available")
     else:
         _LOGGER.debug("Successfully retrieved websocket token")
-        # Start websocket connection
-        hass.async_create_task(client.connect_to_websocket(ws_token, handle_ws_message))
-        _LOGGER.debug("Started websocket connection task")
 
     name = f"{DEFAULT_NAME} {device_id}"
     if device_data and "name" in device_data:
@@ -144,6 +134,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     # Set up platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    
+    # Start websocket connection after platforms are set up
+    if ws_token:
+        hass.async_create_task(
+            client.connect_to_websocket(
+                ws_token,
+                hass.data[DOMAIN][entry.entry_id].get("ws_callback", handle_ws_message)
+            )
+        )
+        _LOGGER.debug("Started websocket connection task")
     
     _LOGGER.info("Leakomatic integration setup completed for %s", entry.entry_id)
     return True

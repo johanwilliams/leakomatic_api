@@ -6,12 +6,11 @@ It provides sensors for:
 - Device status and metrics
 - Alarm conditions
 
-The sensors are updated both through polling and real-time WebSocket updates.
+The sensors are updated through real-time WebSocket updates.
 """
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
 from typing import Any, Optional
 
 from homeassistant.components.sensor import (
@@ -20,16 +19,12 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.typing import StateType
-from homeassistant.helpers.update_coordinator import (
-    CoordinatorEntity,
-    DataUpdateCoordinator,
-)
 
-from .const import DOMAIN, DEFAULT_NAME, DEFAULT_SCAN_INTERVAL
+from .const import DOMAIN, DEFAULT_NAME
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,8 +37,7 @@ async def async_setup_entry(
     
     This function:
     1. Gets the device information from the config entry
-    2. Creates a DataUpdateCoordinator for polling updates
-    3. Creates and adds the sensor entities
+    2. Creates and adds the sensor entities
     
     Args:
         hass: The Home Assistant instance
@@ -71,24 +65,30 @@ async def async_setup_entry(
         "sw_version": device_entry.sw_version,
     }
     
-    # Create a coordinator to fetch data
-    coordinator = DataUpdateCoordinator(
-        hass,
-        _LOGGER,
-        name=f"{DEFAULT_NAME} {device_id}",
-        update_method=client.async_get_device_data,
-        update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
-    )
+    # Get initial device data
+    device_data = await client.async_get_device_data()
     
     # Add the sensor
-    async_add_entities([LeakomaticSensor(coordinator, device_info, device_id)])
+    sensor = LeakomaticSensor(device_info, device_id, device_data)
+    async_add_entities([sensor])
+
+    # Register callback for WebSocket updates
+    @callback
+    def handle_ws_message(message: dict) -> None:
+        """Handle WebSocket messages."""
+        if message.get("type") == "device_updated":
+            # Update the sensor state with the new data
+            sensor.handle_update(message.get("message", {}).get("data", {}))
+
+    # Store the callback in hass.data for the WebSocket client to use
+    domain_data["ws_callback"] = handle_ws_message
 
 
-class LeakomaticSensor(CoordinatorEntity, SensorEntity):
+class LeakomaticSensor(SensorEntity):
     """Representation of a Leakomatic sensor.
     
     This sensor represents the mode of the Leakomatic device (Home/Away/Pause).
-    It is updated both through regular polling and WebSocket updates.
+    It is updated through WebSocket updates.
     
     Attributes:
         _device_info: Information about the physical device
@@ -96,18 +96,19 @@ class LeakomaticSensor(CoordinatorEntity, SensorEntity):
         _attr_name: The name of the sensor
         _attr_unique_id: The unique identifier for this sensor
         _attr_icon: The icon to use for this sensor
+        _device_data: The current device data
     """
 
     def __init__(
         self,
-        coordinator: DataUpdateCoordinator,
         device_info: dict[str, Any],
         device_id: str,
+        device_data: dict[str, Any] | None,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator)
         self._device_info = device_info
         self._device_id = device_id
+        self._device_data = device_data or {}
         self._attr_name = f"{DEFAULT_NAME} Mode"
         self._attr_unique_id = f"{device_id}_mode"
         self._attr_device_class = None  # No specific device class for mode
@@ -115,27 +116,22 @@ class LeakomaticSensor(CoordinatorEntity, SensorEntity):
         self._attr_state_class = None  # No state class for mode
         self._attr_icon = "mdi:home"  # Icon for mode
         self._attr_entity_registry_enabled_default = True
-        self._attr_should_poll = True
-        self._attr_translation_key = "mode"  # This tells Home Assistant to use the translation system
+        self._attr_should_poll = False  # No polling needed with WebSocket
 
     @property
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
-        # Update sw_version if coordinator data is available
-        if self.coordinator.data and "sw_version" in self.coordinator.data:
-            self._device_info["sw_version"] = self.coordinator.data["sw_version"]
-        
         return self._device_info
 
     @property
     def native_value(self) -> StateType:
         """Return the state of the sensor."""
-        if not self.coordinator.data:
-            _LOGGER.debug("No coordinator data available")
+        if not self._device_data:
+            _LOGGER.debug("No device data available")
             return None
         
         # Get the mode from the device data
-        mode = self.coordinator.data.get("mode")
+        mode = self._device_data.get("mode")
         _LOGGER.debug("Mode value from device data: %s", mode)
         
         # Return the numeric value directly
@@ -148,30 +144,36 @@ class LeakomaticSensor(CoordinatorEntity, SensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return the state attributes."""
-        if not self.coordinator.data:
+        if not self._device_data:
             return {}
         
         # Extract relevant attributes from the device data
         attributes = {}
         
         # Add alarm status
-        if "alarm" in self.coordinator.data:
-            attributes["alarm"] = self.coordinator.data["alarm"]
+        if "alarm" in self._device_data:
+            attributes["alarm"] = self._device_data["alarm"]
         
         # Add device name
-        if "name" in self.coordinator.data:
-            attributes["name"] = self.coordinator.data["name"]
+        if "name" in self._device_data:
+            attributes["name"] = self._device_data["name"]
         
         # Add device model
-        if "model" in self.coordinator.data:
-            attributes["model"] = self.coordinator.data["model"]
+        if "model" in self._device_data:
+            attributes["model"] = self._device_data["model"]
         
         # Add software version
-        if "sw_version" in self.coordinator.data:
-            attributes["sw_version"] = self.coordinator.data["sw_version"]
+        if "sw_version" in self._device_data:
+            attributes["sw_version"] = self._device_data["sw_version"]
         
         # Add last seen time
-        if "last_seen_at" in self.coordinator.data:
-            attributes["last_seen_at"] = self.coordinator.data["last_seen_at"]
+        if "last_seen_at" in self._device_data:
+            attributes["last_seen_at"] = self._device_data["last_seen_at"]
         
-        return attributes 
+        return attributes
+
+    @callback
+    def handle_update(self, device_data: dict[str, Any]) -> None:
+        """Handle updated data from WebSocket."""
+        self._device_data = device_data
+        self.async_write_ha_state() 
