@@ -76,13 +76,25 @@ async def async_setup_entry(
     @callback
     def handle_ws_message(message: dict) -> None:
         """Handle WebSocket messages."""
-        _LOGGER.debug("Sensor received message: %s", message)
-        if message.get("type") == "device_updated":
-            data = message.get("message", {}).get("data", {})
-            _LOGGER.debug("Updating sensor with new device data: %s", data)
-            sensor.handle_update(data)
+        # Extract message type using the same logic as legacy code
+        msg_type = ""
+        # Try to extract the "type" (which exists in some messages)
+        attr_type = message.get("type")
+        if attr_type is not None:
+            msg_type = attr_type
         else:
-            _LOGGER.debug("Ignoring message of type: %s", message.get("type"))
+            # We found no type, let's look for "operation" attribute
+            attr_operation = message.get('message', {}).get('operation', '')
+            if attr_operation is not None:
+                msg_type = attr_operation
+        
+        _LOGGER.debug("Processing WebSocket message with type/operation: %s", msg_type)
+        
+        if msg_type == "device_updated":
+            data = message.get("message", {}).get("data", {})
+            _LOGGER.debug("Updating sensor with new device mode: %s (raw message: %s)", 
+                         data.get("mode"), message)
+            sensor.handle_update(data)
 
     # Store the callback in hass.data for the WebSocket client to use
     domain_data["ws_callback"] = handle_ws_message
@@ -136,10 +148,11 @@ class LeakomaticSensor(SensorEntity):
         
         # Get the mode from the device data
         mode = self._device_data.get("mode")
-        _LOGGER.debug("Mode value from device data: %s", mode)
+        _LOGGER.debug("Reading mode value: %s (type: %s)", mode, type(mode).__name__)
         
         # Return the numeric value directly
         if mode in (0, 1, 2):
+            _LOGGER.debug("Returning valid mode value: %s", mode)
             return mode
         else:
             _LOGGER.debug("Unknown mode value: %s", mode)
@@ -179,5 +192,8 @@ class LeakomaticSensor(SensorEntity):
     @callback
     def handle_update(self, device_data: dict[str, Any]) -> None:
         """Handle updated data from WebSocket."""
+        _LOGGER.debug("Handling update with device data: %s", device_data)
         self._device_data = device_data
-        self.async_write_ha_state() 
+        _LOGGER.debug("Mode value before state update: %s", self._device_data.get("mode"))
+        self.async_write_ha_state()
+        _LOGGER.debug("State update completed. Current mode: %s", self.native_value) 

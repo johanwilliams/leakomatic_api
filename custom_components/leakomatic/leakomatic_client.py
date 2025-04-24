@@ -369,7 +369,6 @@ class LeakomaticClient:
                     try:
                         response = await websocket.recv()
                         parsed_response = json.loads(response)
-                        _LOGGER.debug("Raw WebSocket message received: %s", parsed_response)
 
                         # Extract message type
                         msg_type = ""
@@ -387,16 +386,20 @@ class LeakomaticClient:
                         if msg_type == MessageType.WELCOME.value:
                             _LOGGER.debug("Received welcome message")
                         elif msg_type == MessageType.PING.value:
-                            _LOGGER.debug("Received ping")
                             # TODO: Implement reconnect if no ping received in X time
+                            # Skip logging for ping messages
+                            pass
                         elif msg_type == MessageType.CONFIRM_SUBSCRIPTION.value:
                             _LOGGER.debug("Subscription confirmed")
                         else:
                             # For all other message types, call the callback
                             if msg_type:
-                                _LOGGER.debug("Received message of type: %s with data: %s", 
-                                           msg_type, 
-                                           parsed_response.get('message', {}).get('data', {}))
+                                if msg_type == MessageType.DEVICE_UPDATED.value:
+                                    data = parsed_response.get('message', {}).get('data', {})
+                                    _LOGGER.debug("Received device update with data: Mode=%s, Alarm=%s", 
+                                                data.get('mode'), 
+                                                data.get('alarm'))
+                                _LOGGER.debug("Received message of type: %s", msg_type)
                                 message_callback(parsed_response)
                             else:
                                 _LOGGER.warning("Unknown message type in response: %s", parsed_response)
