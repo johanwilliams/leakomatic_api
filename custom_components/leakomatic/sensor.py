@@ -6,6 +6,7 @@ It provides sensors for:
 - Device status and metrics
 - Alarm conditions
 - Quick test index
+- Flow duration
 
 The sensors are updated through real-time WebSocket updates.
 """
@@ -72,7 +73,8 @@ async def async_setup_entry(
     # Create sensors
     mode_sensor = ModeSensor(device_info, device_id, device_data)
     quick_test_sensor = QuickTestSensor(device_info, device_id, device_data)
-    async_add_entities([mode_sensor, quick_test_sensor])
+    flow_duration_sensor = FlowDurationSensor(device_info, device_id, device_data)
+    async_add_entities([mode_sensor, quick_test_sensor, flow_duration_sensor])
 
     # Register callback for WebSocket updates
     @callback
@@ -102,6 +104,15 @@ async def async_setup_entry(
             _LOGGER.debug("Updating quick test sensor with new value: %s", 
                          data.get("value"))
             quick_test_sensor.handle_update(data)
+        elif msg_type == "flow_updated":
+            data = message.get("message", {}).get("data", {})
+            flow_mode = data.get("flow_mode")
+            flow_duration = data.get("flow_duration")
+            _LOGGER.debug("Received flow update - mode: %s, duration: %s", 
+                         flow_mode, flow_duration)
+            # Only update the sensor if flow_mode is 0
+            if flow_mode == 0:
+                flow_duration_sensor.handle_update({"current_flow_duration": flow_duration})
 
     # Store the callback in hass.data for the WebSocket client to use
     domain_data["ws_callback"] = handle_ws_message
@@ -270,6 +281,53 @@ class QuickTestSensor(LeakomaticSensor):
                 return round(float(value), 2)  # Round to 2 decimal places
             except (ValueError, TypeError):
                 _LOGGER.warning("Invalid quick test value: %s", value)
+                return None
+        
+        return None
+
+
+class FlowDurationSensor(LeakomaticSensor):
+    """Representation of a Leakomatic Last Flow Duration sensor.
+    
+    This sensor represents the duration of the last completed flow in seconds.
+    It is updated through WebSocket updates when a flow completes (flow_mode = 0).
+    Home Assistant will automatically format the duration in an appropriate unit
+    (seconds/minutes/hours) based on the value.
+    """
+
+    def __init__(
+        self,
+        device_info: dict[str, Any],
+        device_id: str,
+        device_data: dict[str, Any] | None,
+    ) -> None:
+        """Initialize the flow duration sensor."""
+        super().__init__(
+            device_info=device_info,
+            device_id=device_id,
+            device_data=device_data,
+            name="Last flow duration",
+            key="flow_duration",
+            icon="mdi:clock-outline",
+            device_class=SensorDeviceClass.DURATION,
+            state_class=SensorStateClass.MEASUREMENT,
+            native_unit_of_measurement="s"
+        )
+
+    @property
+    def native_value(self) -> StateType:
+        """Return the state of the sensor."""
+        if not self._device_data:
+            _LOGGER.debug("No device data available")
+            return None
+        
+        # Get the flow duration value from the device data
+        value = self._device_data.get("current_flow_duration")
+        if value is not None:
+            try:
+                return round(float(value), 1)  # Round to 1 decimal place
+            except (ValueError, TypeError):
+                _LOGGER.warning("Invalid flow duration value: %s", value)
                 return None
         
         return None 
