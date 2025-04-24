@@ -7,8 +7,10 @@ This integration allows you to connect your Leakomatic water leak sensors to Hom
 - Real-time updates via WebSocket connection
 - Device mode monitoring (Home/Away/Pause)
 - Quick test index monitoring
+- Flow duration monitoring
 - Device information display (model, software version, location)
 - Automatic reconnection handling
+- Full localization support for all sensor names and states
 
 ## Available Sensors
 
@@ -22,13 +24,18 @@ The integration provides the following sensors:
   - Numerical value indicating water flow characteristics
   - Updates in real-time when quick tests are performed
 
+- **Flow Duration**: Shows the duration of the last completed water flow
+  - Measured in seconds
+  - Updates when a flow event completes
+  - Helps track water usage patterns
+
 ## Supported Languages
 
 This integration supports the following languages:
 - English (en)
 - Swedish (sv)
 
-The integration will automatically use the language that matches your Home Assistant language settings.
+The integration will automatically use the language that matches your Home Assistant language settings. All sensor names, states, and UI elements will be displayed in your chosen language.
 
 ## Installation
 
