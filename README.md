@@ -85,7 +85,6 @@ If you encounter any issues with the integration:
 
 This integration is currently in development. Future enhancements planned:
 - Additional sensor types for various device metrics
-- Configuration options for update intervals
 - Enhanced error handling and recovery
 - Support for multiple devices
 - More detailed alarm state reporting

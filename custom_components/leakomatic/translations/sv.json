@@ -23,17 +23,6 @@
             "already_configured": "Enheten är redan konfigurerad"
         }
     },
-    "options": {
-        "step": {
-            "init": {
-                "title": "Leakomatic-alternativ",
-                "description": "Konfigurera Leakomatic-integrationsalternativ",
-                "data": {
-                    "scan_interval": "Sökningsintervall (sekunder)"
-                }
-            }
-        }
-    },
     "title": "Leakomatic",
     "entity": {
         "sensor": {

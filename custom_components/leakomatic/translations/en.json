@@ -23,17 +23,6 @@
             "already_configured": "Device is already configured"
         }
     },
-    "options": {
-        "step": {
-            "init": {
-                "title": "Leakomatic Options",
-                "description": "Configure Leakomatic integration options",
-                "data": {
-                    "scan_interval": "Scan interval (seconds)"
-                }
-            }
-        }
-    },
     "title": "Leakomatic",
     "entity": {
         "sensor": {
