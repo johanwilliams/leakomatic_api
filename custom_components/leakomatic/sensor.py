@@ -5,6 +5,7 @@ It provides sensors for:
 - Device mode (Home/Away/Pause)
 - Device status and metrics
 - Alarm conditions
+- Quick test index
 
 The sensors are updated through real-time WebSocket updates.
 """
@@ -68,9 +69,10 @@ async def async_setup_entry(
     # Get initial device data
     device_data = await client.async_get_device_data()
     
-    # Add the sensor
-    sensor = LeakomaticSensor(device_info, device_id, device_data)
-    async_add_entities([sensor])
+    # Create sensors
+    mode_sensor = ModeSensor(device_info, device_id, device_data)
+    quick_test_sensor = QuickTestSensor(device_info, device_id, device_data)
+    async_add_entities([mode_sensor, quick_test_sensor])
 
     # Register callback for WebSocket updates
     @callback
@@ -92,16 +94,21 @@ async def async_setup_entry(
         
         if msg_type == "device_updated":
             data = message.get("message", {}).get("data", {})
-            _LOGGER.debug("Updating sensor with new device mode: %s (raw message: %s)", 
+            _LOGGER.debug("Updating mode sensor with new device mode: %s (raw message: %s)", 
                          data.get("mode"), message)
-            sensor.handle_update(data)
+            mode_sensor.handle_update(data)
+        elif msg_type == "quick_test_updated":
+            data = message.get("message", {}).get("data", {})
+            _LOGGER.debug("Updating quick test sensor with new value: %s", 
+                         data.get("value"))
+            quick_test_sensor.handle_update(data)
 
     # Store the callback in hass.data for the WebSocket client to use
     domain_data["ws_callback"] = handle_ws_message
 
 
-class LeakomaticSensor(SensorEntity):
-    """Representation of a Leakomatic sensor.
+class ModeSensor(SensorEntity):
+    """Representation of a Leakomatic Mode sensor.
     
     This sensor represents the mode of the Leakomatic device (Home/Away/Pause).
     It is updated through WebSocket updates.
@@ -196,4 +203,63 @@ class LeakomaticSensor(SensorEntity):
         self._device_data = device_data
         _LOGGER.debug("Mode value before state update: %s", self._device_data.get("mode"))
         self.async_write_ha_state()
-        _LOGGER.debug("State update completed. Current mode: %s", self.native_value) 
+        _LOGGER.debug("State update completed. Current mode: %s", self.native_value)
+
+
+class QuickTestSensor(SensorEntity):
+    """Representation of a Leakomatic Quick Test sensor.
+    
+    This sensor represents the quick test index of the Leakomatic device.
+    It is updated through WebSocket updates.
+    """
+
+    def __init__(
+        self,
+        device_info: dict[str, Any],
+        device_id: str,
+        device_data: dict[str, Any] | None,
+    ) -> None:
+        """Initialize the sensor."""
+        self._device_info = device_info
+        self._device_id = device_id
+        self._device_data = device_data or {}
+        self._attr_name = "Quick test index"
+        self._attr_unique_id = f"{device_id}_quick_test"
+        self._attr_device_class = None  # No specific device class since it's just a numerical value
+        self._attr_native_unit_of_measurement = None  # No unit
+        self._attr_state_class = SensorStateClass.MEASUREMENT  # This is a current measurement value
+        self._attr_icon = "mdi:water"  # Water-related icon
+        self._attr_entity_registry_enabled_default = True
+        self._attr_should_poll = False  # No polling needed with WebSocket
+        self._attr_translation_key = "quick_test"  # Key for translations
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return the device info."""
+        return self._device_info
+
+    @property
+    def native_value(self) -> StateType:
+        """Return the state of the sensor."""
+        if not self._device_data:
+            _LOGGER.debug("No device data available")
+            return None
+        
+        # Get the quick test value from the device data
+        value = self._device_data.get("current_quick_test")
+        if value is not None:
+            try:
+                return round(float(value), 2)  # Round to 2 decimal places
+            except (ValueError, TypeError):
+                _LOGGER.warning("Invalid quick test value: %s", value)
+                return None
+        
+        return None
+
+    @callback
+    def handle_update(self, data: dict[str, Any]) -> None:
+        """Handle updated data from WebSocket."""
+        if "value" in data:
+            self._device_data = {"current_quick_test": data["value"]}
+            self.async_write_ha_state()
+            _LOGGER.debug("Quick test value updated to: %s", data["value"]) 

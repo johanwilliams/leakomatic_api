@@ -45,6 +45,12 @@
                     "2": "Paus",
                     "unknown": "Okänd"
                 }
+            },
+            "quick_test": {
+                "name": "Snabbtestindex",
+                "state": {
+                    "unknown": "Okänd"
+                }
             }
         }
     }

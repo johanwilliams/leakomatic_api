@@ -45,6 +45,12 @@
                     "2": "Pause",
                     "unknown": "Unknown"
                 }
+            },
+            "quick_test": {
+                "name": "Quick Test Index",
+                "state": {
+                    "unknown": "Unknown"
+                }
             }
         }
     }
