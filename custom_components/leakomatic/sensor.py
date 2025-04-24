@@ -292,7 +292,7 @@ class FlowDurationSensor(LeakomaticSensor):
     This sensor represents the duration of the last completed flow in seconds.
     It is updated through WebSocket updates when a flow completes (flow_mode = 0).
     Home Assistant will automatically format the duration in an appropriate unit
-    (seconds/minutes/hours) based on the value.
+    (days, hours, minutes, seconds) based on the value.
     """
 
     def __init__(
@@ -325,7 +325,9 @@ class FlowDurationSensor(LeakomaticSensor):
         value = self._device_data.get("current_flow_duration")
         if value is not None:
             try:
-                return round(float(value), 1)  # Round to 1 decimal place
+                # Ensure the value is an integer number of seconds
+                # This helps Home Assistant format it properly
+                return int(float(value))
             except (ValueError, TypeError):
                 _LOGGER.warning("Invalid flow duration value: %s", value)
                 return None
