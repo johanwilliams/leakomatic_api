@@ -51,6 +51,9 @@
                 "state": {
                     "unknown": "Unknown"
                 }
+            },
+            "flow_duration": {
+                "name": "Last Flow Duration"
             }
         }
     }

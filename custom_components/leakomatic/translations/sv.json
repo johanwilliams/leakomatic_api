@@ -38,7 +38,7 @@
     "entity": {
         "sensor": {
             "mode": {
-                "name": "Läge",
+                "name": "Driftsläge",
                 "state": {
                     "0": "Hemma",
                     "1": "Borta",
@@ -51,6 +51,9 @@
                 "state": {
                     "unknown": "Okänd"
                 }
+            },
+            "flow_duration": {
+                "name": "Senaste flödestid"
             }
         }
     }

@@ -130,7 +130,6 @@ class LeakomaticSensor(SensorEntity):
         device_id: str,
         device_data: dict[str, Any] | None,
         *,
-        name: str,
         key: str,
         icon: str,
         device_class: SensorDeviceClass | None = None,
@@ -143,7 +142,6 @@ class LeakomaticSensor(SensorEntity):
             device_info: Information about the physical device
             device_id: The unique identifier of the device
             device_data: The current device data
-            name: Display name of the sensor
             key: Unique key/identifier for the sensor
             icon: MDI icon to use
             device_class: The device class of the sensor
@@ -154,7 +152,7 @@ class LeakomaticSensor(SensorEntity):
         self._device_id = device_id
         self._device_data = device_data or {}
         
-        self._attr_name = name
+        self._attr_has_entity_name = True
         self._attr_unique_id = f"{device_id}_{key}"
         self._attr_device_class = device_class
         self._attr_native_unit_of_measurement = native_unit_of_measurement
@@ -219,7 +217,6 @@ class ModeSensor(LeakomaticSensor):
             device_info=device_info,
             device_id=device_id,
             device_data=device_data,
-            name=f"{DEFAULT_NAME} Mode",
             key="mode",
             icon="mdi:home",
         )
@@ -261,7 +258,6 @@ class QuickTestSensor(LeakomaticSensor):
             device_info=device_info,
             device_id=device_id,
             device_data=device_data,
-            name="Quick test index",
             key="quick_test",
             icon="mdi:water",
             state_class=SensorStateClass.MEASUREMENT,
@@ -306,7 +302,6 @@ class FlowDurationSensor(LeakomaticSensor):
             device_info=device_info,
             device_id=device_id,
             device_data=device_data,
-            name="Last flow duration",
             key="flow_duration",
             icon="mdi:clock-outline",
             device_class=SensorDeviceClass.DURATION,
