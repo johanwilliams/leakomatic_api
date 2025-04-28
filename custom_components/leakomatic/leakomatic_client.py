@@ -398,16 +398,7 @@ class LeakomaticClient:
                             parsed_response = json.loads(response)
 
                             # Extract message type
-                            msg_type = ""
-                            # Try to extract the "type" (which exists in some messages)
-                            attr_type = parsed_response.get("type")
-                            if attr_type is not None:
-                                msg_type = attr_type
-                            else:
-                                # Look for "operation" attribute in message
-                                attr_operation = parsed_response.get('message', {}).get('operation', '')
-                                if attr_operation is not None:
-                                    msg_type = attr_operation
+                            msg_type = self._extract_message_type(parsed_response)
 
                             # Handle different message types
                             if msg_type == MessageType.WELCOME.value:
@@ -463,3 +454,24 @@ class LeakomaticClient:
                 _LOGGER.error("Failed to reconnect to Leakomatic API")
                 return False
         return True 
+
+    def _extract_message_type(self, parsed_response: dict) -> str:
+        """Extract the message type from a parsed WebSocket response.
+        
+        Args:
+            parsed_response: The parsed JSON response from the WebSocket.
+        
+        Returns:
+            str: The extracted message type, or an empty string if no type is found.
+        """
+        msg_type = ""
+        # Try to extract the "type" (which exists in some messages)
+        attr_type = parsed_response.get("type")
+        if attr_type is not None:
+            msg_type = attr_type
+        else:
+            # Look for "operation" attribute in message
+            attr_operation = parsed_response.get('message', {}).get('operation', '')
+            if attr_operation is not None:
+                msg_type = attr_operation
+        return msg_type 
