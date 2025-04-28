@@ -24,7 +24,7 @@ from .const import (
     LOGGER_NAME, START_URL, LOGIN_URL, STATUS_URL, WEBSOCKET_URL,
     MessageType, DEFAULT_HEADERS, WEBSOCKET_HEADERS, MAX_RETRIES, RETRY_DELAY,
     ERROR_AUTH_TOKEN_MISSING, ERROR_INVALID_CREDENTIALS, ERROR_XSRF_TOKEN_MISSING, ERROR_NO_DEVICES_FOUND,
-    XSRF_TOKEN_HEADER, DeviceMode
+    XSRF_TOKEN_HEADER, DeviceMode, XSRF_TOKEN_PATTERN
 )
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
@@ -74,12 +74,12 @@ class LeakomaticClient:
         
         # Always add the XSRF token to the headers if it exists
         if self._xsrf_token:
-            _LOGGER.debug("Adding XSRF token to session headers: %s", self._xsrf_token)
+            _LOGGER.debug("Adding XSRF token to session headers")
             headers[XSRF_TOKEN_HEADER] = urllib.parse.unquote(self._xsrf_token)
         else:
             _LOGGER.warning("No XSRF token available for session headers")
         
-        _LOGGER.debug("Creating new session with cookies: %s", self._cookies)
+        _LOGGER.debug("Creating new session with cookies")
         return aiohttp.ClientSession(cookies=self._cookies, headers=headers)
 
     async def _update_session_from_response(self, response: aiohttp.ClientResponse) -> None:
@@ -91,7 +91,6 @@ class LeakomaticClient:
         self._cookies.update(response.cookies)
         new_xsrf_token = await self._async_get_xsrf_token(response)
         if new_xsrf_token:
-            _LOGGER.debug("Updating XSRF token from response: %s", new_xsrf_token)
             self._xsrf_token = new_xsrf_token
         else:
             _LOGGER.warning("No new XSRF token found in response")
@@ -176,18 +175,18 @@ class LeakomaticClient:
             _LOGGER.warning("XSRF token not found in cookies")
             return None
             
-        # Convert to string and extract just the token value
+        # Convert to string
         xsrf_token_str = str(xsrf_token)
         
-        # Check if the token has the "Set-Cookie: XSRF-TOKEN=" prefix
-        if xsrf_token_str.startswith("Set-Cookie: XSRF-TOKEN="):
-            xsrf_token_str = xsrf_token_str.replace("Set-Cookie: XSRF-TOKEN=", "")
-            
-        # Extract just the token value (remove any additional cookie attributes)
-        xsrf_token_str = xsrf_token_str.split(';')[0]
-        
-        _LOGGER.debug("Retrieved XSRF token: %s", xsrf_token_str)
-        return xsrf_token_str
+        # Use regex to extract just the token value
+        match = re.search(XSRF_TOKEN_PATTERN, xsrf_token_str)
+        if match:
+            xsrf_token_value = match.group(1)
+            _LOGGER.debug("Retrieved XSRF token successfully")
+            return xsrf_token_value
+        else:
+            _LOGGER.warning("Failed to extract XSRF token using regex pattern")
+            return None
 
     async def _async_login(self) -> bool:
         """Login to the Leakomatic API."""
@@ -286,7 +285,6 @@ class LeakomaticClient:
             async with await self._create_session() as session:
                 # Construct the URL for the device status JSON
                 url = f"{STATUS_URL}/{self._device_id}.json"
-                _LOGGER.debug("Requesting URL %s", url)
                 
                 async with session.get(url) as response:
                     if response.status != 200:
@@ -307,11 +305,6 @@ class LeakomaticClient:
                         _LOGGER.debug("Device data received - Mode: %s, Status: %s",
                                      device_data.get("mode", "unknown"),
                                      "ALARM" if device_data.get("alarm") else "OK")
-                        
-                        # Log the raw mode value for debugging
-                        _LOGGER.debug("Raw mode value %s, type %s", 
-                                     device_data.get("mode"), 
-                                     type(device_data.get("mode")).__name__)
                     
                     return device_data
                 
@@ -341,7 +334,6 @@ class LeakomaticClient:
             async with await self._create_session() as session:
                 # Construct the URL for the device status page (not JSON)
                 url = f"{STATUS_URL}/{self._device_id}"
-                _LOGGER.debug("Requesting URL %s", url)
                 
                 async with session.get(url) as response:
                     if response.status != 200:
@@ -389,7 +381,7 @@ class LeakomaticClient:
 
         # Construct the websocket URL
         ws_url = f"{WEBSOCKET_URL}?token={ws_token}"
-        _LOGGER.debug("Connecting to websocket server at %s", WEBSOCKET_URL)
+        _LOGGER.debug("Connecting to websocket server")
 
         # Reconnection parameters
         retry_count = 0
@@ -412,7 +404,7 @@ class LeakomaticClient:
                         "identifier": f"{{\"channel\":\"BroadcastChannel\",\"user_id\":{self._user_id}}}"
                     }
                     await websocket.send(json.dumps(msg_subscribe))
-                    _LOGGER.debug("Sent subscription message %s", msg_subscribe)
+                    _LOGGER.debug("Sent subscription message")
 
                     # Listen for messages
                     while True:
@@ -436,13 +428,13 @@ class LeakomaticClient:
                                 if msg_type:
                                     if msg_type == MessageType.DEVICE_UPDATED.value:
                                         data = parsed_response.get('message', {}).get('data', {})
-                                        _LOGGER.debug("Received device update with data Mode %s, Alarm %s", 
+                                        _LOGGER.debug("Received device update - Mode: %s, Alarm: %s", 
                                                     data.get('mode'), 
                                                     data.get('alarm'))
                                     _LOGGER.debug("Received message of type %s", msg_type)
                                     message_callback(parsed_response)
                                 else:
-                                    _LOGGER.warning("Unknown message type in response %s", parsed_response)
+                                    _LOGGER.warning("Unknown message type in response")
 
                         except websockets.ConnectionClosed:
                             _LOGGER.warning("Websocket connection closed, attempting to reconnect")
@@ -482,7 +474,7 @@ class LeakomaticClient:
                 _LOGGER.error("Failed to reconnect to Leakomatic API")
                 return False
         else:
-            _LOGGER.debug("Using existing XSRF token: %s", self._xsrf_token)
+            _LOGGER.debug("Using existing XSRF token")
         return True
 
     def _extract_message_type(self, parsed_response: dict) -> str:
@@ -565,25 +557,19 @@ class LeakomaticClient:
             try:
                 # Construct the URL for changing the mode
                 url = f"{STATUS_URL}/{self._device_id}/change_mode.json"
-                _LOGGER.debug("Requesting URL %s", url)
                 
                 # Prepare the data for the request
                 data = {
                     "mode": numeric_mode
                 }
                 
-                # Log the request details
-                _LOGGER.debug("Request headers: %s", mode_headers)
-                _LOGGER.debug("Request data: %s", data)
+                _LOGGER.debug("Requesting URL %s", url)
                 
                 async with session.post(url, json=data) as response:
-                    # Log the response details
                     _LOGGER.debug("Response status: %d", response.status)
-                    _LOGGER.debug("Response headers: %s", response.headers)
                     
-                    # Get the response content for debugging
+                    # Get the response content
                     response_text = await response.text()
-                    _LOGGER.debug("Response content: %s", response_text[:500])  # Log first 500 chars to avoid huge logs
                     
                     if response.status != 200:
                         return self._handle_error(
@@ -595,28 +581,9 @@ class LeakomaticClient:
                     # Update cookies and XSRF token from the response
                     await self._update_session_from_response(response)
                     
-                    # Try to parse the JSON response
-                    try:
-                        result = await response.json()
-                        _LOGGER.debug("Response JSON: %s", result)
-                        
-                        # Check if the mode was changed successfully
-                        if result.get("success", False):
-                            _LOGGER.info("Successfully changed mode to %s for device %s", mode, self._device_id)
-                            return True
-                        else:
-                            return self._handle_error(
-                                f"Failed to change mode: {result.get('error', 'Unknown error')}",
-                                return_value=False,
-                                level="warning"
-                            )
-                    except Exception as json_err:
-                        _LOGGER.error("Failed to parse JSON response: %s", json_err)
-                        return self._handle_error(
-                            f"Failed to parse JSON response: {json_err}",
-                            return_value=False,
-                            level="error"
-                        )
+                    # For 200 status code, consider it a success
+                    _LOGGER.info("Successfully changed mode to %s for device %s", mode, self._device_id)
+                    return True
             finally:
                 # Always close the session
                 await session.close()

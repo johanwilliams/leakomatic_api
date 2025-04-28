@@ -90,3 +90,6 @@ ERROR_AUTH_TOKEN_MISSING = "auth_token_missing"
 ERROR_INVALID_CREDENTIALS = "invalid_credentials"
 ERROR_XSRF_TOKEN_MISSING = "xsrf_token_missing"
 ERROR_NO_DEVICES_FOUND = "no_devices_found"
+
+# Regex Patterns
+XSRF_TOKEN_PATTERN = r'XSRF-TOKEN=([^;]+)'
