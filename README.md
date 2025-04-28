@@ -11,6 +11,7 @@ This integration allows you to connect your Leakomatic water leak sensors to Hom
 - Device information display (model, software version, location)
 - Automatic reconnection handling
 - Full localization support for all sensor names and states
+- Service to change device operating mode
 
 ## Available Sensors
 
@@ -28,6 +29,23 @@ The integration provides the following sensors:
   - Measured in seconds
   - Updates when a flow event completes
   - Helps track water usage patterns
+
+## Services
+
+The integration provides the following service:
+
+- **leakomatic.change_mode**: Change the operating mode of your Leakomatic device
+  - Parameters:
+    - `entity_id`: The entity ID of the Leakomatic device
+    - `mode`: The new mode to set (home, away, or pause)
+  - Example usage in automations or scripts:
+    ```yaml
+    service: leakomatic.change_mode
+    target:
+      entity_id: sensor.leakomatic_mode
+    data:
+      mode: away
+    ```
 
 ## Supported Languages
 
@@ -55,6 +73,7 @@ The integration will automatically:
 - Connect to your Leakomatic device
 - Set up real-time monitoring via WebSocket
 - Create sensors for device status and measurements
+- Register the change_mode service
 
 ## Debug Logging
 
@@ -80,6 +99,7 @@ If you encounter any issues with the integration:
    - Connection issues: Check your network connection
    - Missing updates: The WebSocket connection might be interrupted
    - Sensor state issues: Check if the device is reachable and sending data
+   - Service call failures: Verify the entity ID and mode parameter
 
 ## Development Status
 
