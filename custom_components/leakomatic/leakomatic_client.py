@@ -12,7 +12,6 @@ import logging
 import re
 import ssl
 import asyncio
-from enum import Enum
 from typing import Any, Optional, Callable
 
 import aiohttp
@@ -21,7 +20,12 @@ from bs4 import BeautifulSoup
 import urllib.parse
 import json
 
-from .const import LOGGER_NAME, START_URL, LOGIN_URL, STATUS_URL, WEBSOCKET_URL
+from .const import (
+    LOGGER_NAME, START_URL, LOGIN_URL, STATUS_URL, WEBSOCKET_URL,
+    MessageType, DEFAULT_HEADERS, WEBSOCKET_HEADERS, MAX_RETRIES, RETRY_DELAY,
+    ERROR_AUTH_TOKEN_MISSING, ERROR_INVALID_CREDENTIALS, ERROR_XSRF_TOKEN_MISSING, ERROR_NO_DEVICES_FOUND,
+    XSRF_TOKEN_HEADER
+)
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
 
@@ -29,23 +33,6 @@ _LOGGER = logging.getLogger(LOGGER_NAME)
 ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
 ssl_context.load_default_certs()
 ssl_context.set_default_verify_paths()
-
-class MessageType(Enum):
-    """Message types from the Leakomatic websocket.
-    
-    These types represent the various messages that can be received from the
-    Leakomatic WebSocket API, including system messages and device updates.
-    """
-    WELCOME = "welcome"  # Initial connection welcome message
-    PING = "ping"  # Keep-alive ping message
-    CONFIRM_SUBSCRIPTION = "confirm_subscription"  # Subscription confirmation
-    QUICK_TEST_UPDATED = "quick_test_updated"  # Quick test status update
-    TIGHTNESS_TEST_UPDATED = "tightness_test_updated"  # Tightness test status update
-    FLOW_UPDATED = "flow_updated"  # Water flow status update
-    DEVICE_UPDATED = "device_updated"  # General device status update
-    STATUS_MESSAGE = "status_message"  # General status message
-    CONFIGURATION_ADDED = "configuration_added"  # Configuration change notification
-    ALARM_TRIGGERED = "alarm_triggered"  # Alarm event notification
 
 class LeakomaticClient:
     """Client for the Leakomatic API.
@@ -83,7 +70,7 @@ class LeakomaticClient:
             self._auth_token = await self._async_get_startpage()
             if not self._auth_token:
                 _LOGGER.warning("Authentication failed - could not establish connection with Leakomatic")
-                self._error_code = "auth_token_missing"
+                self._error_code = ERROR_AUTH_TOKEN_MISSING
                 return False
             
             # Login with the auth token
@@ -167,22 +154,19 @@ class LeakomaticClient:
                 "commit": "Log in"
             }
             
-            headers = {
-                "Content-Type": "application/x-www-form-urlencoded",
-                "User-Agent": "Mozilla/5.0"
-            }
+            headers = DEFAULT_HEADERS.copy()
             
             async with self._session.post(LOGIN_URL, data=login_data, headers=headers) as response:
                 if response.status != 200:
                     _LOGGER.warning("Login failed - server returned %s", response.status)
-                    self._error_code = "invalid_credentials"
+                    self._error_code = ERROR_INVALID_CREDENTIALS
                     return False
                 
                 # Get the XSRF token using the new method
                 xsrf_token = await self._async_get_xsrf_token(response)
                 if not xsrf_token:
                     _LOGGER.warning("Login failed - security token not received")
-                    self._error_code = "xsrf_token_missing"
+                    self._error_code = ERROR_XSRF_TOKEN_MISSING
                     return False
                 
                 # Update the cookies with any new ones from the login response
@@ -198,14 +182,14 @@ class LeakomaticClient:
                 if error_messages:
                     for error in error_messages:
                         _LOGGER.warning("Login failed - %s", error.text.strip())
-                    self._error_code = "invalid_credentials"
+                    self._error_code = ERROR_INVALID_CREDENTIALS
                     return False
                 
                 # Find all <tr> elements with an id attribute starting with 'device_'
                 device_elements = soup.find_all('tr', {'id': lambda x: x and x.startswith('device_')})
                 if not device_elements:
                     _LOGGER.warning("No Leakomatic devices found in account")
-                    self._error_code = "no_devices_found"
+                    self._error_code = ERROR_NO_DEVICES_FOUND
                     return False
                 
                 # Get the first device ID (we'll handle multiple devices later)
@@ -253,10 +237,8 @@ class LeakomaticClient:
             _LOGGER.debug("Fetching data for device %s", self._device_id)
             
             # Create a new session with the saved cookies
-            headers = {
-                "User-Agent": "Mozilla/5.0",
-                "X-Xsrf-Token": urllib.parse.unquote(self._xsrf_token)
-            }
+            headers = DEFAULT_HEADERS.copy()
+            headers[XSRF_TOKEN_HEADER] = urllib.parse.unquote(self._xsrf_token)
             
             async with aiohttp.ClientSession(cookies=self._cookies) as session:
                 # Construct the URL for the device status JSON
@@ -318,10 +300,8 @@ class LeakomaticClient:
             _LOGGER.debug("Fetching websocket token for device %s", self._device_id)
             
             # Create a new session with the saved cookies
-            headers = {
-                "User-Agent": "Mozilla/5.0",
-                "X-Xsrf-Token": urllib.parse.unquote(self._xsrf_token)
-            }
+            headers = DEFAULT_HEADERS.copy()
+            headers[XSRF_TOKEN_HEADER] = urllib.parse.unquote(self._xsrf_token)
             
             async with aiohttp.ClientSession(cookies=self._cookies) as session:
                 # Construct the URL for the device status page (not JSON)
@@ -375,30 +355,17 @@ class LeakomaticClient:
         ws_url = f"{WEBSOCKET_URL}?token={ws_token}"
         _LOGGER.debug("Connecting to websocket server at: %s", WEBSOCKET_URL)
 
-        # Define custom headers
-        ws_headers = {
-            "Accept-Encoding": "gzip, deflate, br",
-            "Accept-Language": "en-US,en;q=0.9,sv;q=0.8",
-            "Cache-Control": "no-cache",
-            "Host": "ws-api.leakomatic.com",
-            "Origin": "https://cloud.leakomatic.com",
-            "Pragma": "no-cache",
-            "User-Agent": "Mozilla/5.0"
-        }
-
         # Reconnection parameters
-        max_retries = 5
         retry_count = 0
-        retry_delay = 60  # seconds
 
-        while retry_count < max_retries:
+        while retry_count < MAX_RETRIES:
             try:
                 _LOGGER.debug("Attempting WebSocket connection (attempt %d)...", retry_count + 1)
                 
                 async with websockets.connect(
                     ws_url,
                     subprotocols=['actioncable-v1-json'],
-                    additional_headers=ws_headers,
+                    additional_headers=WEBSOCKET_HEADERS,
                     ssl=ssl_context
                 ) as websocket:
                     _LOGGER.debug("Connected to websocket server")
@@ -460,9 +427,9 @@ class LeakomaticClient:
             except Exception as err:
                 _LOGGER.error("Failed to connect to websocket: %s", err)
                 retry_count += 1
-                if retry_count < max_retries:
-                    _LOGGER.info("Waiting %d seconds before reconnection attempt %d...", retry_delay, retry_count + 1)
-                    await asyncio.sleep(retry_delay)
+                if retry_count < MAX_RETRIES:
+                    _LOGGER.info("Waiting %d seconds before reconnection attempt %d...", RETRY_DELAY, retry_count + 1)
+                    await asyncio.sleep(RETRY_DELAY)
                 else:
-                    _LOGGER.error("Maximum reconnection attempts reached (%d). Giving up.", max_retries)
+                    _LOGGER.error("Maximum reconnection attempts reached (%d). Giving up.", MAX_RETRIES)
                     break 
