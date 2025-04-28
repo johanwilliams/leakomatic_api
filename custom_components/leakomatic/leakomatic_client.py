@@ -134,6 +134,15 @@ class LeakomaticClient:
             _LOGGER.error("Connection error: %s", err)
             return None
 
+    async def _async_get_xsrf_token(self, response: aiohttp.ClientResponse) -> Optional[str]:
+        """Get the XSRF token from the response cookies."""
+        cookies = response.cookies
+        xsrf_token = cookies.get('XSRF-TOKEN')
+        if not xsrf_token:
+            _LOGGER.warning("XSRF token not found in cookies")
+            return None
+        return str(xsrf_token)
+
     async def _async_login(self) -> bool:
         """Login to the Leakomatic API."""
         try:
@@ -160,17 +169,15 @@ class LeakomaticClient:
                     self._error_code = "invalid_credentials"
                     return False
                 
-                # Get the XSRF token from cookies
-                cookies = response.cookies
-                xsrf_token = cookies.get('XSRF-TOKEN')
+                # Get the XSRF token using the new method
+                xsrf_token = await self._async_get_xsrf_token(response)
                 if not xsrf_token:
                     _LOGGER.warning("Login failed - security token not received")
                     self._error_code = "xsrf_token_missing"
                     return False
                 
-                # Set the XSRF token in session headers - convert to string first
-                xsrf_token_str = str(xsrf_token)
-                self._session.headers['X-Xsrf-Token'] = urllib.parse.unquote(xsrf_token_str)
+                # Set the XSRF token in session headers
+                self._session.headers['X-Xsrf-Token'] = urllib.parse.unquote(xsrf_token)
                 
                 # Check if login was successful by looking for device elements
                 text = await response.text()
