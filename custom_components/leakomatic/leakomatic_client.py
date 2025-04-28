@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import re
 import ssl
+import asyncio
 from enum import Enum
 from typing import Any, Optional, Callable
 
@@ -347,68 +348,83 @@ class LeakomaticClient:
             "User-Agent": "Mozilla/5.0"
         }
 
-        try:
-            async with websockets.connect(
-                ws_url,
-                subprotocols=['actioncable-v1-json'],
-                additional_headers=ws_headers,
-                ssl=ssl_context
-            ) as websocket:
-                _LOGGER.debug("Connected to websocket server")
+        # Reconnection parameters
+        max_retries = 5
+        retry_count = 0
+        retry_delay = 5  # seconds
 
-                # Send subscription message
-                msg_subscribe = {
-                    "command": "subscribe",
-                    "identifier": f"{{\"channel\":\"BroadcastChannel\",\"user_id\":{self._user_id}}}"
-                }
-                await websocket.send(json.dumps(msg_subscribe))
-                _LOGGER.debug("Sent subscription message: %s", msg_subscribe)
+        while retry_count < max_retries:
+            try:
+                _LOGGER.debug("Attempting WebSocket connection (attempt %d)...", retry_count + 1)
+                
+                async with websockets.connect(
+                    ws_url,
+                    subprotocols=['actioncable-v1-json'],
+                    additional_headers=ws_headers,
+                    ssl=ssl_context
+                ) as websocket:
+                    _LOGGER.debug("Connected to websocket server")
 
-                # Listen for messages
-                while True:
-                    try:
-                        response = await websocket.recv()
-                        parsed_response = json.loads(response)
+                    # Send subscription message
+                    msg_subscribe = {
+                        "command": "subscribe",
+                        "identifier": f"{{\"channel\":\"BroadcastChannel\",\"user_id\":{self._user_id}}}"
+                    }
+                    await websocket.send(json.dumps(msg_subscribe))
+                    _LOGGER.debug("Sent subscription message: %s", msg_subscribe)
 
-                        # Extract message type
-                        msg_type = ""
-                        # Try to extract the "type" (which exists in some messages)
-                        attr_type = parsed_response.get("type")
-                        if attr_type is not None:
-                            msg_type = attr_type
-                        else:
-                            # Look for "operation" attribute in message
-                            attr_operation = parsed_response.get('message', {}).get('operation', '')
-                            if attr_operation is not None:
-                                msg_type = attr_operation
+                    # Listen for messages
+                    while True:
+                        try:
+                            response = await websocket.recv()
+                            parsed_response = json.loads(response)
 
-                        # Handle different message types
-                        if msg_type == MessageType.WELCOME.value:
-                            _LOGGER.debug("Received welcome message")
-                        elif msg_type == MessageType.PING.value:
-                            # TODO: Implement reconnect if no ping received in X time
-                            # Skip logging for ping messages
-                            pass
-                        elif msg_type == MessageType.CONFIRM_SUBSCRIPTION.value:
-                            _LOGGER.debug("Subscription confirmed")
-                        else:
-                            # For all other message types, call the callback
-                            if msg_type:
-                                if msg_type == MessageType.DEVICE_UPDATED.value:
-                                    data = parsed_response.get('message', {}).get('data', {})
-                                    _LOGGER.debug("Received device update with data: Mode=%s, Alarm=%s", 
-                                                data.get('mode'), 
-                                                data.get('alarm'))
-                                _LOGGER.debug("Received message of type: %s", msg_type)
-                                message_callback(parsed_response)
+                            # Extract message type
+                            msg_type = ""
+                            # Try to extract the "type" (which exists in some messages)
+                            attr_type = parsed_response.get("type")
+                            if attr_type is not None:
+                                msg_type = attr_type
                             else:
-                                _LOGGER.warning("Unknown message type in response: %s", parsed_response)
+                                # Look for "operation" attribute in message
+                                attr_operation = parsed_response.get('message', {}).get('operation', '')
+                                if attr_operation is not None:
+                                    msg_type = attr_operation
 
-                    except websockets.ConnectionClosed:
-                        _LOGGER.warning("Websocket connection closed, attempting to reconnect...")
-                        break  # Break out of the inner loop to attempt reconnection
-                    except Exception as err:
-                        _LOGGER.error("Error processing websocket message: %s", err)
+                            # Handle different message types
+                            if msg_type == MessageType.WELCOME.value:
+                                _LOGGER.debug("Received welcome message")
+                            elif msg_type == MessageType.PING.value:
+                                # Skip logging for ping messages
+                                pass
+                            elif msg_type == MessageType.CONFIRM_SUBSCRIPTION.value:
+                                _LOGGER.debug("Subscription confirmed")
+                            else:
+                                # For all other message types, call the callback
+                                if msg_type:
+                                    if msg_type == MessageType.DEVICE_UPDATED.value:
+                                        data = parsed_response.get('message', {}).get('data', {})
+                                        _LOGGER.debug("Received device update with data: Mode=%s, Alarm=%s", 
+                                                    data.get('mode'), 
+                                                    data.get('alarm'))
+                                    _LOGGER.debug("Received message of type: %s", msg_type)
+                                    message_callback(parsed_response)
+                                else:
+                                    _LOGGER.warning("Unknown message type in response: %s", parsed_response)
 
-        except Exception as err:
-            _LOGGER.error("Failed to connect to websocket: %s", err) 
+                        except websockets.ConnectionClosed:
+                            _LOGGER.warning("Websocket connection closed, attempting to reconnect...")
+                            break  # Break out of the inner loop to attempt reconnection
+                        except Exception as err:
+                            _LOGGER.error("Error processing websocket message (attempt %d): %s", retry_count + 1, err)
+                            # Don't break here, continue processing messages
+
+            except Exception as err:
+                _LOGGER.error("Failed to connect to websocket: %s", err)
+                retry_count += 1
+                if retry_count < max_retries:
+                    _LOGGER.info("Waiting %d seconds before reconnection attempt %d...", retry_delay, retry_count + 1)
+                    await asyncio.sleep(retry_delay)
+                else:
+                    _LOGGER.error("Maximum reconnection attempts reached (%d). Giving up.", max_retries)
+                    break 
