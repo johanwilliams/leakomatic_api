@@ -68,6 +68,8 @@ class LeakomaticClient:
         self._user_id: Optional[str] = None
         self._session: Optional[aiohttp.ClientSession] = None
         self._error_code: Optional[str] = None
+        self._xsrf_token: Optional[str] = None
+        self._cookies: Optional[aiohttp.CookieJar] = None
 
     async def async_authenticate(self) -> bool:
         """Authenticate with the Leakomatic API."""
@@ -96,8 +98,12 @@ class LeakomaticClient:
         except Exception as err:
             _LOGGER.error("Authentication error: %s", err)
             return False
-        # Don't close the session here, we'll keep it open for subsequent requests
-    
+        finally:
+            # Close the session after authentication
+            if self._session:
+                await self._session.close()
+                self._session = None
+
     @property
     def error_code(self) -> Optional[str]:
         """Get the error code if authentication failed."""
@@ -117,6 +123,9 @@ class LeakomaticClient:
                 if response.status != 200:
                     _LOGGER.warning("Connection failed - server returned %s", response.status)
                     return None
+                
+                # Save the cookies from the start page
+                self._cookies = response.cookies
                 
                 text = await response.text()
                 soup = BeautifulSoup(text, 'html.parser')
@@ -176,8 +185,9 @@ class LeakomaticClient:
                     self._error_code = "xsrf_token_missing"
                     return False
                 
-                # Set the XSRF token in session headers
-                self._session.headers['X-Xsrf-Token'] = urllib.parse.unquote(xsrf_token)
+                # Update the cookies with any new ones from the login response
+                self._cookies.update(response.cookies)
+                self._xsrf_token = xsrf_token
                 
                 # Check if login was successful by looking for device elements
                 text = await response.text()
@@ -225,17 +235,15 @@ class LeakomaticClient:
         except Exception as err:
             _LOGGER.error("Login error: %s", err)
             return False
-            
+
     async def async_get_device_data(self) -> Optional[dict[str, Any]]:
         """Get device data from the Leakomatic API."""
         if not self._device_id:
             _LOGGER.error("Cannot fetch data - no device configured")
             return None
             
-        if not self._session:
+        if not self._xsrf_token:
             _LOGGER.debug("Reconnecting to Leakomatic API")
-            self._session = aiohttp.ClientSession()
-            
             auth_success = await self.async_authenticate()
             if not auth_success:
                 _LOGGER.error("Failed to reconnect to Leakomatic API")
@@ -244,35 +252,47 @@ class LeakomaticClient:
         try:
             _LOGGER.debug("Fetching data for device %s", self._device_id)
             
-            # Construct the URL for the device status JSON
-            url = f"{STATUS_URL}/{self._device_id}.json"
-            _LOGGER.debug("Requesting URL: %s", url)
+            # Create a new session with the saved cookies
+            headers = {
+                "User-Agent": "Mozilla/5.0",
+                "X-Xsrf-Token": urllib.parse.unquote(self._xsrf_token)
+            }
             
-            async with self._session.get(url) as response:
-                if response.status != 200:
-                    _LOGGER.warning("Failed to fetch device data - server returned %s", response.status)
-                    return None
+            async with aiohttp.ClientSession(cookies=self._cookies) as session:
+                # Construct the URL for the device status JSON
+                url = f"{STATUS_URL}/{self._device_id}.json"
+                _LOGGER.debug("Requesting URL: %s", url)
                 
-                # Parse the JSON response
-                device_data = await response.json()
-                
-                # Log only key information instead of the full JSON
-                if device_data:
-                    _LOGGER.debug("Device data received - Mode: %s, Status: %s",
-                                 device_data.get("mode", "unknown"),
-                                 "ALARM" if device_data.get("alarm") else "OK")
+                async with session.get(url, headers=headers) as response:
+                    if response.status != 200:
+                        _LOGGER.warning("Failed to fetch device data - server returned %s", response.status)
+                        return None
                     
-                    # Log the raw mode value for debugging
-                    _LOGGER.debug("Raw mode value: %s, type: %s", 
-                                 device_data.get("mode"), 
-                                 type(device_data.get("mode")).__name__)
-                
-                return device_data
+                    # Update cookies and XSRF token from the response
+                    self._cookies.update(response.cookies)
+                    new_xsrf_token = await self._async_get_xsrf_token(response)
+                    if new_xsrf_token:
+                        self._xsrf_token = new_xsrf_token
+                    
+                    # Parse the JSON response
+                    device_data = await response.json()
+                    
+                    # Log only key information instead of the full JSON
+                    if device_data:
+                        _LOGGER.debug("Device data received - Mode: %s, Status: %s",
+                                     device_data.get("mode", "unknown"),
+                                     "ALARM" if device_data.get("alarm") else "OK")
+                        
+                        # Log the raw mode value for debugging
+                        _LOGGER.debug("Raw mode value: %s, type: %s", 
+                                     device_data.get("mode"), 
+                                     type(device_data.get("mode")).__name__)
+                    
+                    return device_data
                 
         except Exception as err:
             _LOGGER.error("Failed to fetch device data: %s", err)
             return None
-        # Don't close the session here, we'll keep it open for subsequent requests
 
     async def async_close(self) -> None:
         """Close the client session."""
@@ -287,10 +307,8 @@ class LeakomaticClient:
             _LOGGER.error("Cannot fetch websocket token - no device configured")
             return None
             
-        if not self._session:
+        if not self._xsrf_token:
             _LOGGER.debug("Reconnecting to Leakomatic API")
-            self._session = aiohttp.ClientSession()
-            
             auth_success = await self.async_authenticate()
             if not auth_success:
                 _LOGGER.error("Failed to reconnect to Leakomatic API")
@@ -299,31 +317,44 @@ class LeakomaticClient:
         try:
             _LOGGER.debug("Fetching websocket token for device %s", self._device_id)
             
-            # Construct the URL for the device status page (not JSON)
-            url = f"{STATUS_URL}/{self._device_id}"
-            _LOGGER.debug("Requesting URL: %s", url)
+            # Create a new session with the saved cookies
+            headers = {
+                "User-Agent": "Mozilla/5.0",
+                "X-Xsrf-Token": urllib.parse.unquote(self._xsrf_token)
+            }
             
-            async with self._session.get(url) as response:
-                if response.status != 200:
-                    _LOGGER.warning("Failed to fetch websocket token - server returned %s", response.status)
-                    return None
+            async with aiohttp.ClientSession(cookies=self._cookies) as session:
+                # Construct the URL for the device status page (not JSON)
+                url = f"{STATUS_URL}/{self._device_id}"
+                _LOGGER.debug("Requesting URL: %s", url)
                 
-                # Get the response text
-                text = await response.text()
-                
-                # Define a regular expression pattern to match the ws token
-                pattern = re.compile(r'token=([a-zA-Z0-9_.-]+)')
-                
-                # Search for the pattern in the response
-                match = pattern.search(text)
-                
-                if not match:
-                    _LOGGER.warning("Websocket token not found in the response")
-                    return None
-                
-                ws_token = match.group(1)
-                _LOGGER.debug("Websocket token retrieved successfully")
-                return ws_token
+                async with session.get(url, headers=headers) as response:
+                    if response.status != 200:
+                        _LOGGER.warning("Failed to fetch websocket token - server returned %s", response.status)
+                        return None
+                    
+                    # Update cookies and XSRF token from the response
+                    self._cookies.update(response.cookies)
+                    new_xsrf_token = await self._async_get_xsrf_token(response)
+                    if new_xsrf_token:
+                        self._xsrf_token = new_xsrf_token
+                    
+                    # Get the response text
+                    text = await response.text()
+                    
+                    # Define a regular expression pattern to match the ws token
+                    pattern = re.compile(r'token=([a-zA-Z0-9_.-]+)')
+                    
+                    # Search for the pattern in the response
+                    match = pattern.search(text)
+                    
+                    if not match:
+                        _LOGGER.warning("Websocket token not found in the response")
+                        return None
+                    
+                    ws_token = match.group(1)
+                    _LOGGER.debug("Websocket token retrieved successfully")
+                    return ws_token
                 
         except Exception as err:
             _LOGGER.error("Failed to fetch websocket token: %s", err)
