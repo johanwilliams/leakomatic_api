@@ -33,6 +33,36 @@ class MessageType(Enum):
     CONFIGURATION_ADDED = "configuration_added"  # Configuration change notification
     ALARM_TRIGGERED = "alarm_triggered"  # Alarm event notification
 
+# Device operating modes
+class DeviceMode(Enum):
+    """Device operating modes.
+    
+    These modes represent the different operating states of a Leakomatic device.
+    The numeric values (0, 1, 2) are used in the API, while the string values
+    (home, away, pause) are used in the Home Assistant UI.
+    """
+    HOME = 0  # Home mode - normal operation
+    AWAY = 1  # Away mode - reduced sensitivity
+    PAUSE = 2  # Pause mode - monitoring paused
+    
+    @classmethod
+    def from_string(cls, mode_str: str) -> int:
+        """Convert a string mode to its numeric value.
+        
+        Args:
+            mode_str: The string mode (home, away, pause)
+            
+        Returns:
+            int: The numeric value (0, 1, 2)
+            
+        Raises:
+            ValueError: If the mode string is invalid
+        """
+        try:
+            return cls[mode_str.upper()].value
+        except KeyError:
+            raise ValueError(f"Invalid mode: {mode_str}. Must be one of: home, away, pause")
+
 # HTTP Headers
 DEFAULT_HEADERS = {
     "User-Agent": "Mozilla/5.0",

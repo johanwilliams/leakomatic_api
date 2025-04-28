@@ -14,7 +14,7 @@ from homeassistant.helpers.device_registry import DeviceEntry, DeviceRegistry, a
 from homeassistant.helpers.entity_registry import EntityRegistry, async_get as async_get_entity_registry
 from homeassistant.const import ATTR_ENTITY_ID
 
-from .const import DOMAIN, LOGGER_NAME, DEFAULT_NAME
+from .const import DOMAIN, LOGGER_NAME, DEFAULT_NAME, DeviceMode
 from .leakomatic_client import LeakomaticClient
 
 # Set up logger
@@ -159,6 +159,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.error("Missing required parameter: mode")
             return
             
+        # Validate the mode
+        try:
+            # This will raise ValueError if the mode is invalid
+            DeviceMode.from_string(mode)
+        except ValueError as err:
+            _LOGGER.error("Invalid mode: %s", err)
+            return
+            
         # Get the entity registry using the proper import
         entity_registry = async_get_entity_registry(hass)
         
@@ -199,15 +207,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 _LOGGER.error("Client not found for config entry: %s", config_entry_id)
                 continue
                 
-            # Log the mode change instead of making the API call
-            _LOGGER.info("Service call successful: Would change mode to %s for entity %s", mode, entity_id)
-            
-            # Comment out the actual API call for now
-            # success = await client.async_change_mode(mode)
-            # if success:
-            #     _LOGGER.info("Changed mode to %s for entity %s", mode, entity_id)
-            # else:
-            #     _LOGGER.error("Failed to change mode to %s for entity %s", mode, entity_id)
+            # Call the client method to change the mode
+            success = await client.async_change_mode(mode)
+            if success:
+                _LOGGER.info("Changed mode to %s for entity %s", mode, entity_id)
+            else:
+                _LOGGER.error("Failed to change mode to %s for entity %s", mode, entity_id)
     
     # Register the service
     hass.services.async_register(

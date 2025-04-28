@@ -24,7 +24,7 @@ from .const import (
     LOGGER_NAME, START_URL, LOGIN_URL, STATUS_URL, WEBSOCKET_URL,
     MessageType, DEFAULT_HEADERS, WEBSOCKET_HEADERS, MAX_RETRIES, RETRY_DELAY,
     ERROR_AUTH_TOKEN_MISSING, ERROR_INVALID_CREDENTIALS, ERROR_XSRF_TOKEN_MISSING, ERROR_NO_DEVICES_FOUND,
-    XSRF_TOKEN_HEADER
+    XSRF_TOKEN_HEADER, DeviceMode
 )
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
@@ -74,8 +74,12 @@ class LeakomaticClient:
         
         # Always add the XSRF token to the headers if it exists
         if self._xsrf_token:
+            _LOGGER.debug("Adding XSRF token to session headers: %s", self._xsrf_token)
             headers[XSRF_TOKEN_HEADER] = urllib.parse.unquote(self._xsrf_token)
+        else:
+            _LOGGER.warning("No XSRF token available for session headers")
         
+        _LOGGER.debug("Creating new session with cookies: %s", self._cookies)
         return aiohttp.ClientSession(cookies=self._cookies, headers=headers)
 
     async def _update_session_from_response(self, response: aiohttp.ClientResponse) -> None:
@@ -87,7 +91,10 @@ class LeakomaticClient:
         self._cookies.update(response.cookies)
         new_xsrf_token = await self._async_get_xsrf_token(response)
         if new_xsrf_token:
+            _LOGGER.debug("Updating XSRF token from response: %s", new_xsrf_token)
             self._xsrf_token = new_xsrf_token
+        else:
+            _LOGGER.warning("No new XSRF token found in response")
 
     async def async_authenticate(self) -> bool:
         """Authenticate with the Leakomatic API."""
@@ -163,12 +170,24 @@ class LeakomaticClient:
 
     async def _async_get_xsrf_token(self, response: aiohttp.ClientResponse) -> Optional[str]:
         """Get the XSRF token from the response cookies."""
-        cookies = response.cookies
-        xsrf_token = cookies.get('XSRF-TOKEN')
+        # Get the XSRF-TOKEN cookie value
+        xsrf_token = response.cookies.get('XSRF-TOKEN')
         if not xsrf_token:
             _LOGGER.warning("XSRF token not found in cookies")
             return None
-        return str(xsrf_token)
+            
+        # Convert to string and extract just the token value
+        xsrf_token_str = str(xsrf_token)
+        
+        # Check if the token has the "Set-Cookie: XSRF-TOKEN=" prefix
+        if xsrf_token_str.startswith("Set-Cookie: XSRF-TOKEN="):
+            xsrf_token_str = xsrf_token_str.replace("Set-Cookie: XSRF-TOKEN=", "")
+            
+        # Extract just the token value (remove any additional cookie attributes)
+        xsrf_token_str = xsrf_token_str.split(';')[0]
+        
+        _LOGGER.debug("Retrieved XSRF token: %s", xsrf_token_str)
+        return xsrf_token_str
 
     async def _async_login(self) -> bool:
         """Login to the Leakomatic API."""
@@ -457,12 +476,14 @@ class LeakomaticClient:
             bool: True if the client is authenticated, False otherwise.
         """
         if not self._xsrf_token:
-            _LOGGER.debug("Reconnecting to Leakomatic API")
+            _LOGGER.debug("No XSRF token available, reconnecting to Leakomatic API")
             auth_success = await self.async_authenticate()
             if not auth_success:
                 _LOGGER.error("Failed to reconnect to Leakomatic API")
                 return False
-        return True 
+        else:
+            _LOGGER.debug("Using existing XSRF token: %s", self._xsrf_token)
+        return True
 
     def _extract_message_type(self, parsed_response: dict) -> str:
         """Extract the message type from a parsed WebSocket response.
@@ -527,30 +548,43 @@ class LeakomaticClient:
         if not await self._ensure_authenticated():
             return False
             
-        # Validate the mode
-        valid_modes = ["home", "away", "pause"]
-        if mode not in valid_modes:
-            return self._handle_error(
-                f"Invalid mode: {mode}. Must be one of: {', '.join(valid_modes)}", 
-                return_value=False, 
-                level="warning"
-            )
-            
         try:
-            _LOGGER.debug("Changing mode to %s for device %s", mode, self._device_id)
+            # Convert the string mode to a numeric value using the DeviceMode enum
+            numeric_mode = DeviceMode.from_string(mode)
+            _LOGGER.debug("Changing mode to %s (numeric value: %d) for device %s", mode, numeric_mode, self._device_id)
             
-            # Create a new session with the saved cookies
-            async with await self._create_session() as session:
+            # Create headers for JSON content
+            mode_headers = {
+                "Content-Type": "application/json;charset=UTF-8",
+                "User-Agent": "Mozilla/5.0",
+                "Connection": "close"
+            }
+            
+            # Create a new session with the saved cookies and specific headers for JSON
+            session = await self._create_session(headers=mode_headers)
+            try:
                 # Construct the URL for changing the mode
-                url = f"{STATUS_URL}/{self._device_id}/change_mode"
+                url = f"{STATUS_URL}/{self._device_id}/change_mode.json"
                 _LOGGER.debug("Requesting URL %s", url)
                 
                 # Prepare the data for the request
                 data = {
-                    "mode": mode
+                    "mode": numeric_mode
                 }
                 
+                # Log the request details
+                _LOGGER.debug("Request headers: %s", mode_headers)
+                _LOGGER.debug("Request data: %s", data)
+                
                 async with session.post(url, json=data) as response:
+                    # Log the response details
+                    _LOGGER.debug("Response status: %d", response.status)
+                    _LOGGER.debug("Response headers: %s", response.headers)
+                    
+                    # Get the response content for debugging
+                    response_text = await response.text()
+                    _LOGGER.debug("Response content: %s", response_text[:500])  # Log first 500 chars to avoid huge logs
+                    
                     if response.status != 200:
                         return self._handle_error(
                             f"Failed to change mode - server returned {response.status}",
@@ -561,19 +595,33 @@ class LeakomaticClient:
                     # Update cookies and XSRF token from the response
                     await self._update_session_from_response(response)
                     
-                    # Parse the JSON response
-                    result = await response.json()
-                    
-                    # Check if the mode was changed successfully
-                    if result.get("success", False):
-                        _LOGGER.info("Successfully changed mode to %s for device %s", mode, self._device_id)
-                        return True
-                    else:
+                    # Try to parse the JSON response
+                    try:
+                        result = await response.json()
+                        _LOGGER.debug("Response JSON: %s", result)
+                        
+                        # Check if the mode was changed successfully
+                        if result.get("success", False):
+                            _LOGGER.info("Successfully changed mode to %s for device %s", mode, self._device_id)
+                            return True
+                        else:
+                            return self._handle_error(
+                                f"Failed to change mode: {result.get('error', 'Unknown error')}",
+                                return_value=False,
+                                level="warning"
+                            )
+                    except Exception as json_err:
+                        _LOGGER.error("Failed to parse JSON response: %s", json_err)
                         return self._handle_error(
-                            f"Failed to change mode: {result.get('error', 'Unknown error')}",
+                            f"Failed to parse JSON response: {json_err}",
                             return_value=False,
-                            level="warning"
+                            level="error"
                         )
+            finally:
+                # Always close the session
+                await session.close()
                 
+        except ValueError as err:
+            return self._handle_error(str(err), return_value=False, level="warning")
         except Exception as err:
             return self._handle_error(f"Failed to change mode: {err}", return_value=False, level="error") 
