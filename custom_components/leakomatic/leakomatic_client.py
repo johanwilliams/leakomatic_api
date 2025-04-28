@@ -351,7 +351,7 @@ class LeakomaticClient:
         # Reconnection parameters
         max_retries = 5
         retry_count = 0
-        retry_delay = 5  # seconds
+        retry_delay = 60  # seconds
 
         while retry_count < max_retries:
             try:
