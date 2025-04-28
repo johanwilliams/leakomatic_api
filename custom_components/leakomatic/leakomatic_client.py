@@ -254,8 +254,7 @@ class LeakomaticClient:
     async def async_get_device_data(self) -> Optional[dict[str, Any]]:
         """Get device data from the Leakomatic API."""
         if not self._device_id:
-            _LOGGER.error("Cannot fetch data - no device configured")
-            return None
+            return self._handle_error("Cannot fetch data - no device configured", return_value=None, level="warning")
             
         # Ensure we're authenticated
         if not await self._ensure_authenticated():
@@ -268,12 +267,15 @@ class LeakomaticClient:
             async with await self._create_session() as session:
                 # Construct the URL for the device status JSON
                 url = f"{STATUS_URL}/{self._device_id}.json"
-                _LOGGER.debug("Requesting URL: %s", url)
+                _LOGGER.debug("Requesting URL %s", url)
                 
                 async with session.get(url) as response:
                     if response.status != 200:
-                        _LOGGER.warning("Failed to fetch device data - server returned %s", response.status)
-                        return None
+                        return self._handle_error(
+                            f"Failed to fetch device data - server returned {response.status}",
+                            return_value=None,
+                            level="warning"
+                        )
                     
                     # Update cookies and XSRF token from the response
                     await self._update_session_from_response(response)
@@ -288,15 +290,14 @@ class LeakomaticClient:
                                      "ALARM" if device_data.get("alarm") else "OK")
                         
                         # Log the raw mode value for debugging
-                        _LOGGER.debug("Raw mode value: %s, type: %s", 
+                        _LOGGER.debug("Raw mode value %s, type %s", 
                                      device_data.get("mode"), 
                                      type(device_data.get("mode")).__name__)
                     
                     return device_data
                 
         except Exception as err:
-            _LOGGER.error("Failed to fetch device data: %s", err)
-            return None
+            return self._handle_error(f"Failed to fetch device data: {err}", return_value=None, level="error")
 
     async def async_close(self) -> None:
         """Close the client session."""
@@ -475,3 +476,29 @@ class LeakomaticClient:
             if attr_operation is not None:
                 msg_type = attr_operation
         return msg_type 
+
+    def _handle_error(self, error_msg: str, error_code: Optional[str] = None, return_value: Any = None, level: str = "error") -> Any:
+        """Handle errors consistently across methods.
+        
+        Args:
+            error_msg: The error message to log.
+            error_code: Optional error code to set.
+            return_value: The value to return on error.
+            level: The log level to use ("error" or "warning").
+        
+        Returns:
+            The specified return value.
+        """
+        # Remove any trailing periods from error messages
+        error_msg = error_msg.rstrip('.')
+        
+        # Log the error without the component name (Home Assistant adds this automatically)
+        if level == "error":
+            _LOGGER.error(error_msg)
+        else:
+            _LOGGER.warning(error_msg)
+        
+        if error_code:
+            self._error_code = error_code
+            
+        return return_value 
