@@ -257,12 +257,9 @@ class LeakomaticClient:
             _LOGGER.error("Cannot fetch data - no device configured")
             return None
             
-        if not self._xsrf_token:
-            _LOGGER.debug("Reconnecting to Leakomatic API")
-            auth_success = await self.async_authenticate()
-            if not auth_success:
-                _LOGGER.error("Failed to reconnect to Leakomatic API")
-                return None
+        # Ensure we're authenticated
+        if not await self._ensure_authenticated():
+            return None
             
         try:
             _LOGGER.debug("Fetching data for device %s", self._device_id)
@@ -314,12 +311,9 @@ class LeakomaticClient:
             _LOGGER.error("Cannot fetch websocket token - no device configured")
             return None
             
-        if not self._xsrf_token:
-            _LOGGER.debug("Reconnecting to Leakomatic API")
-            auth_success = await self.async_authenticate()
-            if not auth_success:
-                _LOGGER.error("Failed to reconnect to Leakomatic API")
-                return None
+        # Ensure we're authenticated
+        if not await self._ensure_authenticated():
+            return None
             
         try:
             _LOGGER.debug("Fetching websocket token for device %s", self._device_id)
@@ -452,3 +446,20 @@ class LeakomaticClient:
                 else:
                     _LOGGER.error("Maximum reconnection attempts reached (%d). Giving up.", MAX_RETRIES)
                     break 
+
+    async def _ensure_authenticated(self) -> bool:
+        """Ensure the client is authenticated.
+        
+        This method checks if the client has a valid XSRF token. If not, it attempts
+        to authenticate with the Leakomatic API.
+        
+        Returns:
+            bool: True if the client is authenticated, False otherwise.
+        """
+        if not self._xsrf_token:
+            _LOGGER.debug("Reconnecting to Leakomatic API")
+            auth_success = await self.async_authenticate()
+            if not auth_success:
+                _LOGGER.error("Failed to reconnect to Leakomatic API")
+                return False
+        return True 
