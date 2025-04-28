@@ -510,3 +510,70 @@ class LeakomaticClient:
             self._error_code = error_code
             
         return return_value 
+
+    async def async_change_mode(self, mode: str) -> bool:
+        """Change the mode of the Leakomatic device.
+        
+        Args:
+            mode: The new mode to set. Must be one of: "home", "away", "pause".
+            
+        Returns:
+            bool: True if the mode was changed successfully, False otherwise.
+        """
+        if not self._device_id:
+            return self._handle_error("Cannot change mode - no device configured", return_value=False, level="warning")
+            
+        # Ensure we're authenticated
+        if not await self._ensure_authenticated():
+            return False
+            
+        # Validate the mode
+        valid_modes = ["home", "away", "pause"]
+        if mode not in valid_modes:
+            return self._handle_error(
+                f"Invalid mode: {mode}. Must be one of: {', '.join(valid_modes)}", 
+                return_value=False, 
+                level="warning"
+            )
+            
+        try:
+            _LOGGER.debug("Changing mode to %s for device %s", mode, self._device_id)
+            
+            # Create a new session with the saved cookies
+            async with await self._create_session() as session:
+                # Construct the URL for changing the mode
+                url = f"{STATUS_URL}/{self._device_id}/change_mode"
+                _LOGGER.debug("Requesting URL %s", url)
+                
+                # Prepare the data for the request
+                data = {
+                    "mode": mode
+                }
+                
+                async with session.post(url, json=data) as response:
+                    if response.status != 200:
+                        return self._handle_error(
+                            f"Failed to change mode - server returned {response.status}",
+                            return_value=False,
+                            level="warning"
+                        )
+                    
+                    # Update cookies and XSRF token from the response
+                    await self._update_session_from_response(response)
+                    
+                    # Parse the JSON response
+                    result = await response.json()
+                    
+                    # Check if the mode was changed successfully
+                    if result.get("success", False):
+                        _LOGGER.info("Successfully changed mode to %s for device %s", mode, self._device_id)
+                        return True
+                    else:
+                        return self._handle_error(
+                            f"Failed to change mode: {result.get('error', 'Unknown error')}",
+                            return_value=False,
+                            level="warning"
+                        )
+                
+        except Exception as err:
+            return self._handle_error(f"Failed to change mode: {err}", return_value=False, level="error") 

@@ -9,9 +9,10 @@ It provides real-time monitoring of device status, including:
 """
 import logging
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant, callback, ServiceCall
 from homeassistant.helpers.device_registry import DeviceEntry, DeviceRegistry, async_get as async_get_device_registry
-from homeassistant.helpers.entity_registry import EntityRegistry
+from homeassistant.helpers.entity_registry import EntityRegistry, async_get as async_get_entity_registry
+from homeassistant.const import ATTR_ENTITY_ID
 
 from .const import DOMAIN, LOGGER_NAME, DEFAULT_NAME
 from .leakomatic_client import LeakomaticClient
@@ -144,6 +145,76 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
         )
         _LOGGER.debug("Started websocket connection task")
+    
+    # Register the change_mode service
+    async def async_change_mode(call: ServiceCall) -> None:
+        """Change the mode of a Leakomatic device.
+        
+        Args:
+            call: The service call data
+        """
+        mode = call.data.get("mode")
+        
+        if not mode:
+            _LOGGER.error("Missing required parameter: mode")
+            return
+            
+        # Get the entity registry using the proper import
+        entity_registry = async_get_entity_registry(hass)
+        
+        # Get entity IDs - first check target, then fall back to data
+        entity_ids = None
+        if hasattr(call, "target") and call.target and ATTR_ENTITY_ID in call.target:
+            entity_ids = call.target[ATTR_ENTITY_ID]
+        else:
+            entity_ids = call.data.get(ATTR_ENTITY_ID)
+            
+        if not entity_ids:
+            _LOGGER.error("Missing required parameter: entity_id")
+            return
+            
+        # Convert to list if it's a string
+        if isinstance(entity_ids, str):
+            entity_ids = [entity_ids]
+        
+        # Process each entity
+        for entity_id in entity_ids:
+            entity = entity_registry.async_get(entity_id)
+            
+            if not entity:
+                _LOGGER.error("Entity not found: %s", entity_id)
+                continue
+                
+            # Find the config entry for this entity
+            config_entry_id = entity.config_entry_id
+            if not config_entry_id:
+                _LOGGER.error("Entity %s is not associated with a config entry", entity_id)
+                continue
+                
+            # Get the client from the config entry
+            domain_data = hass.data.get(DOMAIN, {}).get(config_entry_id, {})
+            client = domain_data.get("client")
+            
+            if not client:
+                _LOGGER.error("Client not found for config entry: %s", config_entry_id)
+                continue
+                
+            # Log the mode change instead of making the API call
+            _LOGGER.info("Service call successful: Would change mode to %s for entity %s", mode, entity_id)
+            
+            # Comment out the actual API call for now
+            # success = await client.async_change_mode(mode)
+            # if success:
+            #     _LOGGER.info("Changed mode to %s for entity %s", mode, entity_id)
+            # else:
+            #     _LOGGER.error("Failed to change mode to %s for entity %s", mode, entity_id)
+    
+    # Register the service
+    hass.services.async_register(
+        DOMAIN,
+        "change_mode",
+        async_change_mode
+    )
     
     _LOGGER.info("Leakomatic integration setup completed for %s", entry.entry_id)
     return True

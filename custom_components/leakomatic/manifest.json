@@ -12,5 +12,6 @@
   ],
   "version": "0.1.0",
   "iot_class": "push",
-  "config_flow": true
+  "config_flow": true,
+  "services_yaml": "services.yaml"
 } 
