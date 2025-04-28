@@ -12,7 +12,7 @@ import logging
 import re
 import ssl
 import asyncio
-from typing import Any, Optional, Callable
+from typing import Any, Optional, Callable, Dict
 
 import aiohttp
 import websockets
@@ -57,6 +57,37 @@ class LeakomaticClient:
         self._error_code: Optional[str] = None
         self._xsrf_token: Optional[str] = None
         self._cookies: Optional[aiohttp.CookieJar] = None
+
+    async def _create_session(self, headers: Optional[Dict[str, str]] = None) -> aiohttp.ClientSession:
+        """Create a new session with the saved cookies and headers.
+        
+        Args:
+            headers: Optional headers to include in the session.
+                    If not provided, default headers will be used.
+                    The XSRF token will be added to the headers if it exists.
+        
+        Returns:
+            An aiohttp ClientSession with the configured cookies and headers.
+        """
+        if headers is None:
+            headers = DEFAULT_HEADERS.copy()
+        
+        # Always add the XSRF token to the headers if it exists
+        if self._xsrf_token:
+            headers[XSRF_TOKEN_HEADER] = urllib.parse.unquote(self._xsrf_token)
+        
+        return aiohttp.ClientSession(cookies=self._cookies, headers=headers)
+
+    async def _update_session_from_response(self, response: aiohttp.ClientResponse) -> None:
+        """Update cookies and XSRF token from a response.
+        
+        Args:
+            response: The aiohttp ClientResponse to extract cookies and XSRF token from.
+        """
+        self._cookies.update(response.cookies)
+        new_xsrf_token = await self._async_get_xsrf_token(response)
+        if new_xsrf_token:
+            self._xsrf_token = new_xsrf_token
 
     async def async_authenticate(self) -> bool:
         """Authenticate with the Leakomatic API."""
@@ -237,24 +268,18 @@ class LeakomaticClient:
             _LOGGER.debug("Fetching data for device %s", self._device_id)
             
             # Create a new session with the saved cookies
-            headers = DEFAULT_HEADERS.copy()
-            headers[XSRF_TOKEN_HEADER] = urllib.parse.unquote(self._xsrf_token)
-            
-            async with aiohttp.ClientSession(cookies=self._cookies) as session:
+            async with await self._create_session() as session:
                 # Construct the URL for the device status JSON
                 url = f"{STATUS_URL}/{self._device_id}.json"
                 _LOGGER.debug("Requesting URL: %s", url)
                 
-                async with session.get(url, headers=headers) as response:
+                async with session.get(url) as response:
                     if response.status != 200:
                         _LOGGER.warning("Failed to fetch device data - server returned %s", response.status)
                         return None
                     
                     # Update cookies and XSRF token from the response
-                    self._cookies.update(response.cookies)
-                    new_xsrf_token = await self._async_get_xsrf_token(response)
-                    if new_xsrf_token:
-                        self._xsrf_token = new_xsrf_token
+                    await self._update_session_from_response(response)
                     
                     # Parse the JSON response
                     device_data = await response.json()
@@ -300,24 +325,18 @@ class LeakomaticClient:
             _LOGGER.debug("Fetching websocket token for device %s", self._device_id)
             
             # Create a new session with the saved cookies
-            headers = DEFAULT_HEADERS.copy()
-            headers[XSRF_TOKEN_HEADER] = urllib.parse.unquote(self._xsrf_token)
-            
-            async with aiohttp.ClientSession(cookies=self._cookies) as session:
+            async with await self._create_session() as session:
                 # Construct the URL for the device status page (not JSON)
                 url = f"{STATUS_URL}/{self._device_id}"
                 _LOGGER.debug("Requesting URL: %s", url)
                 
-                async with session.get(url, headers=headers) as response:
+                async with session.get(url) as response:
                     if response.status != 200:
                         _LOGGER.warning("Failed to fetch websocket token - server returned %s", response.status)
                         return None
                     
                     # Update cookies and XSRF token from the response
-                    self._cookies.update(response.cookies)
-                    new_xsrf_token = await self._async_get_xsrf_token(response)
-                    if new_xsrf_token:
-                        self._xsrf_token = new_xsrf_token
+                    await self._update_session_from_response(response)
                     
                     # Get the response text
                     text = await response.text()
