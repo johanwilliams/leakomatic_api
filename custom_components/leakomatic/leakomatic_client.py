@@ -309,8 +309,7 @@ class LeakomaticClient:
     async def async_get_websocket_token(self) -> Optional[str]:
         """Get the websocket token from the device page."""
         if not self._device_id:
-            _LOGGER.error("Cannot fetch websocket token - no device configured")
-            return None
+            return self._handle_error("Cannot fetch websocket token - no device configured", return_value=None, level="warning")
             
         # Ensure we're authenticated
         if not await self._ensure_authenticated():
@@ -323,12 +322,15 @@ class LeakomaticClient:
             async with await self._create_session() as session:
                 # Construct the URL for the device status page (not JSON)
                 url = f"{STATUS_URL}/{self._device_id}"
-                _LOGGER.debug("Requesting URL: %s", url)
+                _LOGGER.debug("Requesting URL %s", url)
                 
                 async with session.get(url) as response:
                     if response.status != 200:
-                        _LOGGER.warning("Failed to fetch websocket token - server returned %s", response.status)
-                        return None
+                        return self._handle_error(
+                            f"Failed to fetch websocket token - server returned {response.status}",
+                            return_value=None,
+                            level="warning"
+                        )
                     
                     # Update cookies and XSRF token from the response
                     await self._update_session_from_response(response)
@@ -343,16 +345,18 @@ class LeakomaticClient:
                     match = pattern.search(text)
                     
                     if not match:
-                        _LOGGER.warning("Websocket token not found in the response")
-                        return None
+                        return self._handle_error(
+                            "Websocket token not found in the response",
+                            return_value=None,
+                            level="warning"
+                        )
                     
                     ws_token = match.group(1)
                     _LOGGER.debug("Websocket token retrieved successfully")
                     return ws_token
                 
         except Exception as err:
-            _LOGGER.error("Failed to fetch websocket token: %s", err)
-            return None
+            return self._handle_error(f"Failed to fetch websocket token: {err}", return_value=None, level="error")
 
     async def connect_to_websocket(self, ws_token: str, message_callback: Callable[[dict], None]) -> None:
         """Connect to the websocket server and listen for messages.
@@ -362,19 +366,18 @@ class LeakomaticClient:
             message_callback: Callback function to handle received messages
         """
         if not self._user_id:
-            _LOGGER.error("Cannot connect to websocket - no user ID available")
-            return
+            return self._handle_error("Cannot connect to websocket - no user ID available", return_value=None, level="error")
 
         # Construct the websocket URL
         ws_url = f"{WEBSOCKET_URL}?token={ws_token}"
-        _LOGGER.debug("Connecting to websocket server at: %s", WEBSOCKET_URL)
+        _LOGGER.debug("Connecting to websocket server at %s", WEBSOCKET_URL)
 
         # Reconnection parameters
         retry_count = 0
 
         while retry_count < MAX_RETRIES:
             try:
-                _LOGGER.debug("Attempting WebSocket connection (attempt %d)...", retry_count + 1)
+                _LOGGER.debug("Attempting WebSocket connection (attempt %d)", retry_count + 1)
                 
                 async with websockets.connect(
                     ws_url,
@@ -390,7 +393,7 @@ class LeakomaticClient:
                         "identifier": f"{{\"channel\":\"BroadcastChannel\",\"user_id\":{self._user_id}}}"
                     }
                     await websocket.send(json.dumps(msg_subscribe))
-                    _LOGGER.debug("Sent subscription message: %s", msg_subscribe)
+                    _LOGGER.debug("Sent subscription message %s", msg_subscribe)
 
                     # Listen for messages
                     while True:
@@ -414,30 +417,35 @@ class LeakomaticClient:
                                 if msg_type:
                                     if msg_type == MessageType.DEVICE_UPDATED.value:
                                         data = parsed_response.get('message', {}).get('data', {})
-                                        _LOGGER.debug("Received device update with data: Mode=%s, Alarm=%s", 
+                                        _LOGGER.debug("Received device update with data Mode %s, Alarm %s", 
                                                     data.get('mode'), 
                                                     data.get('alarm'))
-                                    _LOGGER.debug("Received message of type: %s", msg_type)
+                                    _LOGGER.debug("Received message of type %s", msg_type)
                                     message_callback(parsed_response)
                                 else:
-                                    _LOGGER.warning("Unknown message type in response: %s", parsed_response)
+                                    _LOGGER.warning("Unknown message type in response %s", parsed_response)
 
                         except websockets.ConnectionClosed:
-                            _LOGGER.warning("Websocket connection closed, attempting to reconnect...")
+                            _LOGGER.warning("Websocket connection closed, attempting to reconnect")
                             break  # Break out of the inner loop to attempt reconnection
                         except Exception as err:
-                            _LOGGER.error("Error processing websocket message (attempt %d): %s", retry_count + 1, err)
-                            # Don't break here, continue processing messages
+                            return self._handle_error(
+                                f"Error processing websocket message (attempt {retry_count + 1}): {err}",
+                                return_value=None,
+                                level="error"
+                            )
 
             except Exception as err:
-                _LOGGER.error("Failed to connect to websocket: %s", err)
                 retry_count += 1
                 if retry_count < MAX_RETRIES:
-                    _LOGGER.info("Waiting %d seconds before reconnection attempt %d...", RETRY_DELAY, retry_count + 1)
+                    _LOGGER.info("Waiting %d seconds before reconnection attempt %d", RETRY_DELAY, retry_count + 1)
                     await asyncio.sleep(RETRY_DELAY)
                 else:
-                    _LOGGER.error("Maximum reconnection attempts reached (%d). Giving up.", MAX_RETRIES)
-                    break 
+                    return self._handle_error(
+                        f"Maximum reconnection attempts reached ({MAX_RETRIES}). Giving up.",
+                        return_value=None,
+                        level="error"
+                    )
 
     async def _ensure_authenticated(self) -> bool:
         """Ensure the client is authenticated.
