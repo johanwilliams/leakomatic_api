@@ -390,11 +390,15 @@ class LeakomaticClient:
             try:
                 _LOGGER.debug("Attempting WebSocket connection (attempt %d)", retry_count + 1)
                 
+                # Use a timeout for the connection to prevent blocking
                 async with websockets.connect(
                     ws_url,
                     subprotocols=['actioncable-v1-json'],
                     additional_headers=WEBSOCKET_HEADERS,
-                    ssl=ssl_context
+                    ssl=ssl_context,
+                    ping_interval=20,  # Send ping every 20 seconds
+                    ping_timeout=10,   # Wait 10 seconds for pong response
+                    close_timeout=5    # Wait 5 seconds for close response
                 ) as websocket:
                     _LOGGER.debug("Connected to websocket server")
 
@@ -409,7 +413,8 @@ class LeakomaticClient:
                     # Listen for messages
                     while True:
                         try:
-                            response = await websocket.recv()
+                            # Use a timeout for receiving messages to prevent blocking
+                            response = await asyncio.wait_for(websocket.recv(), timeout=30)
                             parsed_response = json.loads(response)
 
                             # Extract message type
@@ -436,15 +441,16 @@ class LeakomaticClient:
                                 else:
                                     _LOGGER.warning("Unknown message type in response")
 
+                        except asyncio.TimeoutError:
+                            # This is expected and not an error - just continue the loop
+                            continue
                         except websockets.ConnectionClosed:
                             _LOGGER.warning("Websocket connection closed, attempting to reconnect")
                             break  # Break out of the inner loop to attempt reconnection
                         except Exception as err:
-                            return self._handle_error(
-                                f"Error processing websocket message (attempt {retry_count + 1}): {err}",
-                                return_value=None,
-                                level="error"
-                            )
+                            _LOGGER.error("Error processing websocket message: %s", err)
+                            # Continue the loop to try to receive more messages
+                            continue
 
             except Exception as err:
                 retry_count += 1

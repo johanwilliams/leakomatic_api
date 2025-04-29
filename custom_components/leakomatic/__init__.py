@@ -138,11 +138,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     # Start websocket connection after platforms are set up
     if ws_token:
+        # Create a background task for the websocket connection
         hass.async_create_task(
             client.connect_to_websocket(
                 ws_token,
                 hass.data[DOMAIN][entry.entry_id].get("ws_callback", handle_ws_message)
-            )
+            ),
+            "Leakomatic WebSocket Connection"
         )
         _LOGGER.debug("Started websocket connection task")
     
