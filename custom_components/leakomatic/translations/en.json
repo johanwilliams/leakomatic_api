@@ -55,6 +55,13 @@
                     "on": "Water Flowing",
                     "off": "No Water Flow"
                 }
+            },
+            "online_status": {
+                "name": "Online Status",
+                "state": {
+                    "on": "Online",
+                    "off": "Offline"
+                }
             }
         }
     },

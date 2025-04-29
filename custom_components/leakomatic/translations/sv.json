@@ -55,6 +55,13 @@
                     "on": "Vatten flödar",
                     "off": "Inget vattenflöde"
                 }
+            },
+            "online_status": {
+                "name": "Anslutningsstatus",
+                "state": {
+                    "on": "Ansluten",
+                    "off": "Frånkopplad"
+                }
             }
         }
     },

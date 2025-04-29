@@ -3,6 +3,7 @@
 This module implements the binary sensor platform for the Leakomatic integration.
 It provides binary sensors for:
 - Flow indicator (water flowing or not)
+- Online status (device online or offline)
 """
 from __future__ import annotations
 
@@ -64,7 +65,8 @@ async def async_setup_entry(
     
     # Create binary sensors
     flow_indicator = FlowIndicatorBinarySensor(device_info, device_id, device_data)
-    async_add_entities([flow_indicator])
+    online_status = OnlineStatusBinarySensor(device_info, device_id, None)  # Initialize with None to start as unknown
+    async_add_entities([flow_indicator, online_status])
 
     # Register callback for WebSocket updates
     @callback
@@ -90,6 +92,26 @@ async def async_setup_entry(
             _LOGGER.debug("Received flow update - mode: %s", flow_mode)
             # Update flow indicator sensor
             flow_indicator.handle_update({"flow_mode": flow_mode})
+            # Update online status to True when receiving flow updates
+            _LOGGER.debug("Setting online status to True due to flow_updated message")
+            online_status.handle_update({"is_online": True})
+        elif msg_type == "device_updated":
+            data = message.get("message", {}).get("data", {})
+            _LOGGER.debug("Received device update - is_online: %s", data.get("is_online"))
+            # Update online status sensor
+            online_status.handle_update(data)
+        elif msg_type == "quick_test_updated":
+            _LOGGER.debug("Received quick test update - setting device as online")
+            # Update online status to True when receiving quick test updates
+            online_status.handle_update({"is_online": True})
+        elif msg_type == "tightness_test_updated":
+            _LOGGER.debug("Received tightness test update - setting device as online")
+            # Update online status to True when receiving tightness test updates
+            online_status.handle_update({"is_online": True})
+        else:
+            # For any other message type, consider the device online
+            _LOGGER.debug("Received message type %s - setting device as online", msg_type)
+            online_status.handle_update({"is_online": True})
 
     # Store the callback in hass.data for the WebSocket client to use
     domain_data["ws_callback"] = handle_ws_message
@@ -210,3 +232,59 @@ class FlowIndicatorBinarySensor(LeakomaticBinarySensor):
         
         # Return True if water is flowing (flow_mode = 1), False otherwise
         return flow_mode == 1 
+
+class OnlineStatusBinarySensor(LeakomaticBinarySensor):
+    """Representation of a Leakomatic Online Status binary sensor.
+    
+    This sensor indicates whether the device is currently online (True) or offline (False).
+    It is updated through WebSocket updates with device_updated operation.
+    
+    The sensor will be set to online (True) when receiving any of these message types:
+    - flow_updated
+    - quick_test_updated
+    - tightness_test_updated
+    
+    The sensor will be set to offline (False) when receiving a device_updated message
+    with is_online=False.
+    
+    The default state is unknown (None) until the first update is received.
+    """
+
+    def __init__(
+        self,
+        device_info: dict[str, Any],
+        device_id: str,
+        device_data: dict[str, Any] | None,
+    ) -> None:
+        """Initialize the online status binary sensor."""
+        super().__init__(
+            device_info=device_info,
+            device_id=device_id,
+            device_data=device_data,
+            key="online_status",
+            icon="mdi:wifi",
+            device_class=BinarySensorDeviceClass.CONNECTIVITY,
+        )
+        _LOGGER.debug("OnlineStatusBinarySensor initialized with device_data: %s", device_data)
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return the state of the binary sensor."""
+        if not self._device_data:
+            _LOGGER.debug("No device data available - assuming unknown state")
+            return None
+        
+        # Get the online status from the device data
+        is_online = self._device_data.get("is_online")
+        _LOGGER.debug("Reading online status value: %s (type: %s)", is_online, type(is_online).__name__)
+        
+        # Return True if device is online, False otherwise
+        return bool(is_online)
+        
+    @callback
+    def handle_update(self, data: dict[str, Any]) -> None:
+        """Handle updated data from WebSocket."""
+        _LOGGER.debug("OnlineStatusBinarySensor received update: %s", data)
+        self._device_data = data
+        self.async_write_ha_state()
+        _LOGGER.debug("%s value updated: %s", self.name, self.is_on) 

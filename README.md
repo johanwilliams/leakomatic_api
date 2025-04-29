@@ -9,6 +9,7 @@ This integration allows you to connect your Leakomatic water leak sensors to Hom
 - Quick test index monitoring
 - Flow duration monitoring
 - Flow indicator monitoring
+- Online status monitoring
 - Device information display (model, software version, location)
 - Automatic reconnection handling
 - Full localization support for all sensor names and states
@@ -35,6 +36,12 @@ The integration provides the following sensors:
   - States: On (water flowing), Off (no water flow), Unknown (initial state)
   - Updates in real-time through WebSocket events
   - Note: Due to an API limitation, the initial state is set to Unknown until the first flow update is received
+
+- **Online Status**: Binary sensor showing if the device is currently online
+  - States: On (online), Off (offline), Unknown (initial state)
+  - Updates in real-time through WebSocket events
+  - Automatically sets to "On" when receiving any activity message from the device
+  - Automatically sets to "Off" when receiving a device update with is_online=False
 
 ## Services
 
