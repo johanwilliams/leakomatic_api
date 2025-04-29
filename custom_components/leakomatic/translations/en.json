@@ -47,6 +47,15 @@
             "signal_strength": {
                 "name": "Signal Strength"
             }
+        },
+        "binary_sensor": {
+            "flow_indicator": {
+                "name": "Flow Indicator",
+                "state": {
+                    "on": "Water Flowing",
+                    "off": "No Water Flow"
+                }
+            }
         }
     },
     "services": {

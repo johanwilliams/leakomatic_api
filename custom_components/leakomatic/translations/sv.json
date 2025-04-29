@@ -47,6 +47,15 @@
             "signal_strength": {
                 "name": "Signalstyrka"
             }
+        },
+        "binary_sensor": {
+            "flow_indicator": {
+                "name": "Flödesindikator",
+                "state": {
+                    "on": "Vatten flödar",
+                    "off": "Inget vattenflöde"
+                }
+            }
         }
     },
     "services": {
