@@ -20,10 +20,11 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import DeviceInfo
 
 from .const import DOMAIN
+from .common import LeakomaticEntity, MessageHandlerRegistry
 
 _LOGGER = logging.getLogger(__name__)
 
-class LeakomaticBinarySensor(BinarySensorEntity):
+class LeakomaticBinarySensor(LeakomaticEntity, BinarySensorEntity):
     """Base class for all Leakomatic binary sensors.
     
     This class implements common functionality shared between all Leakomatic binary sensors.
@@ -40,88 +41,17 @@ class LeakomaticBinarySensor(BinarySensorEntity):
         device_class: BinarySensorDeviceClass | None = None,
     ) -> None:
         """Initialize the binary sensor."""
-        self._device_info = device_info
-        self._device_id = device_id
-        self._device_data = device_data or {}
-        
-        self._attr_has_entity_name = True
-        self._attr_unique_id = f"{device_id}_{key}"
+        super().__init__(
+            device_info=device_info,
+            device_id=device_id,
+            device_data=device_data,
+            key=key,
+            icon=icon,
+        )
         self._attr_device_class = device_class
-        self._attr_icon = icon
-        self._attr_entity_registry_enabled_default = True
-        self._attr_should_poll = False  # No polling needed with WebSocket
-        self._attr_translation_key = key
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        return self._device_info
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        """Return the state attributes."""
-        if not self._device_data:
-            return {}
-        
-        # Extract relevant attributes from the device data
-        attributes = {}
-        
-        # Add common attributes that all sensors might want to expose
-        for attr in ["alarm", "name", "model", "sw_version", "last_seen_at"]:
-            if attr in self._device_data:
-                attributes[attr] = self._device_data[attr]
-        
-        return attributes
-
-    @callback
-    def handle_update(self, data: dict[str, Any]) -> None:
-        """Handle updated data from WebSocket."""
-        self._device_data = data
-        self.async_write_ha_state()
-        _LOGGER.debug("%s value updated: %s", self.name, self.is_on)
-
-# Message handler type definition
-MessageHandler = Callable[[dict, list[LeakomaticBinarySensor]], None]
-
-class MessageHandlerRegistry:
-    """Registry for WebSocket message handlers."""
-    
-    def __init__(self) -> None:
-        """Initialize the registry."""
-        self._handlers: Dict[str, MessageHandler] = {}
-        self._default_handler: Optional[MessageHandler] = None
-    
-    def register(self, message_type: str, handler: MessageHandler) -> None:
-        """Register a handler for a specific message type."""
-        self._handlers[message_type] = handler
-    
-    def register_default(self, handler: MessageHandler) -> None:
-        """Register a default handler for unhandled message types."""
-        self._default_handler = handler
-    
-    def handle_message(self, message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
-        """Handle a WebSocket message using the appropriate handler."""
-        # Extract message type using the same logic as legacy code
-        msg_type = ""
-        
-        # First try to get the type from the message's operation
-        if 'message' in message and 'operation' in message['message']:
-            msg_type = message['message']['operation']
-        # Then try the type field
-        elif 'type' in message:
-            msg_type = message['type']
-        
-        _LOGGER.debug("Processing WebSocket message with type/operation: %s", msg_type)
-        
-        # Get the appropriate handler
-        handler = self._handlers.get(msg_type, self._default_handler)
-        if handler:
-            handler(message, sensors)
-        else:
-            _LOGGER.warning("No handler found for message type: %s", msg_type)
 
 # Create a global registry instance
-message_registry = MessageHandlerRegistry()
+message_registry = MessageHandlerRegistry[LeakomaticBinarySensor]()
 
 # Define message handlers
 def handle_flow_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
@@ -161,7 +91,6 @@ def handle_default(message: dict, sensors: list[LeakomaticBinarySensor]) -> None
     """Handle any other message type."""
     msg_type = message.get("type", message.get('message', {}).get('operation', 'unknown'))
     _LOGGER.debug("Received unhandled message type %s - setting device as online", msg_type)
-
 
 # Register all handlers
 message_registry.register("flow_updated", handle_flow_update)

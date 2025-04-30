@@ -23,14 +23,15 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.entity import DeviceInfo, EntityCategory
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.typing import StateType
 
-from .const import DOMAIN, DEFAULT_NAME
+from .const import DOMAIN
+from .common import LeakomaticEntity, MessageHandlerRegistry
 
 _LOGGER = logging.getLogger(__name__)
 
-class LeakomaticSensor(SensorEntity):
+class LeakomaticSensor(LeakomaticEntity, SensorEntity):
     """Base class for all Leakomatic sensors.
     
     This class implements common functionality shared between all Leakomatic sensors.
@@ -49,90 +50,19 @@ class LeakomaticSensor(SensorEntity):
         native_unit_of_measurement: str | None = None,
     ) -> None:
         """Initialize the sensor."""
-        self._device_info = device_info
-        self._device_id = device_id
-        self._device_data = device_data or {}
-        
-        self._attr_has_entity_name = True
-        self._attr_unique_id = f"{device_id}_{key}"
+        super().__init__(
+            device_info=device_info,
+            device_id=device_id,
+            device_data=device_data,
+            key=key,
+            icon=icon,
+        )
         self._attr_device_class = device_class
         self._attr_native_unit_of_measurement = native_unit_of_measurement
         self._attr_state_class = state_class
-        self._attr_icon = icon
-        self._attr_entity_registry_enabled_default = True
-        self._attr_should_poll = False  # No polling needed with WebSocket
-        self._attr_translation_key = key
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        return self._device_info
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        """Return the state attributes."""
-        if not self._device_data:
-            return {}
-        
-        # Extract relevant attributes from the device data
-        attributes = {}
-        
-        # Add common attributes that all sensors might want to expose
-        for attr in ["alarm", "name", "model", "sw_version", "last_seen_at"]:
-            if attr in self._device_data:
-                attributes[attr] = self._device_data[attr]
-        
-        return attributes
-
-    @callback
-    def handle_update(self, data: dict[str, Any]) -> None:
-        """Handle updated data from WebSocket."""
-        self._device_data = data
-        self.async_write_ha_state()
-        _LOGGER.debug("%s value updated: %s", self.name, self.native_value)
-
-# Message handler type definition
-MessageHandler = Callable[[dict, list[LeakomaticSensor]], None]
-
-class MessageHandlerRegistry:
-    """Registry for WebSocket message handlers."""
-    
-    def __init__(self) -> None:
-        """Initialize the registry."""
-        self._handlers: Dict[str, MessageHandler] = {}
-        self._default_handler: Optional[MessageHandler] = None
-    
-    def register(self, message_type: str, handler: MessageHandler) -> None:
-        """Register a handler for a specific message type."""
-        self._handlers[message_type] = handler
-    
-    def register_default(self, handler: MessageHandler) -> None:
-        """Register a default handler for unhandled message types."""
-        self._default_handler = handler
-    
-    def handle_message(self, message: dict, sensors: list[LeakomaticSensor]) -> None:
-        """Handle a WebSocket message using the appropriate handler."""
-        # Extract message type using the same logic as legacy code
-        msg_type = ""
-        attr_type = message.get("type")
-        if attr_type is not None:
-            msg_type = attr_type
-        else:
-            attr_operation = message.get('message', {}).get('operation', '')
-            if attr_operation is not None:
-                msg_type = attr_operation
-        
-        _LOGGER.debug("Processing WebSocket message with type/operation: %s", msg_type)
-        
-        # Get the appropriate handler
-        handler = self._handlers.get(msg_type, self._default_handler)
-        if handler:
-            handler(message, sensors)
-        else:
-            _LOGGER.warning("No handler found for message type: %s", msg_type)
 
 # Create a global registry instance
-message_registry = MessageHandlerRegistry()
+message_registry = MessageHandlerRegistry[LeakomaticSensor]()
 
 # Define message handlers
 def handle_device_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
