@@ -62,6 +62,13 @@
                     "on": "Ansluten",
                     "off": "Frånkopplad"
                 }
+            },
+            "valve": {
+                "name": "Ventil",
+                "state": {
+                    "on": "Öppen",
+                    "off": "Stängd"
+                }
             }
         }
     },

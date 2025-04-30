@@ -62,6 +62,13 @@
                     "on": "Online",
                     "off": "Offline"
                 }
+            },
+            "valve": {
+                "name": "Valve",
+                "state": {
+                    "on": "Open",
+                    "off": "Closed"
+                }
             }
         }
     },

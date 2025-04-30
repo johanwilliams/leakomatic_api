@@ -143,6 +143,7 @@ async def async_setup_entry(
     binary_sensors = [
         FlowIndicatorBinarySensor(device_info, device_id, device_data),
         OnlineStatusBinarySensor(device_info, device_id, None),  # Initialize with None to start as unknown
+        ValveBinarySensor(device_info, device_id, device_data),  # Add the new valve sensor
     ]
     
     async_add_entities(binary_sensors)
@@ -268,6 +269,61 @@ class OnlineStatusBinarySensor(LeakomaticBinarySensor):
     def handle_update(self, data: dict[str, Any]) -> None:
         """Handle updated data from WebSocket."""
         _LOGGER.debug("OnlineStatusBinarySensor received update: %s", data)
+        self._device_data = data
+        self.async_write_ha_state()
+        _LOGGER.debug("%s value updated: %s", self.name, self.is_on) 
+
+class ValveBinarySensor(LeakomaticBinarySensor):
+    """Representation of a Leakomatic Valve binary sensor.
+    
+    This sensor indicates whether the valve is currently open or closed.
+    It is updated through WebSocket updates with device_updated operation.
+    
+    The valve state is determined by checking the 8th bit (bit 7) of the port_state:
+    - If bit 7 is 1 → valve is closed
+    - If bit 7 is 0 → valve is open
+    """
+
+    def __init__(
+        self,
+        device_info: dict[str, Any],
+        device_id: str,
+        device_data: dict[str, Any] | None,
+    ) -> None:
+        """Initialize the valve binary sensor."""
+        super().__init__(
+            device_info=device_info,
+            device_id=device_id,
+            device_data=device_data,
+            key="valve",
+            icon="mdi:valve",
+            device_class=BinarySensorDeviceClass.OPENING,
+        )
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return the state of the binary sensor."""
+        if not self._device_data:
+            _LOGGER.debug("No device data available - assuming unknown state")
+            return None
+        
+        # Get the port state from the device data
+        port_state = self._device_data.get("port_state")
+        if port_state is None:
+            _LOGGER.debug("No port state available")
+            return None
+            
+        _LOGGER.debug("Reading port state value: %s (type: %s)", port_state, type(port_state).__name__)
+        
+        # Check if the 8th bit (bit 7) is set
+        # If bit 7 is 1 → valve is closed (is_on = False)
+        # If bit 7 is 0 → valve is open (is_on = True)
+        return (port_state & (1 << 7)) == 0
+
+    @callback
+    def handle_update(self, data: dict[str, Any]) -> None:
+        """Handle updated data from WebSocket."""
+        _LOGGER.debug("ValveBinarySensor received update: %s", data)
         self._device_data = data
         self.async_write_ha_state()
         _LOGGER.debug("%s value updated: %s", self.name, self.is_on) 
