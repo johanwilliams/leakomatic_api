@@ -316,13 +316,14 @@ class FlowDurationSensor(LeakomaticSensor):
             state_class=SensorStateClass.MEASUREMENT,
             native_unit_of_measurement="s"
         )
+        self._last_known_duration: int | None = None
 
     @property
     def native_value(self) -> StateType:
         """Return the state of the sensor."""
         if not self._device_data:
             _LOGGER.debug("No device data available")
-            return None
+            return self._last_known_duration
         
         # Get the flow duration value - try both possible field names
         value = self._device_data.get("flow_duration")
@@ -338,13 +339,16 @@ class FlowDurationSensor(LeakomaticSensor):
         if value is not None:
             try:
                 # Ensure the value is an integer number of seconds
-                return int(float(value))
+                duration = int(float(value))
+                if duration > 0:
+                    self._last_known_duration = duration
+                return self._last_known_duration
             except (ValueError, TypeError):
                 _LOGGER.warning("Invalid flow duration value: %s (type: %s)", 
                               value, type(value).__name__)
-                return None
+                return self._last_known_duration
         
-        return None
+        return self._last_known_duration
 
 
 class SignalStrengthSensor(LeakomaticSensor):
