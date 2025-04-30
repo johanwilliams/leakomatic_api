@@ -57,6 +57,7 @@ class LeakomaticClient:
         self._error_code: Optional[str] = None
         self._xsrf_token: Optional[str] = None
         self._cookies: Optional[aiohttp.CookieJar] = None
+        self._ws_running = True
 
     async def _create_session(self, headers: Optional[Dict[str, str]] = None) -> aiohttp.ClientSession:
         """Create a new session with the saved cookies and headers.
@@ -386,7 +387,7 @@ class LeakomaticClient:
         # Reconnection parameters
         retry_count = 0
 
-        while retry_count < MAX_RETRIES:
+        while self._ws_running and retry_count < MAX_RETRIES:
             try:
                 _LOGGER.debug("Attempting WebSocket connection (attempt %d)", retry_count + 1)
                 
@@ -411,7 +412,7 @@ class LeakomaticClient:
                     _LOGGER.debug("Sent subscription message")
 
                     # Listen for messages
-                    while True:
+                    while self._ws_running:
                         try:
                             # Use a timeout for receiving messages to prevent blocking
                             response = await asyncio.wait_for(websocket.recv(), timeout=30)
@@ -463,6 +464,11 @@ class LeakomaticClient:
                         return_value=None,
                         level="error"
                     )
+
+    async def stop_websocket(self) -> None:
+        """Stop the websocket connection."""
+        self._ws_running = False
+        _LOGGER.debug("Websocket connection stopped")
 
     async def _ensure_authenticated(self) -> bool:
         """Ensure the client is authenticated.

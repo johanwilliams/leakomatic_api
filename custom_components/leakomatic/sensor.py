@@ -71,12 +71,15 @@ async def async_setup_entry(
     device_data = await client.async_get_device_data()
     
     # Create sensors
-    mode_sensor = ModeSensor(device_info, device_id, device_data)
-    quick_test_sensor = QuickTestSensor(device_info, device_id, device_data)
-    flow_duration_sensor = FlowDurationSensor(device_info, device_id, device_data)
-    signal_strength_sensor = SignalStrengthSensor(device_info, device_id, device_data)
-    async_add_entities([mode_sensor, quick_test_sensor, flow_duration_sensor, signal_strength_sensor])
-
+    sensors = [
+        ModeSensor(device_info, device_id, device_data),
+        QuickTestSensor(device_info, device_id, device_data),
+        FlowDurationSensor(device_info, device_id, device_data),
+        SignalStrengthSensor(device_info, device_id, device_data),
+    ]
+    
+    async_add_entities(sensors)
+    
     # Register callback for WebSocket updates
     @callback
     def handle_ws_message(message: dict) -> None:
@@ -97,29 +100,13 @@ async def async_setup_entry(
         
         if msg_type == "device_updated":
             data = message.get("message", {}).get("data", {})
-            _LOGGER.debug("Updating mode sensor with new device mode: %s (raw message: %s)", 
-                         data.get("mode"), message)
-            mode_sensor.handle_update(data)
-        elif msg_type == "quick_test_updated":
-            data = message.get("message", {}).get("data", {})
-            _LOGGER.debug("Updating quick test sensor with new value: %s", 
-                         data.get("value"))
-            quick_test_sensor.handle_update(data)
-        elif msg_type == "flow_updated":
-            data = message.get("message", {}).get("data", {})
-            flow_mode = data.get("flow_mode")
-            flow_duration = data.get("flow_duration")
-            _LOGGER.debug("Received flow update - mode: %s, duration: %s", 
-                         flow_mode, flow_duration)
-            # Only update the sensor if flow_mode is 0
-            if flow_mode == 0:
-                flow_duration_sensor.handle_update({"current_flow_duration": flow_duration})
-        elif msg_type == "status_message":
-            data = message.get("message", {}).get("data", {})
-            if "rssi" in data:
-                _LOGGER.debug("Updating signal strength with new value: %s", data["rssi"])
-                signal_strength_sensor.handle_update({"rssi": data["rssi"]})
-
+            _LOGGER.debug("Received device update - Mode: %s, Status: %s", 
+                         data.get("mode"), 
+                         data.get("status"))
+            # Update all sensors with the new data
+            for sensor in sensors:
+                sensor.handle_update(data)
+    
     # Store the callback in hass.data for the WebSocket client to use
     domain_data["ws_callback"] = handle_ws_message
 

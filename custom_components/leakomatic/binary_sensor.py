@@ -64,9 +64,12 @@ async def async_setup_entry(
     device_data = await client.async_get_device_data()
     
     # Create binary sensors
-    flow_indicator = FlowIndicatorBinarySensor(device_info, device_id, device_data)
-    online_status = OnlineStatusBinarySensor(device_info, device_id, None)  # Initialize with None to start as unknown
-    async_add_entities([flow_indicator, online_status])
+    binary_sensors = [
+        FlowIndicatorBinarySensor(device_info, device_id, device_data),
+        OnlineStatusBinarySensor(device_info, device_id, None),  # Initialize with None to start as unknown
+    ]
+    
+    async_add_entities(binary_sensors)
 
     # Register callback for WebSocket updates
     @callback
@@ -91,27 +94,27 @@ async def async_setup_entry(
             flow_mode = data.get("flow_mode")
             _LOGGER.debug("Received flow update - mode: %s", flow_mode)
             # Update flow indicator sensor
-            flow_indicator.handle_update({"flow_mode": flow_mode})
+            binary_sensors[0].handle_update({"flow_mode": flow_mode})
             # Update online status to True when receiving flow updates
             _LOGGER.debug("Setting online status to True due to flow_updated message")
-            online_status.handle_update({"is_online": True})
+            binary_sensors[1].handle_update({"is_online": True})
         elif msg_type == "device_updated":
             data = message.get("message", {}).get("data", {})
             _LOGGER.debug("Received device update - is_online: %s", data.get("is_online"))
             # Update online status sensor
-            online_status.handle_update(data)
+            binary_sensors[1].handle_update(data)
         elif msg_type == "quick_test_updated":
             _LOGGER.debug("Received quick test update - setting device as online")
             # Update online status to True when receiving quick test updates
-            online_status.handle_update({"is_online": True})
+            binary_sensors[1].handle_update({"is_online": True})
         elif msg_type == "tightness_test_updated":
             _LOGGER.debug("Received tightness test update - setting device as online")
             # Update online status to True when receiving tightness test updates
-            online_status.handle_update({"is_online": True})
+            binary_sensors[1].handle_update({"is_online": True})
         else:
             # For any other message type, consider the device online
             _LOGGER.debug("Received message type %s - setting device as online", msg_type)
-            online_status.handle_update({"is_online": True})
+            binary_sensors[1].handle_update({"is_online": True})
 
     # Store the callback in hass.data for the WebSocket client to use
     domain_data["ws_callback"] = handle_ws_message

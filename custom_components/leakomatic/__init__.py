@@ -48,6 +48,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Initialize the client
     client = LeakomaticClient(entry.data["email"], entry.data["password"])
     
+    # Store the client in hass.data
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN][entry.entry_id] = {
+        "client": client,
+        "device_id": None,  # Will be set after authentication
+        "device_entry": None,  # Will be set after device creation
+    }
+    
     # Authenticate to get the device ID
     auth_success = await client.async_authenticate()
     if not auth_success:
@@ -61,6 +69,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return False
     
     _LOGGER.debug("Found device ID: %s", device_id)
+    
+    # Store the device ID
+    hass.data[DOMAIN][entry.entry_id]["device_id"] = device_id
     
     # Fetch initial device data
     device_data = await client.async_get_device_data()   
@@ -102,7 +113,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     else:
         _LOGGER.warning("Could not find location in device data, using default")
     
-    # Create a device in Home Assistant
+    # Create device entry
     device_registry = async_get_device_registry(hass)
     device_entry = device_registry.async_get_or_create(
         config_entry_id=entry.entry_id,
@@ -114,24 +125,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         suggested_area=location
     )
     
-    # Update the device's sw_version if it changed
-    if device_entry.sw_version != sw_version:
-        device_registry.async_update_device(
-            device_entry.id,
-            sw_version=sw_version,
-        )
-        _LOGGER.debug("Updated device sw_version to: %s", sw_version)
-    
-    _LOGGER.debug("Created device in Home Assistant: %s", device_entry.id)
-    
-    # Store the client and device ID in hass.data
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = {
-        "client": client,
-        "device_id": device_id,
-        "device_entry": device_entry,
-        "ws_token": ws_token,  # Store the websocket token
-    }
+    # Store device entry in hass.data
+    hass.data[DOMAIN][entry.entry_id]["device_entry"] = device_entry
     
     # Set up platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -139,7 +134,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Start websocket connection after platforms are set up
     if ws_token:
         # Create a background task for the websocket connection
-        hass.async_create_task(
+        hass.async_create_background_task(
             client.connect_to_websocket(
                 ws_token,
                 hass.data[DOMAIN][entry.entry_id].get("ws_callback", handle_ws_message)
@@ -186,42 +181,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Convert to list if it's a string
         if isinstance(entity_ids, str):
             entity_ids = [entity_ids]
-        
-        # Process each entity
-        for entity_id in entity_ids:
-            entity = entity_registry.async_get(entity_id)
             
+        # Get the client from hass.data
+        client = hass.data[DOMAIN][entry.entry_id]["client"]
+        
+        # Change mode for each entity
+        for entity_id in entity_ids:
+            # Get the entity from the registry
+            entity = entity_registry.async_get(entity_id)
             if not entity:
                 _LOGGER.error("Entity not found: %s", entity_id)
                 continue
                 
-            # Find the config entry for this entity
-            config_entry_id = entity.config_entry_id
-            if not config_entry_id:
-                _LOGGER.error("Entity %s is not associated with a config entry", entity_id)
-                continue
-                
-            # Get the client from the config entry
-            domain_data = hass.data.get(DOMAIN, {}).get(config_entry_id, {})
-            client = domain_data.get("client")
-            
-            if not client:
-                _LOGGER.error("Client not found for config entry: %s", config_entry_id)
-                continue
-                
-            # Call the client method to change the mode
+            # Change the mode
             success = await client.async_change_mode(mode)
             if success:
-                _LOGGER.info("Changed mode to %s for entity %s", mode, entity_id)
+                _LOGGER.info("Successfully changed mode to %s for entity %s", mode, entity_id)
             else:
-                _LOGGER.error("Failed to change mode to %s for entity %s", mode, entity_id)
+                _LOGGER.error("Failed to change mode for entity %s", entity_id)
     
     # Register the service
-    hass.services.async_register(
-        DOMAIN,
-        "change_mode",
-        async_change_mode
-    )
+    hass.services.async_register(DOMAIN, "change_mode", async_change_mode)
     
     _LOGGER.info("Leakomatic integration setup completed for %s", entry.entry_id)
     return True
@@ -241,18 +221,21 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     Returns:
         bool: True if unload was successful, False otherwise
     """
-    _LOGGER.debug("Unloading Leakomatic integration for config entry: %s", entry.entry_id)
+    _LOGGER.debug("Unloading Leakomatic integration with config entry: %s", entry.entry_id)
+    
+    # Stop the websocket connection
+    if entry.entry_id in hass.data[DOMAIN]:
+        client = hass.data[DOMAIN][entry.entry_id].get("client")
+        if client:
+            await client.stop_websocket()
     
     # Unload platforms
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    
+    # Remove the entry from hass.data
     if unload_ok:
-        # Close the client's session
-        domain_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
-        client = domain_data.get("client")
-        if client:
-            await client.async_close()
-            
-        hass.data[DOMAIN].pop(entry.entry_id, None)
-        _LOGGER.info("Leakomatic integration unloaded successfully for %s", entry.entry_id)
+        hass.data[DOMAIN].pop(entry.entry_id)
+    
+    _LOGGER.info("Leakomatic integration unloaded successfully for %s", entry.entry_id)
     
     return unload_ok 
