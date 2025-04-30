@@ -45,8 +45,11 @@ class MessageHandlerRegistry(Generic[T]):
         _LOGGER.debug("Processing WebSocket message with type/operation: %s", msg_type)
         
         # Get the appropriate handler
-        handler = self._handlers.get(msg_type, self._default_handler)
-        if handler:
+        handler = self._handlers.get(msg_type)
+        if handler is None:
+            handler = self._default_handler
+        
+        if handler is not None:
             handler(message, entities)
         else:
             _LOGGER.warning("No handler found for message type: %s", msg_type)
