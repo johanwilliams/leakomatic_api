@@ -57,10 +57,11 @@ message_registry = MessageHandlerRegistry[LeakomaticBinarySensor]()
 def handle_flow_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle flow_updated messages."""
     data = message.get("message", {}).get("data", {})
-    flow_mode = data.get("flow_mode")
-    _LOGGER.debug("Received flow update - mode: %s", flow_mode)
-    # Update flow indicator sensor
-    sensors[0].handle_update({"flow_mode": flow_mode})
+    _LOGGER.debug("Received flow update - Flow Mode: %s", data.get("flow_mode"))
+    # Update all relevant sensors
+    for sensor in sensors:
+        if isinstance(sensor, FlowIndicatorBinarySensor):
+            sensor.handle_update(data)
     # Update online status to True when receiving flow updates
     _LOGGER.debug("Setting online status to True due to flow_updated message")
     sensors[1].handle_update({"is_online": True})
@@ -68,9 +69,15 @@ def handle_flow_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> 
 def handle_device_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle device_updated messages."""
     data = message.get("message", {}).get("data", {})
-    _LOGGER.debug("Received device update - is_online: %s", data.get("is_online"))
-    # Update online status sensor
-    sensors[1].handle_update({"is_online": bool(data.get("is_online"))})
+    _LOGGER.debug("Received device update - Online: %s, Port State: %s", 
+                 data.get("is_online"), 
+                 data.get("port_state"))
+    # Update all relevant sensors
+    for sensor in sensors:
+        if isinstance(sensor, OnlineStatusBinarySensor):
+            sensor.handle_update(data)
+        elif isinstance(sensor, ValveBinarySensor):
+            sensor.handle_update(data)
 
 def handle_quick_test_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle quick_test_updated messages."""
@@ -87,6 +94,16 @@ def handle_tightness_test_update(message: dict, sensors: list[LeakomaticBinarySe
     # Update online status to True when receiving tightness test updates
     sensors[1].handle_update({"is_online": True})
 
+def handle_status_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
+    """Handle status_message messages."""
+    data = message.get("message", {}).get("data", {})
+    _LOGGER.debug("Received status message - Port State: %s", 
+                 data.get("port_state"))
+    # Update all relevant sensors
+    for sensor in sensors:
+        if isinstance(sensor, ValveBinarySensor):
+            sensor.handle_update(data)
+
 def handle_default(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle any other message type."""
     msg_type = message.get("type", message.get('message', {}).get('operation', 'unknown'))
@@ -97,6 +114,7 @@ message_registry.register("flow_updated", handle_flow_update)
 message_registry.register("device_updated", handle_device_update)
 message_registry.register("quick_test_updated", handle_quick_test_update)
 message_registry.register("tightness_test_updated", handle_tightness_test_update)
+message_registry.register("status_message", handle_status_update)
 message_registry.register_default(handle_default)
 
 async def async_setup_entry(

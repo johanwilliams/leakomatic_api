@@ -68,12 +68,50 @@ message_registry = MessageHandlerRegistry[LeakomaticSensor]()
 def handle_device_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
     """Handle device_updated messages."""
     data = message.get("message", {}).get("data", {})
-    _LOGGER.debug("Received device update - Mode: %s, Status: %s", 
+    _LOGGER.debug("Received device update - Mode: %s, RSSI: %s", 
                  data.get("mode"), 
-                 data.get("status"))
-    # Only update the ModeSensor with device updates
+                 data.get("rssi"))
+    # Update all relevant sensors
     for sensor in sensors:
         if isinstance(sensor, ModeSensor):
+            sensor.handle_update(data)
+        elif isinstance(sensor, SignalStrengthSensor):
+            sensor.handle_update(data)
+
+def handle_quick_test_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
+    """Handle quick_test_updated messages."""
+    data = message.get("message", {}).get("data", {})
+    value = data.get("value")
+    _LOGGER.debug("Received quick test update - value: %s", value)
+    # Update the QuickTestSensor
+    for sensor in sensors:
+        if isinstance(sensor, QuickTestSensor):
+            sensor.handle_update({"value": value})
+
+def handle_flow_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
+    """Handle flow_updated messages."""
+    data = message.get("message", {}).get("data", {})
+    _LOGGER.debug("Received flow duration update - Duration: %s", 
+                 data.get("flow_duration"))
+    # Update all relevant sensors
+    for sensor in sensors:
+        if isinstance(sensor, FlowDurationSensor):
+            sensor.handle_update(data)
+
+def handle_tightness_test_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
+    """Handle tightness_test_updated messages."""
+    data = message.get("message", {}).get("data", {})
+    _LOGGER.debug("Received tightness test update - data: %s", data)
+    # Currently no sensors need to be updated for tightness test messages
+
+def handle_status_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
+    """Handle status_message messages."""
+    data = message.get("message", {}).get("data", {})
+    _LOGGER.debug("Received status message - RSSI: %s", 
+                 data.get("rssi"))
+    # Update all relevant sensors
+    for sensor in sensors:
+        if isinstance(sensor, SignalStrengthSensor):
             sensor.handle_update(data)
 
 def handle_default(message: dict, sensors: list[LeakomaticSensor]) -> None:
@@ -83,6 +121,10 @@ def handle_default(message: dict, sensors: list[LeakomaticSensor]) -> None:
 
 # Register all handlers
 message_registry.register("device_updated", handle_device_update)
+message_registry.register("quick_test_updated", handle_quick_test_update)
+message_registry.register("flow_updated", handle_flow_update)
+message_registry.register("tightness_test_updated", handle_tightness_test_update)
+message_registry.register("status_message", handle_status_update)
 message_registry.register_default(handle_default)
 
 async def async_setup_entry(
@@ -283,9 +325,9 @@ class FlowDurationSensor(LeakomaticSensor):
             return None
         
         # Get the flow duration value - try both possible field names
-        value = self._device_data.get("value")
+        value = self._device_data.get("flow_duration")
         if value is not None:
-            _LOGGER.debug("Found flow duration in 'value' field: %s (type: %s)", 
+            _LOGGER.debug("Found flow duration in 'flow_duration' field: %s (type: %s)", 
                          value, type(value).__name__)
         else:
             value = self._device_data.get("current_flow_duration")
