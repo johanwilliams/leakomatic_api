@@ -71,9 +71,10 @@ def handle_device_update(message: dict, sensors: list[LeakomaticSensor]) -> None
     _LOGGER.debug("Received device update - Mode: %s, Status: %s", 
                  data.get("mode"), 
                  data.get("status"))
-    # Update all sensors with the new data
+    # Only update the ModeSensor with device updates
     for sensor in sensors:
-        sensor.handle_update(data)
+        if isinstance(sensor, ModeSensor):
+            sensor.handle_update(data)
 
 def handle_default(message: dict, sensors: list[LeakomaticSensor]) -> None:
     """Handle any other message type."""
