@@ -8,7 +8,7 @@ It provides binary sensors for:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Callable, Dict, Optional
 
 from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
@@ -22,6 +22,148 @@ from homeassistant.helpers.entity import DeviceInfo
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
+
+class LeakomaticBinarySensor(BinarySensorEntity):
+    """Base class for all Leakomatic binary sensors.
+    
+    This class implements common functionality shared between all Leakomatic binary sensors.
+    """
+
+    def __init__(
+        self,
+        device_info: dict[str, Any],
+        device_id: str,
+        device_data: dict[str, Any] | None,
+        *,
+        key: str,
+        icon: str,
+        device_class: BinarySensorDeviceClass | None = None,
+    ) -> None:
+        """Initialize the binary sensor."""
+        self._device_info = device_info
+        self._device_id = device_id
+        self._device_data = device_data or {}
+        
+        self._attr_has_entity_name = True
+        self._attr_unique_id = f"{device_id}_{key}"
+        self._attr_device_class = device_class
+        self._attr_icon = icon
+        self._attr_entity_registry_enabled_default = True
+        self._attr_should_poll = False  # No polling needed with WebSocket
+        self._attr_translation_key = key
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return the device info."""
+        return self._device_info
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the state attributes."""
+        if not self._device_data:
+            return {}
+        
+        # Extract relevant attributes from the device data
+        attributes = {}
+        
+        # Add common attributes that all sensors might want to expose
+        for attr in ["alarm", "name", "model", "sw_version", "last_seen_at"]:
+            if attr in self._device_data:
+                attributes[attr] = self._device_data[attr]
+        
+        return attributes
+
+    @callback
+    def handle_update(self, data: dict[str, Any]) -> None:
+        """Handle updated data from WebSocket."""
+        self._device_data = data
+        self.async_write_ha_state()
+        _LOGGER.debug("%s value updated: %s", self.name, self.is_on)
+
+# Message handler type definition
+MessageHandler = Callable[[dict, list[LeakomaticBinarySensor]], None]
+
+class MessageHandlerRegistry:
+    """Registry for WebSocket message handlers."""
+    
+    def __init__(self) -> None:
+        """Initialize the registry."""
+        self._handlers: Dict[str, MessageHandler] = {}
+        self._default_handler: Optional[MessageHandler] = None
+    
+    def register(self, message_type: str, handler: MessageHandler) -> None:
+        """Register a handler for a specific message type."""
+        self._handlers[message_type] = handler
+    
+    def register_default(self, handler: MessageHandler) -> None:
+        """Register a default handler for unhandled message types."""
+        self._default_handler = handler
+    
+    def handle_message(self, message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
+        """Handle a WebSocket message using the appropriate handler."""
+        # Extract message type using the same logic as legacy code
+        msg_type = ""
+        attr_type = message.get("type")
+        if attr_type is not None:
+            msg_type = attr_type
+        else:
+            attr_operation = message.get('message', {}).get('operation', '')
+            if attr_operation is not None:
+                msg_type = attr_operation
+        
+        _LOGGER.debug("Processing WebSocket message with type/operation: %s", msg_type)
+        
+        # Get the appropriate handler
+        handler = self._handlers.get(msg_type, self._default_handler)
+        if handler:
+            handler(message, sensors)
+        else:
+            _LOGGER.warning("No handler found for message type: %s", msg_type)
+
+# Create a global registry instance
+message_registry = MessageHandlerRegistry()
+
+# Define message handlers
+def handle_flow_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
+    """Handle flow_updated messages."""
+    data = message.get("message", {}).get("data", {})
+    flow_mode = data.get("flow_mode")
+    _LOGGER.debug("Received flow update - mode: %s", flow_mode)
+    # Update flow indicator sensor
+    sensors[0].handle_update({"flow_mode": flow_mode})
+    # Update online status to True when receiving flow updates
+    _LOGGER.debug("Setting online status to True due to flow_updated message")
+    sensors[1].handle_update({"is_online": True})
+
+def handle_device_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
+    """Handle device_updated messages."""
+    data = message.get("message", {}).get("data", {})
+    _LOGGER.debug("Received device update - is_online: %s", data.get("is_online"))
+    # Update online status sensor
+    sensors[1].handle_update(data)
+
+def handle_quick_test_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
+    """Handle quick_test_updated messages."""
+    _LOGGER.debug("Received quick test update - setting device as online")
+    sensors[1].handle_update({"is_online": True})
+
+def handle_tightness_test_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
+    """Handle tightness_test_updated messages."""
+    _LOGGER.debug("Received tightness test update - setting device as online")
+    sensors[1].handle_update({"is_online": True})
+
+def handle_default(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
+    """Handle any other message type."""
+    msg_type = message.get("type", message.get('message', {}).get('operation', 'unknown'))
+    _LOGGER.debug("Received message type %s - setting device as online", msg_type)
+    sensors[1].handle_update({"is_online": True})
+
+# Register all handlers
+message_registry.register("flow_updated", handle_flow_update)
+message_registry.register("device_updated", handle_device_update)
+message_registry.register("quick_test_updated", handle_quick_test_update)
+message_registry.register("tightness_test_updated", handle_tightness_test_update)
+message_registry.register_default(handle_default)
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -75,116 +217,10 @@ async def async_setup_entry(
     @callback
     def handle_ws_message(message: dict) -> None:
         """Handle WebSocket messages."""
-        # Extract message type using the same logic as legacy code
-        msg_type = ""
-        # Try to extract the "type" (which exists in some messages)
-        attr_type = message.get("type")
-        if attr_type is not None:
-            msg_type = attr_type
-        else:
-            # We found no type, let's look for "operation" attribute
-            attr_operation = message.get('message', {}).get('operation', '')
-            if attr_operation is not None:
-                msg_type = attr_operation
-        
-        _LOGGER.debug("Processing WebSocket message with type/operation: %s", msg_type)
-        
-        if msg_type == "flow_updated":
-            data = message.get("message", {}).get("data", {})
-            flow_mode = data.get("flow_mode")
-            _LOGGER.debug("Received flow update - mode: %s", flow_mode)
-            # Update flow indicator sensor
-            binary_sensors[0].handle_update({"flow_mode": flow_mode})
-            # Update online status to True when receiving flow updates
-            _LOGGER.debug("Setting online status to True due to flow_updated message")
-            binary_sensors[1].handle_update({"is_online": True})
-        elif msg_type == "device_updated":
-            data = message.get("message", {}).get("data", {})
-            _LOGGER.debug("Received device update - is_online: %s", data.get("is_online"))
-            # Update online status sensor
-            binary_sensors[1].handle_update(data)
-        elif msg_type == "quick_test_updated":
-            _LOGGER.debug("Received quick test update - setting device as online")
-            # Update online status to True when receiving quick test updates
-            binary_sensors[1].handle_update({"is_online": True})
-        elif msg_type == "tightness_test_updated":
-            _LOGGER.debug("Received tightness test update - setting device as online")
-            # Update online status to True when receiving tightness test updates
-            binary_sensors[1].handle_update({"is_online": True})
-        else:
-            # For any other message type, consider the device online
-            _LOGGER.debug("Received message type %s - setting device as online", msg_type)
-            binary_sensors[1].handle_update({"is_online": True})
+        message_registry.handle_message(message, binary_sensors)
 
     # Store the callback in hass.data for the WebSocket client to use
     domain_data["ws_callback"] = handle_ws_message
-
-
-class LeakomaticBinarySensor(BinarySensorEntity):
-    """Base class for all Leakomatic binary sensors.
-    
-    This class implements common functionality shared between all Leakomatic binary sensors.
-    """
-
-    def __init__(
-        self,
-        device_info: dict[str, Any],
-        device_id: str,
-        device_data: dict[str, Any] | None,
-        *,
-        key: str,
-        icon: str,
-        device_class: BinarySensorDeviceClass | None = None,
-    ) -> None:
-        """Initialize the binary sensor.
-        
-        Args:
-            device_info: Information about the physical device
-            device_id: The unique identifier of the device
-            device_data: The current device data
-            key: Unique key/identifier for the sensor
-            icon: MDI icon to use
-            device_class: The device class of the sensor
-        """
-        self._device_info = device_info
-        self._device_id = device_id
-        self._device_data = device_data or {}
-        
-        self._attr_has_entity_name = True
-        self._attr_unique_id = f"{device_id}_{key}"
-        self._attr_device_class = device_class
-        self._attr_icon = icon
-        self._attr_entity_registry_enabled_default = True
-        self._attr_should_poll = False  # No polling needed with WebSocket
-        self._attr_translation_key = key
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        return self._device_info
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        """Return the state attributes."""
-        if not self._device_data:
-            return {}
-        
-        # Extract relevant attributes from the device data
-        attributes = {}
-        
-        # Add common attributes that all sensors might want to expose
-        for attr in ["alarm", "name", "model", "sw_version", "last_seen_at"]:
-            if attr in self._device_data:
-                attributes[attr] = self._device_data[attr]
-        
-        return attributes
-
-    @callback
-    def handle_update(self, data: dict[str, Any]) -> None:
-        """Handle updated data from WebSocket."""
-        self._device_data = data
-        self.async_write_ha_state()
-        _LOGGER.debug("%s value updated: %s", self.name, self.is_on)
 
 
 class FlowIndicatorBinarySensor(LeakomaticBinarySensor):
