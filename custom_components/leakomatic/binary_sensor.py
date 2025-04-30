@@ -103,13 +103,13 @@ class MessageHandlerRegistry:
         """Handle a WebSocket message using the appropriate handler."""
         # Extract message type using the same logic as legacy code
         msg_type = ""
-        attr_type = message.get("type")
-        if attr_type is not None:
-            msg_type = attr_type
-        else:
-            attr_operation = message.get('message', {}).get('operation', '')
-            if attr_operation is not None:
-                msg_type = attr_operation
+        
+        # First try to get the type from the message's operation
+        if 'message' in message and 'operation' in message['message']:
+            msg_type = message['message']['operation']
+        # Then try the type field
+        elif 'type' in message:
+            msg_type = message['type']
         
         _LOGGER.debug("Processing WebSocket message with type/operation: %s", msg_type)
         
@@ -140,23 +140,28 @@ def handle_device_update(message: dict, sensors: list[LeakomaticBinarySensor]) -
     data = message.get("message", {}).get("data", {})
     _LOGGER.debug("Received device update - is_online: %s", data.get("is_online"))
     # Update online status sensor
-    sensors[1].handle_update(data)
+    sensors[1].handle_update({"is_online": bool(data.get("is_online"))})
 
 def handle_quick_test_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle quick_test_updated messages."""
-    _LOGGER.debug("Received quick test update - setting device as online")
+    data = message.get("message", {}).get("data", {})
+    value = data.get("value")
+    _LOGGER.debug("Received quick test update - value: %s", value)
+    # Update online status to True when receiving quick test updates
     sensors[1].handle_update({"is_online": True})
 
 def handle_tightness_test_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle tightness_test_updated messages."""
-    _LOGGER.debug("Received tightness test update - setting device as online")
+    data = message.get("message", {}).get("data", {})
+    _LOGGER.debug("Received tightness test update - data: %s", data)
+    # Update online status to True when receiving tightness test updates
     sensors[1].handle_update({"is_online": True})
 
 def handle_default(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle any other message type."""
     msg_type = message.get("type", message.get('message', {}).get('operation', 'unknown'))
-    _LOGGER.debug("Received message type %s - setting device as online", msg_type)
-    sensors[1].handle_update({"is_online": True})
+    _LOGGER.debug("Received unhandled message type %s - setting device as online", msg_type)
+
 
 # Register all handlers
 message_registry.register("flow_updated", handle_flow_update)
@@ -220,7 +225,9 @@ async def async_setup_entry(
         message_registry.handle_message(message, binary_sensors)
 
     # Store the callback in hass.data for the WebSocket client to use
-    domain_data["ws_callback"] = handle_ws_message
+    if "ws_callbacks" not in domain_data:
+        domain_data["ws_callbacks"] = []
+    domain_data["ws_callbacks"].append(handle_ws_message)
 
 
 class FlowIndicatorBinarySensor(LeakomaticBinarySensor):
@@ -271,6 +278,14 @@ class FlowIndicatorBinarySensor(LeakomaticBinarySensor):
         
         # Return True if water is flowing (flow_mode = 1), False otherwise
         return flow_mode == 1 
+
+    @callback
+    def handle_update(self, data: dict[str, Any]) -> None:
+        """Handle updated data from WebSocket."""
+        _LOGGER.debug("FlowIndicatorBinarySensor received update: %s", data)
+        self._device_data = data
+        self.async_write_ha_state()
+        _LOGGER.debug("%s value updated: %s", self.name, self.is_on)
 
 class OnlineStatusBinarySensor(LeakomaticBinarySensor):
     """Representation of a Leakomatic Online Status binary sensor.

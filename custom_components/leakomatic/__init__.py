@@ -137,7 +137,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.async_create_background_task(
             client.connect_to_websocket(
                 ws_token,
-                hass.data[DOMAIN][entry.entry_id].get("ws_callback", handle_ws_message)
+                lambda msg: [
+                    callback(msg) for callback in 
+                    hass.data[DOMAIN][entry.entry_id].get("ws_callbacks", [])
+                ]
             ),
             "Leakomatic WebSocket Connection"
         )

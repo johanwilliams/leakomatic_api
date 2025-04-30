@@ -211,7 +211,9 @@ async def async_setup_entry(
         message_registry.handle_message(message, sensors)
 
     # Store the callback in hass.data for the WebSocket client to use
-    domain_data["ws_callback"] = handle_ws_message
+    if "ws_callbacks" not in domain_data:
+        domain_data["ws_callbacks"] = []
+    domain_data["ws_callbacks"].append(handle_ws_message)
 
 
 class ModeSensor(LeakomaticSensor):
