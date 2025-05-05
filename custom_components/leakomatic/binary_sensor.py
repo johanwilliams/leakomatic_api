@@ -186,8 +186,8 @@ async def async_setup_entry(
     # Create binary sensors
     binary_sensors = [
         FlowIndicatorBinarySensor(device_info, device_id, device_data),
-        OnlineStatusBinarySensor(device_info, device_id, None),  # Initialize with None to start as unknown
-        ValveBinarySensor(device_info, device_id, device_data),  # Add the new valve sensor
+        OnlineStatusBinarySensor(device_info, device_id, device_data),  # Pass the initial device data
+        ValveBinarySensor(device_info, device_id, device_data),
     ]
     
     async_add_entities(binary_sensors)
@@ -290,6 +290,17 @@ class OnlineStatusBinarySensor(LeakomaticBinarySensor):
         )
         self._last_seen: datetime | None = None
         _LOGGER.debug("OnlineStatusBinarySensor initialized with device_data: %s", device_data)
+        
+        # If we have initial device data with last_seen_at, parse it
+        if device_data and "last_seen_at" in device_data:
+            try:
+                # Parse the ISO format timestamp from the device data
+                # Remove microseconds for consistent format
+                parsed_time = datetime.fromisoformat(device_data["last_seen_at"].replace("Z", "+00:00"))
+                self._last_seen = parsed_time.replace(microsecond=0)
+                _LOGGER.debug("Initialized last_seen from device data: %s", self._last_seen)
+            except (ValueError, TypeError) as err:
+                _LOGGER.warning("Failed to parse last_seen_at from device data: %s", err)
 
     @property
     def is_on(self) -> bool | None:
@@ -300,7 +311,7 @@ class OnlineStatusBinarySensor(LeakomaticBinarySensor):
         
         # If we have a last_seen timestamp, use it to determine online status
         if self._last_seen:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(timezone.utc).replace(microsecond=0)
             minutes_since_last_seen = (now - self._last_seen).total_seconds() / 60
             
             is_online = minutes_since_last_seen < 5  # 5 minutes timeout
@@ -338,9 +349,22 @@ class OnlineStatusBinarySensor(LeakomaticBinarySensor):
         """
         _LOGGER.debug("OnlineStatusBinarySensor received update: %s", data)
         
-        # Update last_seen to now if requested
+        # Update last_seen based on the data or current time
         if update_last_seen:
-            self._last_seen = datetime.now(timezone.utc)
+            if "last_seen_at" in data:
+                try:
+                    # Parse the ISO format timestamp from the device data
+                    # Remove microseconds for consistent format
+                    parsed_time = datetime.fromisoformat(data["last_seen_at"].replace("Z", "+00:00"))
+                    self._last_seen = parsed_time.replace(microsecond=0)
+                    _LOGGER.debug("Updated last_seen from device data: %s", self._last_seen)
+                except (ValueError, TypeError) as err:
+                    _LOGGER.warning("Failed to parse last_seen_at from device data: %s", err)
+                    # Fall back to current time if parsing fails
+                    self._last_seen = datetime.now(timezone.utc).replace(microsecond=0)
+            else:
+                # If no last_seen_at in data, use current time
+                self._last_seen = datetime.now(timezone.utc).replace(microsecond=0)
             
         self._device_data = data
         self.async_write_ha_state()
