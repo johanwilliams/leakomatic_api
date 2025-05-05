@@ -299,7 +299,12 @@ class OnlineStatusBinarySensor(LeakomaticBinarySensor):
             device_class=BinarySensorDeviceClass.CONNECTIVITY,
         )
         self._last_seen: datetime | None = None
-        _LOGGER.debug("OnlineStatusBinarySensor initialized with device_data: %s", device_data)
+        _LOGGER.debug(
+            "OnlineStatusBinarySensor initialized with device: %s (last_seen: %s, online: %s)",
+            device_info.get("name"),
+            device_data.get("last_seen_at") if device_data else None,
+            device_data.get("is_online") if device_data else None
+        )
         
         # If we have initial device data with last_seen_at, parse it
         if device_data and "last_seen_at" in device_data:
