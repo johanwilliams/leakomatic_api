@@ -111,13 +111,18 @@ def handle_status_update(message: dict, sensors: list[LeakomaticBinarySensor]) -
             sensor.handle_update({"is_online": True}, update_last_seen=True)
 
 def handle_ping(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
-    """Handle ping messages."""
+    """Handle ping messages.
+    
+    For ping messages, we don't update the last_seen timestamp since we want to
+    rely on the existing last_seen to determine if the device is online (within 5 minutes)
+    or offline (more than 5 minutes since last seen).
+    """
     _LOGGER.debug("Received ping message")
     # Update online status based on last_seen timestamp
     for sensor in sensors:
         if isinstance(sensor, OnlineStatusBinarySensor):
-            # Don't update last_seen for ping messages
-            sensor.handle_update({"is_online": True}, update_last_seen=False)
+            # Pass empty data since we only care about the last_seen timestamp
+            sensor.handle_update({}, update_last_seen=False)
 
 def handle_device_offline(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle device_offline messages."""
