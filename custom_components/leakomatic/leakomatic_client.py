@@ -500,13 +500,17 @@ class LeakomaticClient:
         """
         # Special messages that use the top-level 'type' key
         msg_type = parsed_response.get("type")
-        if msg_type in (MessageType.PING.value, MessageType.CONFIRM_SUBSCRIPTION.value):
+        if msg_type in (MessageType.PING.value, MessageType.CONFIRM_SUBSCRIPTION.value, MessageType.WELCOME.value):
             return msg_type
             
         # All other operational messages use 'message.operation'
         operation = parsed_response.get("message", {}).get("operation")
         if operation in [msg_type.value for msg_type in MessageType]:
             return operation
+            
+        # If we have a message but no operation, it might be a data update
+        if "message" in parsed_response and "data" in parsed_response["message"]:
+            return "data_update"
             
         return ""
 
