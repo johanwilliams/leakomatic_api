@@ -19,7 +19,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import DeviceInfo
 
-from .const import DOMAIN
+from .const import DOMAIN, MessageType
 from .common import LeakomaticEntity, MessageHandlerRegistry
 
 _LOGGER = logging.getLogger(__name__)
@@ -110,11 +110,11 @@ def handle_default(message: dict, sensors: list[LeakomaticBinarySensor]) -> None
     _LOGGER.debug("Received unhandled message type %s - setting device as online", msg_type)
 
 # Register all handlers
-message_registry.register("flow_updated", handle_flow_update)
-message_registry.register("device_updated", handle_device_update)
-message_registry.register("quick_test_updated", handle_quick_test_update)
-message_registry.register("tightness_test_updated", handle_tightness_test_update)
-message_registry.register("status_message", handle_status_update)
+message_registry.register(MessageType.FLOW_UPDATED.value, handle_flow_update)
+message_registry.register(MessageType.DEVICE_UPDATED.value, handle_device_update)
+message_registry.register(MessageType.QUICK_TEST_UPDATED.value, handle_quick_test_update)
+message_registry.register(MessageType.TIGHTNESS_TEST_UPDATED.value, handle_tightness_test_update)
+message_registry.register(MessageType.STATUS_MESSAGE.value, handle_status_update)
 message_registry.register_default(handle_default)
 
 async def async_setup_entry(

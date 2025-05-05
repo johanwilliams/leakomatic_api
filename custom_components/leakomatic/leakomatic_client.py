@@ -498,17 +498,17 @@ class LeakomaticClient:
         Returns:
             str: The extracted message type, or an empty string if no type is found.
         """
-        msg_type = ""
-        # Try to extract the "type" (which exists in some messages)
-        attr_type = parsed_response.get("type")
-        if attr_type is not None:
-            msg_type = attr_type
-        else:
-            # Look for "operation" attribute in message
-            attr_operation = parsed_response.get('message', {}).get('operation', '')
-            if attr_operation is not None:
-                msg_type = attr_operation
-        return msg_type 
+        # Special messages that use the top-level 'type' key
+        msg_type = parsed_response.get("type")
+        if msg_type in (MessageType.PING.value, MessageType.CONFIRM_SUBSCRIPTION.value):
+            return msg_type
+            
+        # All other operational messages use 'message.operation'
+        operation = parsed_response.get("message", {}).get("operation")
+        if operation in [msg_type.value for msg_type in MessageType]:
+            return operation
+            
+        return ""
 
     def _handle_error(self, error_msg: str, error_code: Optional[str] = None, return_value: Any = None, level: str = "error") -> Any:
         """Handle errors consistently across methods.

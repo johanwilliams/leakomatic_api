@@ -25,13 +25,17 @@ class MessageType(Enum):
     WELCOME = "welcome"  # Initial connection welcome message
     PING = "ping"  # Keep-alive ping message
     CONFIRM_SUBSCRIPTION = "confirm_subscription"  # Subscription confirmation
+    DEVICE_UPDATED = "device_updated"  # General device status update
+    ALARM_TRIGGERED = "alarm_triggered"  # Alarm event notification
+    CONFIGURATION_ADDED = "configuration_added"  # Configuration change notification    
     QUICK_TEST_UPDATED = "quick_test_updated"  # Quick test status update
     TIGHTNESS_TEST_UPDATED = "tightness_test_updated"  # Tightness test status update
     FLOW_UPDATED = "flow_updated"  # Water flow status update
-    DEVICE_UPDATED = "device_updated"  # General device status update
+    FLOW_SENSOR_UPDATED = "flow_sensor_updated"  # Flow sensor status update
+    ANALOG_SENSOR_MESSAGE = "analog_sensor_message"  # Analog sensor message
+    DEVICE_OFFLINE = "device_offline"  # Device offline notification
     STATUS_MESSAGE = "status_message"  # General status message
-    CONFIGURATION_ADDED = "configuration_added"  # Configuration change notification
-    ALARM_TRIGGERED = "alarm_triggered"  # Alarm event notification
+    WATER_METER_CALIBRATION_UPDATED = "water_meter_calibration_updated"  # Water meter calibration update    
 
 # Device operating modes
 class DeviceMode(Enum):
