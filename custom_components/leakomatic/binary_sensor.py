@@ -235,10 +235,15 @@ class FlowIndicatorBinarySensor(LeakomaticBinarySensor):
         device_data: dict[str, Any] | None,
     ) -> None:
         """Initialize the flow indicator binary sensor."""
+        # Initialize with flow_mode = 0 since the API always sends 1 in initial data
+        if device_data is not None:
+            device_data = device_data.copy()
+            device_data["flow_mode"] = 0
+            
         super().__init__(
             device_info=device_info,
             device_id=device_id,
-            device_data=None,  # Initialize with no data to start as unknown
+            device_data=device_data,
             key="flow_indicator",
             icon="mdi:water",
             device_class=BinarySensorDeviceClass.RUNNING,
