@@ -41,6 +41,12 @@
                     "unknown": "Okänd"
                 }
             },
+            "longest_tightness_period": {
+                "name": "Längsta tätthetsperiod",
+                "state": {
+                    "unknown": "Okänd"
+                }
+            },
             "flow_duration": {
                 "name": "Senaste flödestid"
             },

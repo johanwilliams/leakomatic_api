@@ -27,7 +27,7 @@
     "entity": {
         "sensor": {
             "mode": {
-                "name": "Operating Mode",
+                "name": "Mode",
                 "state": {
                     "0": "Home",
                     "1": "Away",
@@ -41,8 +41,14 @@
                     "unknown": "Unknown"
                 }
             },
+            "longest_tightness_period": {
+                "name": "Longest Tightness Period",
+                "state": {
+                    "unknown": "Unknown"
+                }
+            },
             "flow_duration": {
-                "name": "Last Flow Duration"
+                "name": "Latest Flow Duration"
             },
             "signal_strength": {
                 "name": "Signal Strength"

@@ -101,8 +101,12 @@ def handle_flow_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
 def handle_tightness_test_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
     """Handle tightness_test_updated messages."""
     data = message.get("message", {}).get("data", {})
-    _LOGGER.debug("Received tightness test update - data: %s", data)
-    # Currently no sensors need to be updated for tightness test messages
+    value = data.get("value")
+    _LOGGER.debug("Received tightness test update - value: %s", value)
+    # Update the LongestTightnessPeriodSensor
+    for sensor in sensors:
+        if isinstance(sensor, LongestTightnessPeriodSensor):
+            sensor.handle_update({"value": value})
 
 def handle_status_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
     """Handle status_message messages."""
@@ -173,6 +177,7 @@ async def async_setup_entry(
         QuickTestSensor(device_info, device_id, device_data),
         FlowDurationSensor(device_info, device_id, device_data),
         SignalStrengthSensor(device_info, device_id, device_data),
+        LongestTightnessPeriodSensor(device_info, device_id, device_data),
     ]
     
     async_add_entities(sensors)
@@ -392,6 +397,62 @@ class SignalStrengthSensor(LeakomaticSensor):
             except (ValueError, TypeError):
                 _LOGGER.warning("Invalid RSSI value: %s (type: %s)", 
                               rssi, type(rssi).__name__)
+                return None
+        
+        return None
+
+
+class LongestTightnessPeriodSensor(LeakomaticSensor):
+    """Representation of a Leakomatic Longest Tightness Period sensor.
+    
+    This sensor represents the longest tightness period of the Leakomatic device.
+    It is updated through WebSocket updates.
+    The value is in seconds.
+    """
+
+    def __init__(
+        self,
+        device_info: dict[str, Any],
+        device_id: str,
+        device_data: dict[str, Any] | None,
+    ) -> None:
+        """Initialize the longest tightness period sensor."""
+        super().__init__(
+            device_info=device_info,
+            device_id=device_id,
+            device_data=device_data,
+            key="longest_tightness_period",
+            icon="mdi:water",
+            device_class=SensorDeviceClass.DURATION,
+            state_class=SensorStateClass.MEASUREMENT,
+            native_unit_of_measurement="s"
+        )
+
+    @property
+    def native_value(self) -> StateType:
+        """Return the state of the sensor."""
+        if not self._device_data:
+            _LOGGER.debug("No device data available")
+            return None
+        
+        # Get the tightness period value - try both possible field names
+        value = self._device_data.get("value")
+        if value is not None:
+            _LOGGER.debug("Found tightness period value in 'value' field: %s (type: %s)", 
+                         value, type(value).__name__)
+        else:
+            value = self._device_data.get("current_tightness_test")
+            if value is not None:
+                _LOGGER.debug("Found tightness period value in 'current_tightness_test' field: %s (type: %s)", 
+                             value, type(value).__name__)
+        
+        if value is not None:
+            try:
+                # Convert to integer since we're dealing with seconds
+                return int(float(value))
+            except (ValueError, TypeError):
+                _LOGGER.warning("Invalid tightness period value: %s (type: %s)", 
+                              value, type(value).__name__)
                 return None
         
         return None 
