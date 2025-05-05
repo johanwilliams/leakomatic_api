@@ -92,11 +92,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     # If device data is available and contains sw_version, use it
     sw_version = "Unknown"
-    if device_data and "sw_version" in device_data:
-        sw_version = device_data["sw_version"]
+    if device_data and "sw_version" in device_data and "sw_release" in device_data:
+        sw_version = f"{device_data['sw_release']}-{device_data['sw_version']}"
         _LOGGER.debug("Found sw_version: %s", sw_version)
     else:
-        _LOGGER.warning("Could not find sw_version in device data, using default")
+        _LOGGER.warning("Could not find sw_version or sw_release in device data, using default")
 
     # If device data is available and contains model, use it
     model = "Unknown"
@@ -112,6 +112,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.debug("Found location: %s", location)
     else:
         _LOGGER.warning("Could not find location in device data, using default")
+
+    # Get serial number from device_identifier
+    serial_number = None
+    if device_data and "device_identifier" in device_data:
+        serial_number = device_data["device_identifier"]
+        _LOGGER.debug("Found serial_number: %s", serial_number)
+    else:
+        _LOGGER.warning("Could not find device_identifier in device data")
+
+    # Get model_id from product_id
+    model_id = None
+    if device_data and "product_id" in device_data:
+        model_id = device_data["product_id"]
+        _LOGGER.debug("Found model_id: %s", model_id)
+    else:
+        _LOGGER.warning("Could not find product_id in device data")
     
     # Create device entry
     device_registry = async_get_device_registry(hass)
@@ -122,7 +138,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         manufacturer="Leakomatic",
         model=model,
         sw_version=sw_version,
-        suggested_area=location
+        suggested_area=location,
+        serial_number=serial_number,
+        model_id=model_id
     )
     
     # Store device entry in hass.data
