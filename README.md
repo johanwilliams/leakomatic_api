@@ -8,6 +8,7 @@ This integration allows you to connect your Leakomatic water leak sensors to Hom
 - Device mode monitoring (Home/Away/Pause)
 - Quick test index monitoring
 - Flow duration monitoring
+- Longest tightness period monitoring
 - Flow indicator monitoring
 - Online status monitoring
 - Device information display (model, software version, location)
@@ -32,6 +33,11 @@ The integration provides the following sensors:
   - Updates when a flow event completes
   - Helps track water usage patterns
 
+- **Longest Tightness Period**: Shows the longest period of no water flow
+  - Measured in seconds
+  - Updates in real-time through WebSocket events
+  - Helps monitor system tightness and potential leaks
+
 - **Flow Indicator**: Binary sensor showing if water is currently flowing
   - States: On (water flowing), Off (no water flow), Unknown (initial state)
   - Updates in real-time through WebSocket events
@@ -42,6 +48,8 @@ The integration provides the following sensors:
   - Updates in real-time through WebSocket events
   - Automatically sets to "On" when receiving any activity message from the device
   - Automatically sets to "Off" when receiving a device update with is_online=False
+  - Includes a last_seen attribute showing the timestamp of the last received message
+  - Useful for monitoring device connectivity and troubleshooting connection issues
 
 ## Services
 
