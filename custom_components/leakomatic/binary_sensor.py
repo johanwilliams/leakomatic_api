@@ -289,7 +289,6 @@ class OnlineStatusBinarySensor(LeakomaticBinarySensor):
             device_class=BinarySensorDeviceClass.CONNECTIVITY,
         )
         self._last_seen: datetime | None = None
-        self._attr_extra_state_attributes: dict[str, Any] = {}
         _LOGGER.debug("OnlineStatusBinarySensor initialized with device_data: %s", device_data)
 
     @property
@@ -327,11 +326,8 @@ class OnlineStatusBinarySensor(LeakomaticBinarySensor):
         if self._last_seen:
             attrs["last_seen"] = self._last_seen.isoformat()
         
-        # Store the attributes for future reference
-        self._attr_extra_state_attributes = attrs
-        
         return attrs
-        
+
     @callback
     def handle_update(self, data: dict[str, Any], update_last_seen: bool = True) -> None:
         """Handle updated data from WebSocket.

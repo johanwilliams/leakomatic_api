@@ -89,18 +89,7 @@ class LeakomaticEntity:
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return the state attributes."""
-        if not self._device_data:
-            return {}
-        
-        # Extract relevant attributes from the device data
-        attributes = {}
-        
-        # Add common attributes that all sensors might want to expose
-        for attr in ["alarm", "name", "model", "sw_version", "last_seen_at"]:
-            if attr in self._device_data:
-                attributes[attr] = self._device_data[attr]
-        
-        return attributes
+        return {}
 
     def handle_update(self, data: dict[str, Any]) -> None:
         """Handle updated data from WebSocket."""
