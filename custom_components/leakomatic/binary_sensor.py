@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any, Callable, Dict, Optional
+from datetime import datetime, timezone
 
 from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
@@ -62,9 +63,8 @@ def handle_flow_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> 
     for sensor in sensors:
         if isinstance(sensor, FlowIndicatorBinarySensor):
             sensor.handle_update(data)
-    # Update online status to True when receiving flow updates
-    _LOGGER.debug("Setting online status to True due to flow_updated message")
-    sensors[1].handle_update({"is_online": True})
+        elif isinstance(sensor, OnlineStatusBinarySensor):
+            sensor.handle_update({"is_online": True}, update_last_seen=True)
 
 def handle_device_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle device_updated messages."""
@@ -75,7 +75,7 @@ def handle_device_update(message: dict, sensors: list[LeakomaticBinarySensor]) -
     # Update all relevant sensors
     for sensor in sensors:
         if isinstance(sensor, OnlineStatusBinarySensor):
-            sensor.handle_update(data)
+            sensor.handle_update(data, update_last_seen=True)
         elif isinstance(sensor, ValveBinarySensor):
             sensor.handle_update(data)
 
@@ -84,15 +84,19 @@ def handle_quick_test_update(message: dict, sensors: list[LeakomaticBinarySensor
     data = message.get("message", {}).get("data", {})
     value = data.get("value")
     _LOGGER.debug("Received quick test update - value: %s", value)
-    # Update online status to True when receiving quick test updates
-    sensors[1].handle_update({"is_online": True})
+    # Update online status for any message
+    for sensor in sensors:
+        if isinstance(sensor, OnlineStatusBinarySensor):
+            sensor.handle_update({"is_online": True}, update_last_seen=True)
 
 def handle_tightness_test_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle tightness_test_updated messages."""
     data = message.get("message", {}).get("data", {})
     _LOGGER.debug("Received tightness test update - data: %s", data)
-    # Update online status to True when receiving tightness test updates
-    sensors[1].handle_update({"is_online": True})
+    # Update online status for any message
+    for sensor in sensors:
+        if isinstance(sensor, OnlineStatusBinarySensor):
+            sensor.handle_update({"is_online": True}, update_last_seen=True)
 
 def handle_status_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle status_message messages."""
@@ -103,11 +107,31 @@ def handle_status_update(message: dict, sensors: list[LeakomaticBinarySensor]) -
     for sensor in sensors:
         if isinstance(sensor, ValveBinarySensor):
             sensor.handle_update(data)
+        elif isinstance(sensor, OnlineStatusBinarySensor):
+            sensor.handle_update({"is_online": True}, update_last_seen=True)
+
+def handle_ping(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
+    """Handle ping messages."""
+    _LOGGER.debug("Received ping message")
+    # Update online status based on last_seen timestamp
+    for sensor in sensors:
+        if isinstance(sensor, OnlineStatusBinarySensor):
+            # Don't update last_seen for ping messages
+            sensor.handle_update({"is_online": True}, update_last_seen=False)
+
+def handle_device_offline(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
+    """Handle device_offline messages."""
+    _LOGGER.debug("Received device_offline message")
+    # Set all online status sensors to offline
+    for sensor in sensors:
+        if isinstance(sensor, OnlineStatusBinarySensor):
+            # Don't update last_seen for device_offline messages
+            sensor.handle_update({"is_online": False}, update_last_seen=False)
 
 def handle_default(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle any other message type."""
     msg_type = message.get("type", message.get('message', {}).get('operation', 'unknown'))
-    _LOGGER.debug("Received unhandled message type %s - setting device as online", msg_type)
+    _LOGGER.debug("Received unhandled message type %s", msg_type)
 
 # Register all handlers
 message_registry.register(MessageType.FLOW_UPDATED.value, handle_flow_update)
@@ -115,6 +139,8 @@ message_registry.register(MessageType.DEVICE_UPDATED.value, handle_device_update
 message_registry.register(MessageType.QUICK_TEST_UPDATED.value, handle_quick_test_update)
 message_registry.register(MessageType.TIGHTNESS_TEST_UPDATED.value, handle_tightness_test_update)
 message_registry.register(MessageType.STATUS_MESSAGE.value, handle_status_update)
+message_registry.register(MessageType.PING.value, handle_ping)
+message_registry.register(MessageType.DEVICE_OFFLINE.value, handle_device_offline)
 message_registry.register_default(handle_default)
 
 async def async_setup_entry(
@@ -241,13 +267,8 @@ class OnlineStatusBinarySensor(LeakomaticBinarySensor):
     This sensor indicates whether the device is currently online (True) or offline (False).
     It is updated through WebSocket updates with device_updated operation.
     
-    The sensor will be set to online (True) when receiving any of these message types:
-    - flow_updated
-    - quick_test_updated
-    - tightness_test_updated
-    
-    The sensor will be set to offline (False) when receiving a device_updated message
-    with is_online=False.
+    The sensor will be set to online (True) when receiving any message from the device.
+    The sensor will be set to offline (False) when the device hasn't been seen for more than 5 minutes.
     
     The default state is unknown (None) until the first update is received.
     """
@@ -267,6 +288,8 @@ class OnlineStatusBinarySensor(LeakomaticBinarySensor):
             icon="mdi:wifi",
             device_class=BinarySensorDeviceClass.CONNECTIVITY,
         )
+        self._last_seen: datetime | None = None
+        self._attr_extra_state_attributes: dict[str, Any] = {}
         _LOGGER.debug("OnlineStatusBinarySensor initialized with device_data: %s", device_data)
 
     @property
@@ -276,20 +299,56 @@ class OnlineStatusBinarySensor(LeakomaticBinarySensor):
             _LOGGER.debug("No device data available - assuming unknown state")
             return None
         
-        # Get the online status from the device data
-        is_online = self._device_data.get("is_online")
-        _LOGGER.debug("Reading online status value: %s (type: %s)", is_online, type(is_online).__name__)
+        # If we have a last_seen timestamp, use it to determine online status
+        if self._last_seen:
+            now = datetime.now(timezone.utc)
+            minutes_since_last_seen = (now - self._last_seen).total_seconds() / 60
+            
+            is_online = minutes_since_last_seen < 5  # 5 minutes timeout
+            
+            _LOGGER.debug(
+                "Device last seen %s minutes ago (threshold: 5) - online: %s",
+                minutes_since_last_seen,
+                is_online
+            )
+            return is_online
         
-        # Return True if device is online, False otherwise
+        # If no last_seen timestamp, use the is_online value directly
+        is_online = self._device_data.get("is_online")
         return bool(is_online)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the state attributes."""
+        # Get base attributes from parent class
+        attrs = super().extra_state_attributes or {}
+        
+        # Add our custom last_seen attribute
+        if self._last_seen:
+            attrs["last_seen"] = self._last_seen.isoformat()
+        
+        # Store the attributes for future reference
+        self._attr_extra_state_attributes = attrs
+        
+        return attrs
         
     @callback
-    def handle_update(self, data: dict[str, Any]) -> None:
-        """Handle updated data from WebSocket."""
+    def handle_update(self, data: dict[str, Any], update_last_seen: bool = True) -> None:
+        """Handle updated data from WebSocket.
+        
+        Args:
+            data: The data to update the sensor with
+            update_last_seen: Whether to update the last_seen timestamp
+        """
         _LOGGER.debug("OnlineStatusBinarySensor received update: %s", data)
+        
+        # Update last_seen to now if requested
+        if update_last_seen:
+            self._last_seen = datetime.now(timezone.utc)
+            
         self._device_data = data
         self.async_write_ha_state()
-        _LOGGER.debug("%s value updated: %s", self.name, self.is_on) 
+        _LOGGER.debug("%s value updated: %s", self.name, self.is_on)
 
 class ValveBinarySensor(LeakomaticBinarySensor):
     """Representation of a Leakomatic Valve binary sensor.
