@@ -2,7 +2,6 @@
 
 This module implements the sensor platform for the Leakomatic integration.
 It provides sensors for:
-- Device mode (Home/Away/Pause)
 - Device status and metrics
 - Alarm conditions
 - Quick test index
@@ -183,7 +182,6 @@ async def async_setup_entry(
     
     # Create sensors
     sensors = [
-        ModeSensor(device_info, device_id, device_data),
         QuickTestIndexSensor(device_info, device_id, device_data),
         FlowDurationSensor(device_info, device_id, device_data),
         SignalStrengthSensor(device_info, device_id, device_data),
@@ -205,55 +203,6 @@ async def async_setup_entry(
     if "ws_callbacks" not in domain_data:
         domain_data["ws_callbacks"] = []
     domain_data["ws_callbacks"].append(handle_ws_message)
-
-
-class ModeSensor(LeakomaticSensor):
-    """Representation of a Leakomatic Mode sensor.
-    
-    This sensor represents the mode of the Leakomatic device (Home/Away/Pause).
-    It is updated through WebSocket updates.
-    
-    Attributes:
-        _device_info: Information about the physical device
-        _device_id: The unique identifier of the device
-        _attr_name: The name of the sensor
-        _attr_unique_id: The unique identifier for this sensor
-        _attr_icon: The icon to use for this sensor
-        _device_data: The current device data
-    """
-
-    def __init__(
-        self,
-        device_info: dict[str, Any],
-        device_id: str,
-        device_data: dict[str, Any] | None,
-    ) -> None:
-        """Initialize the mode sensor."""
-        super().__init__(
-            device_info=device_info,
-            device_id=device_id,
-            device_data=device_data,
-            key="mode",
-            icon="mdi:home",
-        )
-
-    @property
-    def native_value(self) -> StateType:
-        """Return the state of the sensor."""
-        if not self._device_data:
-            _LOGGER.debug("No device data available")
-            return None
-        
-        # Get the mode from the device data
-        mode = self._device_data.get("mode")
-        _LOGGER.debug("Reading mode value: %s (type: %s)", mode, type(mode).__name__)
-        
-        # Return the numeric value as a string - translations will be handled by HA
-        if mode in (0, 1, 2):
-            return str(mode)
-        else:
-            _LOGGER.debug("Unknown mode value: %s", mode)
-            return "unknown"
 
 
 class QuickTestIndexSensor(LeakomaticSensor):

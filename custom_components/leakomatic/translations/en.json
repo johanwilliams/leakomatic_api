@@ -26,15 +26,6 @@
     "title": "Leakomatic",
     "entity": {
         "sensor": {
-            "mode": {
-                "name": "Mode",
-                "state": {
-                    "0": "Home",
-                    "1": "Away",
-                    "2": "Pause",
-                    "unknown": "Unknown"
-                }
-            },
             "quick_test_index": {
                 "name": "Quick Test Index",
                 "state": {
@@ -98,6 +89,16 @@
                 "state": {
                     "on": "Open",
                     "off": "Closed"
+                }
+            }
+        },
+        "select": {
+            "mode": {
+                "name": "Mode",
+                "state": {
+                    "home": "Home",
+                    "away": "Away",
+                    "pause": "Pause"
                 }
             }
         }

@@ -26,15 +26,6 @@
     "title": "Leakomatic",
     "entity": {
         "sensor": {
-            "mode": {
-                "name": "Driftsläge",
-                "state": {
-                    "0": "Hemma",
-                    "1": "Borta",
-                    "2": "Paus",
-                    "unknown": "Okänd"
-                }
-            },
             "quick_test_index": {
                 "name": "Snabbtestindex",
                 "state": {
@@ -44,7 +35,7 @@
             "quick_test": {
                 "name": "Snabbtest",
                 "state": {
-                    "clear": "Klar",
+                    "clear": "Klart",
                     "warning": "Varning",
                     "alarm": "Larm"
                 }
@@ -87,10 +78,10 @@
                 }
             },
             "online_status": {
-                "name": "Anslutningsstatus",
+                "name": "Onlinestatus",
                 "state": {
-                    "on": "Ansluten",
-                    "off": "Frånkopplad"
+                    "on": "Online",
+                    "off": "Offline"
                 }
             },
             "valve": {
@@ -98,6 +89,16 @@
                 "state": {
                     "on": "Öppen",
                     "off": "Stängd"
+                }
+            }
+        },
+        "select": {
+            "mode": {
+                "name": "Läge",
+                "state": {
+                    "home": "Hemma",
+                    "away": "Borta",
+                    "pause": "Paus"
                 }
             }
         }
