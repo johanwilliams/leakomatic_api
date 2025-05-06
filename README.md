@@ -5,24 +5,26 @@ This integration allows you to connect your Leakomatic water leak sensors to Hom
 ## Features
 
 - Real-time updates via WebSocket connection
-- Device mode monitoring (Home/Away/Pause)
+- Device mode monitoring and control (Home/Away/Pause)
 - Quick test index monitoring
 - Flow duration monitoring
 - Longest tightness period monitoring
 - Flow indicator monitoring
 - Online status monitoring
+- Signal strength monitoring
+- Valve state monitoring
+- Alarm state monitoring (Flow/Quick/Tightness tests)
 - Device information display (model, software version, location)
 - Automatic reconnection handling
 - Full localization support for all sensor names and states
 - Service to change device operating mode
+- Button to reset alarms
 
-## Available Sensors
+## Available Entities
 
-The integration provides the following sensors:
+The integration provides the following entities:
 
-- **Mode Sensor**: Shows the current operating mode of your Leakomatic device
-  - States: Home (0), Away (1), Pause (2)
-  - Includes device status attributes like alarm state and last seen time
+### Sensors
 
 - **Quick Test Index**: Displays the current quick test measurement value
   - Numerical value indicating water flow characteristics
@@ -33,29 +35,65 @@ The integration provides the following sensors:
   - Updates when a flow event completes
   - Helps track water usage patterns
 
+- **Signal Strength**: Shows the WiFi signal strength (RSSI) of the device
+  - Measured in dBm
+  - Updates in real-time through WebSocket events
+  - Helps monitor device connectivity quality
+
 - **Longest Tightness Period**: Shows the longest period of no water flow
   - Measured in seconds
   - Updates in real-time through WebSocket events
   - Helps monitor system tightness and potential leaks
 
-- **Flow Test**: Monitors flow alarms and provides alarm state information
-  - States: Clear (0), Warning (1), Alarm (2)
-  - Updates in real-time through WebSocket alarm events
-  - Provides early warning of potential water flow issues
-  - Helps detect and prevent water leaks
+### Binary Sensors
 
-- **Flow Indicator**: Binary sensor showing if water is currently flowing
+- **Flow Indicator**: Shows if water is currently flowing
   - States: On (water flowing), Off (no water flow)
   - Updates in real-time through WebSocket flow events
   - Useful for tracking active water usage and flow patterns
 
-- **Online Status**: Binary sensor showing if the device is currently online
+- **Online Status**: Shows if the device is currently online
   - States: On (online), Off (offline), Unknown (initial state)
   - Updates in real-time through WebSocket events
   - Automatically sets to "On" when receiving any activity message from the device
   - Automatically sets to "Off" when receiving a device update with is_online=False
   - Includes a last_seen attribute showing the timestamp of the last received message
   - Useful for monitoring device connectivity and troubleshooting connection issues
+
+- **Valve**: Shows the current state of the water valve
+  - States: On (valve open), Off (valve closed)
+  - Updates in real-time through WebSocket events
+  - Helps monitor valve operation and status
+
+### Select Entities
+
+- **Mode**: Allows changing the operating mode of your Leakomatic device
+  - Options: Home, Away, Pause
+  - Updates in real-time through WebSocket events
+  - Can be used to change the device mode directly from Home Assistant
+
+### Buttons
+
+- **Reset Alarms**: Allows resetting all active alarms on the device
+  - Located in the device configuration section
+  - Useful for clearing alarm states after resolving issues
+
+### Alarm Test Sensors
+
+- **Flow Test**: Monitors flow alarms and provides alarm state information
+  - States: Clear (0), Warning (1), Alarm (2)
+  - Updates in real-time through WebSocket alarm events
+  - Provides early warning of potential water flow issues
+
+- **Quick Test**: Monitors quick test alarms
+  - States: Clear (0), Warning (1), Alarm (2)
+  - Updates in real-time through WebSocket alarm events
+  - Helps detect and prevent water leaks
+
+- **Tightness Test**: Monitors tightness test alarms
+  - States: Clear (0), Warning (1), Alarm (2)
+  - Updates in real-time through WebSocket alarm events
+  - Helps detect and prevent water leaks
 
 ## Services
 
@@ -99,7 +137,7 @@ The integration will automatically use the language that matches your Home Assis
 The integration will automatically:
 - Connect to your Leakomatic device
 - Set up real-time monitoring via WebSocket
-- Create sensors for device status and measurements
+- Create all necessary entities
 - Register the change_mode service
 
 ## Debug Logging
@@ -130,9 +168,9 @@ If you encounter any issues with the integration:
 
 ## Development Status
 
-This integration is currently in development. Future enhancements planned:
-- Additional sensor types for various device metrics
-- Enhanced error handling and recovery
+This integration is currently in active development. Future enhancements planned:
 - Support for multiple devices
+- Enhanced error handling and recovery
 - More detailed alarm state reporting
-- Historical data analysis features 
+- Historical data analysis features
+- Additional sensor types for various device metrics 

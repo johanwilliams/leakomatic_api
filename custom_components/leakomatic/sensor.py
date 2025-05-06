@@ -72,9 +72,7 @@ def handle_device_update(message: dict, sensors: list[LeakomaticSensor]) -> None
                  data.get("rssi"))
     # Update all relevant sensors
     for sensor in sensors:
-        if isinstance(sensor, ModeSensor):
-            sensor.handle_update(data)
-        elif isinstance(sensor, SignalStrengthSensor):
+        if isinstance(sensor, SignalStrengthSensor):
             sensor.handle_update(data)
 
 def handle_quick_test_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
@@ -455,7 +453,7 @@ class AlarmTestSensor(LeakomaticSensor):
         # Check for current alarm in device data
         if device_data and "current_alarm" in device_data:
             current_alarm = device_data["current_alarm"]
-            if current_alarm.get("alarm_type") == int(self._alarm_type):
+            if current_alarm and current_alarm.get("alarm_type") == int(self._alarm_type):
                 alarm_level = str(current_alarm.get("level", "0"))
                 _LOGGER.debug("%s found current alarm with level %s", self._log_prefix, alarm_level)
                 if alarm_level == "1":
@@ -569,4 +567,4 @@ class TightnessTestSensor(AlarmTestSensor):
             key="tightness_test",
             alarm_type="2",
             log_prefix="TightnessTestSensor",
-        ) 
+        )

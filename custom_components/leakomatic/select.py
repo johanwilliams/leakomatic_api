@@ -165,12 +165,10 @@ class ModeSelect(LeakomaticSelect):
     def current_option(self) -> str | None:
         """Return the current selected option."""
         if not self._device_data:
-            _LOGGER.debug("No device data available")
             return None
         
         # Get the mode from the device data
         mode = self._device_data.get("mode")
-        _LOGGER.debug("Reading mode value: %s (type: %s)", mode, type(mode).__name__)
         
         # Convert numeric mode to string option
         if mode == 0:
@@ -180,7 +178,6 @@ class ModeSelect(LeakomaticSelect):
         elif mode == 2:
             return "pause"
         else:
-            _LOGGER.debug("Unknown mode value: %s", mode)
             return None
 
     async def async_select_option(self, option: str) -> None:
@@ -193,7 +190,9 @@ class ModeSelect(LeakomaticSelect):
     @callback
     def handle_update(self, data: dict[str, Any]) -> None:
         """Handle updated data from WebSocket."""
-        _LOGGER.debug("ModeSelect received update: %s", data)
+        mode = data.get("mode")
+        if mode is not None:
+            mode_str = "home" if mode == 0 else "away" if mode == 1 else "pause" if mode == 2 else str(mode)
+            _LOGGER.debug("Mode changed to %s", mode_str)
         self._device_data = data
-        self.async_write_ha_state()
-        _LOGGER.debug("%s value updated: %s", self.name, self.current_option) 
+        self.async_write_ha_state() 

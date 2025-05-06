@@ -301,12 +301,6 @@ class OnlineStatusBinarySensor(LeakomaticBinarySensor):
         )
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._last_seen: datetime | None = None
-        _LOGGER.debug(
-            "OnlineStatusBinarySensor initialized with device: %s (last_seen: %s, online: %s)",
-            device_info.get("name"),
-            device_data.get("last_seen_at") if device_data else None,
-            device_data.get("is_online") if device_data else None
-        )
         
         # If we have initial device data with last_seen_at, parse it
         if device_data and "last_seen_at" in device_data:
@@ -315,7 +309,6 @@ class OnlineStatusBinarySensor(LeakomaticBinarySensor):
                 # Remove microseconds for consistent format
                 parsed_time = datetime.fromisoformat(device_data["last_seen_at"].replace("Z", "+00:00"))
                 self._last_seen = parsed_time.replace(microsecond=0)
-                _LOGGER.debug("Initialized last_seen from device data: %s", self._last_seen)
             except (ValueError, TypeError) as err:
                 _LOGGER.warning("Failed to parse last_seen_at from device data: %s", err)
 
@@ -323,7 +316,6 @@ class OnlineStatusBinarySensor(LeakomaticBinarySensor):
     def is_on(self) -> bool | None:
         """Return the state of the binary sensor."""
         if not self._device_data:
-            _LOGGER.debug("No device data available - assuming unknown state")
             return None
         
         # If we have a last_seen timestamp, use it to determine online status
@@ -332,12 +324,6 @@ class OnlineStatusBinarySensor(LeakomaticBinarySensor):
             minutes_since_last_seen = (now - self._last_seen).total_seconds() / 60
             
             is_online = minutes_since_last_seen < 5  # 5 minutes timeout
-            
-            _LOGGER.debug(
-                "Device last seen %s minutes ago (threshold: 5) - online: %s",
-                minutes_since_last_seen,
-                is_online
-            )
             return is_online
         
         # If no last_seen timestamp, use the is_online value directly
@@ -364,8 +350,6 @@ class OnlineStatusBinarySensor(LeakomaticBinarySensor):
             data: The data to update the sensor with
             update_last_seen: Whether to update the last_seen timestamp
         """
-        _LOGGER.debug("OnlineStatusBinarySensor received update: %s", data)
-        
         # Update last_seen based on the data or current time
         if update_last_seen:
             if "last_seen_at" in data:
@@ -374,7 +358,6 @@ class OnlineStatusBinarySensor(LeakomaticBinarySensor):
                     # Remove microseconds for consistent format
                     parsed_time = datetime.fromisoformat(data["last_seen_at"].replace("Z", "+00:00"))
                     self._last_seen = parsed_time.replace(microsecond=0)
-                    _LOGGER.debug("Updated last_seen from device data: %s", self._last_seen)
                 except (ValueError, TypeError) as err:
                     _LOGGER.warning("Failed to parse last_seen_at from device data: %s", err)
                     # Fall back to current time if parsing fails
@@ -385,7 +368,6 @@ class OnlineStatusBinarySensor(LeakomaticBinarySensor):
             
         self._device_data = data
         self.async_write_ha_state()
-        _LOGGER.debug("%s value updated: %s", self.name, self.is_on)
 
 class ValveBinarySensor(LeakomaticBinarySensor):
     """Representation of a Leakomatic Valve binary sensor.
@@ -418,17 +400,13 @@ class ValveBinarySensor(LeakomaticBinarySensor):
     def is_on(self) -> bool | None:
         """Return the state of the binary sensor."""
         if not self._device_data:
-            _LOGGER.debug("No device data available - assuming unknown state")
             return None
         
         # Get the port state from the device data
         port_state = self._device_data.get("port_state")
         if port_state is None:
-            _LOGGER.debug("No port state available")
             return None
             
-        _LOGGER.debug("Reading port state value: %s (type: %s)", port_state, type(port_state).__name__)
-        
         # Check if the 8th bit (bit 7) is set
         # If bit 7 is 1 → valve is closed (is_on = False)
         # If bit 7 is 0 → valve is open (is_on = True)
@@ -437,7 +415,9 @@ class ValveBinarySensor(LeakomaticBinarySensor):
     @callback
     def handle_update(self, data: dict[str, Any]) -> None:
         """Handle updated data from WebSocket."""
-        _LOGGER.debug("ValveBinarySensor received update: %s", data)
+        port_state = data.get("port_state")
+        if port_state is not None:
+            valve_state = "open" if (port_state & (1 << 7)) == 0 else "closed"
+            _LOGGER.debug("Valve state changed to %s", valve_state)
         self._device_data = data
-        self.async_write_ha_state()
-        _LOGGER.debug("%s value updated: %s", self.name, self.is_on) 
+        self.async_write_ha_state() 

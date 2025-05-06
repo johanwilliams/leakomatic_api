@@ -540,90 +540,26 @@ class LeakomaticClient:
             
         return return_value 
 
-    async def async_change_mode(self, mode: str) -> bool:
-        """Change the mode of the Leakomatic device.
+    async def _async_make_request(self, endpoint: str, data: dict, operation: str) -> bool:
+        """Make an HTTP request to the Leakomatic API.
         
         Args:
-            mode: The new mode to set. Must be one of: "home", "away", "pause".
+            endpoint: The API endpoint to call (e.g. 'change_mode.json' or 'reset_alarms.json')
+            data: The data to send in the request
+            operation: A description of the operation being performed (for logging)
             
         Returns:
-            bool: True if the mode was changed successfully, False otherwise.
+            bool: True if the request was successful, False otherwise
         """
         if not self._device_id:
-            return self._handle_error("Cannot change mode - no device configured", return_value=False, level="warning")
+            return self._handle_error(f"Cannot {operation} - no device configured", return_value=False, level="warning")
             
         # Ensure we're authenticated
         if not await self._ensure_authenticated():
             return False
             
         try:
-            # Convert the string mode to a numeric value using the DeviceMode enum
-            numeric_mode = DeviceMode.from_string(mode)
-            _LOGGER.debug("Changing mode to %s (numeric value: %d) for device %s", mode, numeric_mode, self._device_id)
-            
-            # Create headers for JSON content
-            mode_headers = {
-                "Content-Type": "application/json;charset=UTF-8",
-                "User-Agent": "Mozilla/5.0",
-                "Connection": "close"
-            }
-            
-            # Create a new session with the saved cookies and specific headers for JSON
-            session = await self._create_session(headers=mode_headers)
-            try:
-                # Construct the URL for changing the mode
-                url = f"{STATUS_URL}/{self._device_id}/change_mode.json"
-                
-                # Prepare the data for the request
-                data = {
-                    "mode": numeric_mode
-                }
-                
-                _LOGGER.debug("Requesting URL %s", url)
-                
-                async with session.post(url, json=data) as response:
-                    _LOGGER.debug("Response status: %d", response.status)
-                    
-                    # Get the response content
-                    response_text = await response.text()
-                    
-                    if response.status != 200:
-                        return self._handle_error(
-                            f"Failed to change mode - server returned {response.status}",
-                            return_value=False,
-                            level="warning"
-                        )
-                    
-                    # Update cookies and XSRF token from the response
-                    await self._update_session_from_response(response)
-                    
-                    # For 200 status code, consider it a success
-                    _LOGGER.info("Successfully changed mode to %s for device %s", mode, self._device_id)
-                    return True
-            finally:
-                # Always close the session
-                await session.close()
-                
-        except ValueError as err:
-            return self._handle_error(str(err), return_value=False, level="warning")
-        except Exception as err:
-            return self._handle_error(f"Failed to change mode: {err}", return_value=False, level="error")
-
-    async def async_reset_alarms(self) -> bool:
-        """Reset all alarms on the Leakomatic device.
-        
-        Returns:
-            bool: True if the alarms were reset successfully, False otherwise.
-        """
-        if not self._device_id:
-            return self._handle_error("Cannot reset alarms - no device configured", return_value=False, level="warning")
-            
-        # Ensure we're authenticated
-        if not await self._ensure_authenticated():
-            return False
-            
-        try:
-            _LOGGER.debug("Resetting alarms for device %s", self._device_id)
+            _LOGGER.debug("%s for device %s", operation.capitalize(), self._device_id)
             
             # Create headers for JSON content
             headers = {
@@ -635,11 +571,8 @@ class LeakomaticClient:
             # Create a new session with the saved cookies and specific headers for JSON
             session = await self._create_session(headers=headers)
             try:
-                # Construct the URL for resetting alarms
-                url = f"{STATUS_URL}/{self._device_id}/reset_alarms.json"
-                
-                # Prepare the data for the request - array with alarm_ids
-                data = {"alarm_ids": [0]}
+                # Construct the URL
+                url = f"{STATUS_URL}/{self._device_id}/{endpoint}"
                 
                 _LOGGER.debug("Requesting URL %s", url)
                 
@@ -651,7 +584,7 @@ class LeakomaticClient:
                     
                     if response.status != 200:
                         return self._handle_error(
-                            f"Failed to reset alarms - server returned {response.status}",
+                            f"Failed to {operation} - server returned {response.status}",
                             return_value=False,
                             level="warning"
                         )
@@ -660,11 +593,62 @@ class LeakomaticClient:
                     await self._update_session_from_response(response)
                     
                     # For 200 status code, consider it a success
-                    _LOGGER.info("Successfully reset alarms for device %s", self._device_id)
+                    _LOGGER.info("Successfully %s for device %s", operation, self._device_id)
                     return True
             finally:
                 # Always close the session
                 await session.close()
                 
         except Exception as err:
-            return self._handle_error(f"Failed to reset alarms: {err}", return_value=False, level="error") 
+            return self._handle_error(f"Failed to {operation}: {err}", return_value=False, level="error")
+
+    async def async_change_mode(self, mode: str) -> bool:
+        """Change the mode of the Leakomatic device.
+        
+        Args:
+            mode: The new mode to set. Must be one of: "home", "away", "pause".
+            
+        Returns:
+            bool: True if the mode was changed successfully, False otherwise.
+        """
+        try:
+            # Convert the string mode to a numeric value using the DeviceMode enum
+            numeric_mode = DeviceMode.from_string(mode)
+            _LOGGER.debug("Changing mode to %s (numeric value: %d) for device %s", mode, numeric_mode, self._device_id)
+            
+            # Prepare the data for the request
+            data = {
+                "mode": numeric_mode
+            }
+            
+            # Log the request data
+            _LOGGER.debug("Mode change request data: %s", data)
+            
+            result = await self._async_make_request(
+                endpoint="change_mode.json",
+                data=data,
+                operation=f"change mode to {mode}"
+            )
+            
+            # Log the result
+            _LOGGER.debug("Mode change result: %s", result)
+            
+            return result
+                
+        except ValueError as err:
+            return self._handle_error(str(err), return_value=False, level="warning")
+
+    async def async_reset_alarms(self) -> bool:
+        """Reset all alarms on the Leakomatic device.
+        
+        Returns:
+            bool: True if the alarms were reset successfully, False otherwise.
+        """
+        # Prepare the data for the request - array with alarm_ids
+        data = {"alarm_ids": [0]}
+        
+        return await self._async_make_request(
+            endpoint="reset_alarms.json",
+            data=data,
+            operation="reset alarms"
+        ) 
