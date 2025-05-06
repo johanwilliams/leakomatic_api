@@ -451,6 +451,21 @@ class AlarmTestSensor(LeakomaticSensor):
         self._state = TestState.CLEAR.value
         self._alarm_type = alarm_type
         self._log_prefix = log_prefix
+        
+        # Check for current alarm in device data
+        if device_data and "current_alarm" in device_data:
+            current_alarm = device_data["current_alarm"]
+            if current_alarm.get("alarm_type") == int(self._alarm_type):
+                alarm_level = str(current_alarm.get("level", "0"))
+                _LOGGER.debug("%s found current alarm with level %s", self._log_prefix, alarm_level)
+                if alarm_level == "1":
+                    self._state = TestState.WARNING.value
+                elif alarm_level == "2":
+                    self._state = TestState.ALARM.value
+                elif alarm_level == "0":
+                    self._state = TestState.CLEAR.value
+                else:
+                    _LOGGER.warning("%s unknown alarm level received: %s", self._log_prefix, alarm_level)
 
     @property
     def native_value(self) -> StateType:
