@@ -21,10 +21,12 @@ class MessageHandlerRegistry(Generic[T]):
         """Initialize the registry."""
         self._handlers: Dict[str, Callable[[dict, list[T]], None]] = {}
         self._default_handler: Optional[Callable[[dict, list[T]], None]] = None
+        self._registered_types: set[str] = set()  # Track which message types we care about
     
     def register(self, message_type: str, handler: Callable[[dict, list[T]], None]) -> None:
         """Register a handler for a specific message type."""
         self._handlers[message_type] = handler
+        self._registered_types.add(message_type)  # Add to set of types we care about
     
     def register_default(self, handler: Callable[[dict, list[T]], None]) -> None:
         """Register a default handler for unhandled message types."""
@@ -42,7 +44,8 @@ class MessageHandlerRegistry(Generic[T]):
         elif 'type' in message:
             msg_type = message['type']
         
-        _LOGGER.debug("Processing WebSocket message with type/operation: %s", msg_type)
+        _LOGGER.debug("Processing WebSocket message with type/operation: %s in registry for %s", 
+                     msg_type, type(entities[0]).__name__ if entities else "unknown")
         
         # Get the appropriate handler
         handler = self._handlers.get(msg_type)
@@ -51,8 +54,10 @@ class MessageHandlerRegistry(Generic[T]):
         
         if handler is not None:
             handler(message, entities)
-        else:
-            _LOGGER.warning("No handler found for message type: %s", msg_type)
+        elif msg_type in self._registered_types:
+            # Only log a warning if this is a message type we care about
+            _LOGGER.warning("No handler found for message type: %s in registry for %s", 
+                          msg_type, type(entities[0]).__name__ if entities else "unknown")
 
 class LeakomaticEntity:
     """Base class for all Leakomatic entities.

@@ -58,6 +58,7 @@ class LeakomaticClient:
         self._xsrf_token: Optional[str] = None
         self._cookies: Optional[aiohttp.CookieJar] = None
         self._ws_running = True
+        self._ws_callbacks: list[Callable[[dict], None]] = []
 
     async def _create_session(self, headers: Optional[Dict[str, str]] = None) -> aiohttp.ClientSession:
         """Create a new session with the saved cookies and headers.
@@ -374,9 +375,17 @@ class LeakomaticClient:
         """Connect to the websocket server and listen for messages.
         
         Args:
-            ws_token: The websocket token to use for authentication
-            message_callback: Callback function to handle received messages
+            ws_token: The WebSocket token for authentication
+            message_callback: Callback function to handle messages
         """
+        # Store the callback
+        self._ws_callbacks.append(message_callback)
+        
+        # Ensure we're authenticated
+        if not await self._ensure_authenticated():
+            _LOGGER.error("Failed to authenticate before WebSocket connection")
+            return
+
         if not self._user_id:
             return self._handle_error("Cannot connect to websocket - no user ID available", return_value=None, level="error")
 
@@ -430,7 +439,7 @@ class LeakomaticClient:
                             elif msg_type == MessageType.CONFIRM_SUBSCRIPTION.value:
                                 _LOGGER.debug("Subscription confirmed")
                             else:
-                                # For all other message types, call the callback
+                                # For all other message types, call all callbacks
                                 if msg_type:
                                     if msg_type == MessageType.DEVICE_UPDATED.value:
                                         data = parsed_response.get('message', {}).get('data', {})
@@ -438,7 +447,12 @@ class LeakomaticClient:
                                                     data.get('mode'), 
                                                     data.get('alarm'))
                                     _LOGGER.debug("Received message of type %s", msg_type)
-                                    message_callback(parsed_response)
+                                    # Call all registered callbacks
+                                    for callback in self._ws_callbacks:
+                                        try:
+                                            callback(parsed_response)
+                                        except Exception as e:
+                                            _LOGGER.error("Error in WebSocket callback: %s", str(e))
                                 else:
                                     _LOGGER.warning("Unknown message type in response")
 
@@ -651,4 +665,12 @@ class LeakomaticClient:
             endpoint="reset_alarms.json",
             data=data,
             operation="reset alarms"
-        ) 
+        )
+
+    async def disconnect(self) -> None:
+        """Disconnect from the WebSocket server."""
+        self._ws_running = False
+        self._ws_callbacks.clear()
+        if self._ws:
+            await self._ws.close()
+            self._ws = None 
