@@ -35,10 +35,18 @@
                     "unknown": "Unknown"
                 }
             },
-            "quick_test": {
+            "quick_test_index": {
                 "name": "Quick Test Index",
                 "state": {
                     "unknown": "Unknown"
+                }
+            },
+            "quick_test": {
+                "name": "Quick Test",
+                "state": {
+                    "clear": "Clear",
+                    "warning": "Warning",
+                    "alarm": "Alarm"
                 }
             },
             "longest_tightness_period": {
@@ -55,6 +63,14 @@
             },
             "flow_test": {
                 "name": "Flow Test",
+                "state": {
+                    "clear": "Clear",
+                    "warning": "Warning",
+                    "alarm": "Alarm"
+                }
+            },
+            "tightness_test": {
+                "name": "Tightness Test",
                 "state": {
                     "clear": "Clear",
                     "warning": "Warning",

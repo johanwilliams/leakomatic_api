@@ -35,10 +35,18 @@
                     "unknown": "Okänd"
                 }
             },
-            "quick_test": {
+            "quick_test_index": {
                 "name": "Snabbtestindex",
                 "state": {
                     "unknown": "Okänd"
+                }
+            },
+            "quick_test": {
+                "name": "Snabbtest",
+                "state": {
+                    "clear": "Klar",
+                    "warning": "Varning",
+                    "alarm": "Larm"
                 }
             },
             "longest_tightness_period": {
@@ -55,6 +63,14 @@
             },
             "flow_test": {
                 "name": "Flödestest",
+                "state": {
+                    "clear": "Klar",
+                    "warning": "Varning",
+                    "alarm": "Larm"
+                }
+            },
+            "tightness_test": {
+                "name": "Tätthetstest",
                 "state": {
                     "clear": "Klar",
                     "warning": "Varning",

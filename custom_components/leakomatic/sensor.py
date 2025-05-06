@@ -85,7 +85,7 @@ def handle_quick_test_update(message: dict, sensors: list[LeakomaticSensor]) -> 
     _LOGGER.debug("Received quick test update - value: %s", value)
     # Update the QuickTestSensor
     for sensor in sensors:
-        if isinstance(sensor, QuickTestSensor):
+        if isinstance(sensor, QuickTestIndexSensor):
             sensor.handle_update({"value": value})
 
 def handle_flow_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
@@ -127,9 +127,9 @@ def handle_alarm_triggered(message: dict, sensors: list[LeakomaticSensor]) -> No
     """Handle alarm_triggered messages."""
     data = message.get("message", {}).get("data", {})
     _LOGGER.debug("Received alarm triggered message - Data: %s", data)
-    # Update the FlowTestSensor
+    # Update the FlowTestSensor, QuickTestSensor, and TightnessTestSensor
     for sensor in sensors:
-        if isinstance(sensor, FlowTestSensor):
+        if isinstance(sensor, (FlowTestSensor, QuickTestSensor, TightnessTestSensor)):
             sensor.handle_update(data)
 
 # Register all handlers
@@ -184,11 +184,13 @@ async def async_setup_entry(
     # Create sensors
     sensors = [
         ModeSensor(device_info, device_id, device_data),
-        QuickTestSensor(device_info, device_id, device_data),
+        QuickTestIndexSensor(device_info, device_id, device_data),
         FlowDurationSensor(device_info, device_id, device_data),
         SignalStrengthSensor(device_info, device_id, device_data),
         LongestTightnessPeriodSensor(device_info, device_id, device_data),
         FlowTestSensor(device_info, device_id, device_data),
+        QuickTestSensor(device_info, device_id, device_data),
+        TightnessTestSensor(device_info, device_id, device_data),
     ]
     
     async_add_entities(sensors)
@@ -254,7 +256,7 @@ class ModeSensor(LeakomaticSensor):
             return "unknown"
 
 
-class QuickTestSensor(LeakomaticSensor):
+class QuickTestIndexSensor(LeakomaticSensor):
     """Representation of a Leakomatic Quick Test sensor.
     
     This sensor represents the quick test index of the Leakomatic device.
@@ -272,7 +274,7 @@ class QuickTestSensor(LeakomaticSensor):
             device_info=device_info,
             device_id=device_id,
             device_data=device_data,
-            key="quick_test",
+            key="quick_test_index",
             icon="mdi:water",
             state_class=SensorStateClass.MEASUREMENT,
         )
@@ -304,6 +306,7 @@ class QuickTestSensor(LeakomaticSensor):
                 return None
         
         return None
+
 
 
 class FlowDurationSensor(LeakomaticSensor):
@@ -502,12 +505,11 @@ class FlowTestSensor(LeakomaticSensor):
     @callback
     def handle_update(self, data: dict[str, Any]) -> None:
         """Handle updated data from WebSocket."""
-        _LOGGER.debug("FlowTestSensor received update: %s", data)
-        
         # Check if this is an alarm message
         if data.get("operation") == "alarm_triggered":
             # Verify this is a flow alarm (type 0)
             if data.get("alarm_type") == "0":
+                _LOGGER.debug("FlowTestSensor received flow alarm update: %s", data)
                 alarm_level = data.get("alarm_level")
                 if alarm_level == "1":
                     self._state = TestState.WARNING.value
@@ -517,9 +519,108 @@ class FlowTestSensor(LeakomaticSensor):
                     self._state = TestState.CLEAR.value
                 else:
                     _LOGGER.warning("Unknown alarm level received: %s", alarm_level)
-            else:
-                _LOGGER.debug("Ignoring non-flow alarm type: %s", data.get("alarm_type"))
+                self._device_data = data
+                self.async_write_ha_state()
+                _LOGGER.debug("%s value updated: %s", self.name, self.native_value)
         
-        self._device_data = data
-        self.async_write_ha_state()
-        _LOGGER.debug("%s value updated: %s", self.name, self.native_value) 
+class QuickTestSensor(LeakomaticSensor):
+    """Representation of a Leakomatic Quick Test sensor.
+    
+    This sensor monitors the quick test status and changes state based on alarm levels:
+    - CLEAR: No alarm
+    - WARNING: Quick test warning threshold exceeded
+    - ALARM: Quick test alarm threshold exceeded
+    """
+
+    def __init__(
+        self,
+        device_info: dict[str, Any],
+        device_id: str,
+        device_data: dict[str, Any] | None,
+    ) -> None:
+        """Initialize the quick test sensor."""
+        super().__init__(
+            device_info=device_info,
+            device_id=device_id,
+            device_data=device_data,
+            key="quick_test",
+            icon="mdi:water-alert",
+        )
+        self._state = TestState.CLEAR.value
+
+    @property
+    def native_value(self) -> StateType:
+        """Return the state of the sensor."""
+        return self._state
+
+    @callback
+    def handle_update(self, data: dict[str, Any]) -> None:
+        """Handle updated data from WebSocket."""
+        # Check if this is an alarm message
+        if data.get("operation") == "alarm_triggered":
+            # Verify this is a quick test alarm (type 1)
+            if data.get("alarm_type") == "1":
+                _LOGGER.debug("QuickTestSensor received quick test alarm update: %s", data)
+                alarm_level = data.get("alarm_level")
+                if alarm_level == "1":
+                    self._state = TestState.WARNING.value
+                elif alarm_level == "2":
+                    self._state = TestState.ALARM.value
+                elif alarm_level == "0":
+                    self._state = TestState.CLEAR.value
+                else:
+                    _LOGGER.warning("Unknown alarm level received: %s", alarm_level)
+                self._device_data = data
+                self.async_write_ha_state()
+                _LOGGER.debug("%s value updated: %s", self.name, self.native_value)
+
+class TightnessTestSensor(LeakomaticSensor):
+    """Representation of a Leakomatic Tightness Test sensor.
+    
+    This sensor monitors the tightness test status and changes state based on alarm levels:
+    - CLEAR: No alarm
+    - WARNING: Tightness test warning threshold exceeded
+    - ALARM: Tightness test alarm threshold exceeded
+    """
+
+    def __init__(
+        self,
+        device_info: dict[str, Any],
+        device_id: str,
+        device_data: dict[str, Any] | None,
+    ) -> None:
+        """Initialize the tightness test sensor."""
+        super().__init__(
+            device_info=device_info,
+            device_id=device_id,
+            device_data=device_data,
+            key="tightness_test",
+            icon="mdi:water-alert",
+        )
+        self._state = TestState.CLEAR.value
+
+    @property
+    def native_value(self) -> StateType:
+        """Return the state of the sensor."""
+        return self._state
+
+    @callback
+    def handle_update(self, data: dict[str, Any]) -> None:
+        """Handle updated data from WebSocket."""
+        # Check if this is an alarm message
+        if data.get("operation") == "alarm_triggered":
+            # Verify this is a tightness test alarm (type 2)
+            if data.get("alarm_type") == "2":
+                _LOGGER.debug("TightnessTestSensor received tightness test alarm update: %s", data)
+                alarm_level = data.get("alarm_level")
+                if alarm_level == "1":
+                    self._state = TestState.WARNING.value
+                elif alarm_level == "2":
+                    self._state = TestState.ALARM.value
+                elif alarm_level == "0":
+                    self._state = TestState.CLEAR.value
+                else:
+                    _LOGGER.warning("Unknown alarm level received: %s", alarm_level)
+                self._device_data = data
+                self.async_write_ha_state()
+                _LOGGER.debug("%s value updated: %s", self.name, self.native_value) 
