@@ -20,7 +20,7 @@ from .leakomatic_client import LeakomaticClient
 # Set up logger
 _LOGGER = logging.getLogger(LOGGER_NAME)
 
-PLATFORMS = ["sensor", "binary_sensor", "select"]
+PLATFORMS = ["sensor", "binary_sensor", "select", "button"]
 
 async def handle_ws_message(message: dict) -> None:
     """Handle websocket messages by passing them to the sensor callback."""

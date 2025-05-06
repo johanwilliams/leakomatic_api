@@ -101,6 +101,11 @@
                     "pause": "Pause"
                 }
             }
+        },
+        "button": {
+            "reset_alarms": {
+                "name": "Reset alarms"
+            }
         }
     },
     "services": {

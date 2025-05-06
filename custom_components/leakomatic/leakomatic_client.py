@@ -607,4 +607,64 @@ class LeakomaticClient:
         except ValueError as err:
             return self._handle_error(str(err), return_value=False, level="warning")
         except Exception as err:
-            return self._handle_error(f"Failed to change mode: {err}", return_value=False, level="error") 
+            return self._handle_error(f"Failed to change mode: {err}", return_value=False, level="error")
+
+    async def async_reset_alarms(self) -> bool:
+        """Reset all alarms on the Leakomatic device.
+        
+        Returns:
+            bool: True if the alarms were reset successfully, False otherwise.
+        """
+        if not self._device_id:
+            return self._handle_error("Cannot reset alarms - no device configured", return_value=False, level="warning")
+            
+        # Ensure we're authenticated
+        if not await self._ensure_authenticated():
+            return False
+            
+        try:
+            _LOGGER.debug("Resetting alarms for device %s", self._device_id)
+            
+            # Create headers for JSON content
+            headers = {
+                "Content-Type": "application/json;charset=UTF-8",
+                "User-Agent": "Mozilla/5.0",
+                "Connection": "close"
+            }
+            
+            # Create a new session with the saved cookies and specific headers for JSON
+            session = await self._create_session(headers=headers)
+            try:
+                # Construct the URL for resetting alarms
+                url = f"{STATUS_URL}/{self._device_id}/reset_alarms.json"
+                
+                # Prepare the data for the request - array with alarm_ids
+                data = {"alarm_ids": [0]}
+                
+                _LOGGER.debug("Requesting URL %s", url)
+                
+                async with session.post(url, json=data) as response:
+                    _LOGGER.debug("Response status: %d", response.status)
+                    
+                    # Get the response content
+                    response_text = await response.text()
+                    
+                    if response.status != 200:
+                        return self._handle_error(
+                            f"Failed to reset alarms - server returned {response.status}",
+                            return_value=False,
+                            level="warning"
+                        )
+                    
+                    # Update cookies and XSRF token from the response
+                    await self._update_session_from_response(response)
+                    
+                    # For 200 status code, consider it a success
+                    _LOGGER.info("Successfully reset alarms for device %s", self._device_id)
+                    return True
+            finally:
+                # Always close the session
+                await session.close()
+                
+        except Exception as err:
+            return self._handle_error(f"Failed to reset alarms: {err}", return_value=False, level="error") 
