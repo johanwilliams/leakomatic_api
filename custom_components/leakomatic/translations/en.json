@@ -41,13 +41,13 @@
                 }
             },
             "longest_tightness_period": {
-                "name": "Longest Tightness Period",
+                "name": "Tightness Period",
                 "state": {
                     "unknown": "Unknown"
                 }
             },
             "flow_duration": {
-                "name": "Latest Flow Duration"
+                "name": "Flow Duration"
             },
             "signal_strength": {
                 "name": "Signal Strength"
