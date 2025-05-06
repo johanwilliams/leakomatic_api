@@ -1,6 +1,20 @@
 # Leakomatic Integration for Home Assistant
 
-This integration allows you to connect your Leakomatic water leak sensors to Home Assistant.
+This integration allows you to connect your Leakomatic water leak sensors to Home Assistant. Leakomatic is a water protection system that has been available since 2002, providing leak monitoring and automatic water shutoff capabilities for various types of properties. For more information about Leakomatic, visit [leakomatic.com](https://www.leakomatic.com).
+
+## About Leakomatic
+
+Water damage is a common issue in properties that can lead to significant costs and inconvenience. Leakomatic provides a monitoring system that can help prevent such damage by detecting leaks and automatically controlling water flow.
+
+### System Capabilities
+
+- **Leak Detection**: Monitors water flow and detects potential leaks
+- **Automatic Control**: Can automatically shut off water supply when issues are detected
+- **Property Types**: Compatible with various property types including:
+  - Residential properties
+  - Commercial buildings
+  - Construction sites
+  - Industrial facilities
 
 ## Features
 
