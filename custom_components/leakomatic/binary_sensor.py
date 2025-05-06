@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
     BinarySensorDeviceClass,
+    EntityCategory,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -298,6 +299,7 @@ class OnlineStatusBinarySensor(LeakomaticBinarySensor):
             icon="mdi:wifi",
             device_class=BinarySensorDeviceClass.CONNECTIVITY,
         )
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._last_seen: datetime | None = None
         _LOGGER.debug(
             "OnlineStatusBinarySensor initialized with device: %s (last_seen: %s, online: %s)",
