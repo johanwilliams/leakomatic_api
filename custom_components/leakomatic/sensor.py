@@ -492,16 +492,34 @@ class FlowTestSensor(LeakomaticSensor):
             key="flow_test",
             icon="mdi:water-alert",
         )
+        self._state = TestState.CLEAR.value
 
     @property
     def native_value(self) -> StateType:
         """Return the state of the sensor."""
-        return TestState.CLEAR.value
+        return self._state
 
     @callback
     def handle_update(self, data: dict[str, Any]) -> None:
         """Handle updated data from WebSocket."""
         _LOGGER.debug("FlowTestSensor received update: %s", data)
+        
+        # Check if this is an alarm message
+        if data.get("operation") == "alarm_triggered":
+            # Verify this is a flow alarm (type 0)
+            if data.get("alarm_type") == "0":
+                alarm_level = data.get("alarm_level")
+                if alarm_level == "1":
+                    self._state = TestState.WARNING.value
+                elif alarm_level == "2":
+                    self._state = TestState.ALARM.value
+                elif alarm_level == "0":
+                    self._state = TestState.CLEAR.value
+                else:
+                    _LOGGER.warning("Unknown alarm level received: %s", alarm_level)
+            else:
+                _LOGGER.debug("Ignoring non-flow alarm type: %s", data.get("alarm_type"))
+        
         self._device_data = data
         self.async_write_ha_state()
         _LOGGER.debug("%s value updated: %s", self.name, self.native_value) 
