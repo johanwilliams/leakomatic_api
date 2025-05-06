@@ -38,10 +38,16 @@ The integration provides the following sensors:
   - Updates in real-time through WebSocket events
   - Helps monitor system tightness and potential leaks
 
+- **Flow Test**: Monitors flow alarms and provides alarm state information
+  - States: Clear (0), Warning (1), Alarm (2)
+  - Updates in real-time through WebSocket alarm events
+  - Provides early warning of potential water flow issues
+  - Helps detect and prevent water leaks
+
 - **Flow Indicator**: Binary sensor showing if water is currently flowing
-  - States: On (water flowing), Off (no water flow), Unknown (initial state)
-  - Updates in real-time through WebSocket events
-  - Note: Due to an API limitation, the initial state is set to Unknown until the first flow update is received
+  - States: On (water flowing), Off (no water flow)
+  - Updates in real-time through WebSocket flow events
+  - Useful for tracking active water usage and flow patterns
 
 - **Online Status**: Binary sensor showing if the device is currently online
   - States: On (online), Off (offline), Unknown (initial state)
