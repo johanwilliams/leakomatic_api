@@ -52,6 +52,14 @@
             },
             "signal_strength": {
                 "name": "Signalstyrka"
+            },
+            "flow_test": {
+                "name": "Flödestest",
+                "state": {
+                    "clear": "Klar",
+                    "warning": "Varning",
+                    "alarm": "Larm"
+                }
             }
         },
         "binary_sensor": {

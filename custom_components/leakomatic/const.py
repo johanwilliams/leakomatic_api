@@ -67,6 +67,23 @@ class DeviceMode(Enum):
         except KeyError:
             raise ValueError(f"Invalid mode: {mode_str}. Must be one of: home, away, pause")
 
+class TestState(Enum):
+    """Test sensor states.
+    
+    These states represent the different conditions of test sensors.
+    The string values are used in the Home Assistant UI and are translated
+    through the translation files.
+    
+    This enum is used by various test sensors (flow test, quick test, etc.)
+    to represent their common states:
+    - CLEAR: Test passed or no issues detected
+    - WARNING: Test indicates potential issues
+    - ALARM: Test indicates critical issues
+    """
+    CLEAR = "clear"  # Test passed or no issues detected
+    WARNING = "warning"  # Test indicates potential issues
+    ALARM = "alarm"  # Test indicates critical issues
+
 # HTTP Headers
 DEFAULT_HEADERS = {
     "User-Agent": "Mozilla/5.0",

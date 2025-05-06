@@ -52,6 +52,14 @@
             },
             "signal_strength": {
                 "name": "Signal Strength"
+            },
+            "flow_test": {
+                "name": "Flow Test",
+                "state": {
+                    "clear": "Clear",
+                    "warning": "Warning",
+                    "alarm": "Alarm"
+                }
             }
         },
         "binary_sensor": {

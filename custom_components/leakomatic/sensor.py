@@ -26,7 +26,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.typing import StateType
 
-from .const import DOMAIN, MessageType
+from .const import DOMAIN, MessageType, TestState
 from .common import LeakomaticEntity, MessageHandlerRegistry
 
 _LOGGER = logging.getLogger(__name__)
@@ -123,12 +123,22 @@ def handle_default(message: dict, sensors: list[LeakomaticSensor]) -> None:
     msg_type = message.get("type", message.get('message', {}).get('operation', 'unknown'))
     _LOGGER.debug("Received unhandled message type: %s", msg_type)
 
+def handle_alarm_triggered(message: dict, sensors: list[LeakomaticSensor]) -> None:
+    """Handle alarm_triggered messages."""
+    data = message.get("message", {}).get("data", {})
+    _LOGGER.debug("Received alarm triggered message - Data: %s", data)
+    # Update the FlowTestSensor
+    for sensor in sensors:
+        if isinstance(sensor, FlowTestSensor):
+            sensor.handle_update(data)
+
 # Register all handlers
 message_registry.register(MessageType.DEVICE_UPDATED.value, handle_device_update)
 message_registry.register(MessageType.QUICK_TEST_UPDATED.value, handle_quick_test_update)
 message_registry.register(MessageType.FLOW_UPDATED.value, handle_flow_update)
 message_registry.register(MessageType.TIGHTNESS_TEST_UPDATED.value, handle_tightness_test_update)
 message_registry.register(MessageType.STATUS_MESSAGE.value, handle_status_update)
+message_registry.register(MessageType.ALARM_TRIGGERED.value, handle_alarm_triggered)
 message_registry.register_default(handle_default)
 
 async def async_setup_entry(
@@ -178,6 +188,7 @@ async def async_setup_entry(
         FlowDurationSensor(device_info, device_id, device_data),
         SignalStrengthSensor(device_info, device_id, device_data),
         LongestTightnessPeriodSensor(device_info, device_id, device_data),
+        FlowTestSensor(device_info, device_id, device_data),
     ]
     
     async_add_entities(sensors)
@@ -456,3 +467,41 @@ class LongestTightnessPeriodSensor(LeakomaticSensor):
                 return None
         
         return None 
+
+
+class FlowTestSensor(LeakomaticSensor):
+    """Representation of a Leakomatic Flow Test sensor.
+    
+    This sensor monitors the flow duration and changes state based on configured thresholds:
+    - CLEAR: No flow or flow duration below warning threshold
+    - WARNING: Flow duration exceeds warning threshold
+    - ALARM: Flow duration exceeds alarm threshold
+    """
+
+    def __init__(
+        self,
+        device_info: dict[str, Any],
+        device_id: str,
+        device_data: dict[str, Any] | None,
+    ) -> None:
+        """Initialize the flow test sensor."""
+        super().__init__(
+            device_info=device_info,
+            device_id=device_id,
+            device_data=device_data,
+            key="flow_test",
+            icon="mdi:water-alert",
+        )
+
+    @property
+    def native_value(self) -> StateType:
+        """Return the state of the sensor."""
+        return TestState.CLEAR.value
+
+    @callback
+    def handle_update(self, data: dict[str, Any]) -> None:
+        """Handle updated data from WebSocket."""
+        _LOGGER.debug("FlowTestSensor received update: %s", data)
+        self._device_data = data
+        self.async_write_ha_state()
+        _LOGGER.debug("%s value updated: %s", self.name, self.native_value) 
