@@ -22,7 +22,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import DeviceInfo
 
 from .const import DOMAIN, MessageType
-from .common import LeakomaticEntity, MessageHandlerRegistry
+from .common import LeakomaticEntity, MessageHandlerRegistry, LeakomaticMessageHandler
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -58,85 +58,77 @@ message_registry = MessageHandlerRegistry[LeakomaticBinarySensor]()
 # Define message handlers
 def handle_flow_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle flow_updated messages."""
-    data = message.get("message", {}).get("data", {})
-    # Update all relevant sensors
-    for sensor in sensors:
-        if isinstance(sensor, FlowIndicatorBinarySensor):
-            sensor.handle_update(data)
-        elif isinstance(sensor, OnlineStatusBinarySensor):
-            sensor.handle_update({"is_online": True}, update_last_seen=True)
+    LeakomaticMessageHandler.handle_flow_update(
+        message, 
+        sensors, 
+        FlowIndicatorBinarySensor, 
+        OnlineStatusBinarySensor
+    )
 
 def handle_device_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle device_updated messages."""
-    data = message.get("message", {}).get("data", {})
-    # Update all relevant sensors
-    for sensor in sensors:
-        if isinstance(sensor, FlowIndicatorBinarySensor):
-            sensor.handle_update(data)
-        elif isinstance(sensor, OnlineStatusBinarySensor):
-            sensor.handle_update({"is_online": True}, update_last_seen=True)
+    LeakomaticMessageHandler.handle_device_update(
+        message, 
+        sensors, 
+        FlowIndicatorBinarySensor, 
+        OnlineStatusBinarySensor
+    )
 
 def handle_quick_test_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle quick_test_updated messages."""
-    data = message.get("message", {}).get("data", {})
-    # Update online status for any message
-    for sensor in sensors:
-        if isinstance(sensor, OnlineStatusBinarySensor):
-            sensor.handle_update({"is_online": True}, update_last_seen=True)
+    LeakomaticMessageHandler.handle_quick_test_update(
+        message, 
+        sensors, 
+        None,  # No quick test binary sensor
+        OnlineStatusBinarySensor
+    )
 
 def handle_tightness_test_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle tightness_test_updated messages."""
-    data = message.get("message", {}).get("data", {})
-    # Update online status for any message
-    for sensor in sensors:
-        if isinstance(sensor, OnlineStatusBinarySensor):
-            sensor.handle_update({"is_online": True}, update_last_seen=True)
+    LeakomaticMessageHandler.handle_tightness_test_update(
+        message, 
+        sensors, 
+        None,  # No tightness test binary sensor
+        OnlineStatusBinarySensor
+    )
 
 def handle_status_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle status_message messages."""
-    data = message.get("message", {}).get("data", {})
-    # Update all relevant sensors
-    for sensor in sensors:
-        if isinstance(sensor, ValveBinarySensor):
-            sensor.handle_update(data)
-        elif isinstance(sensor, OnlineStatusBinarySensor):
-            sensor.handle_update({"is_online": True}, update_last_seen=True)
+    LeakomaticMessageHandler.handle_status_update(
+        message, 
+        sensors, 
+        ValveBinarySensor, 
+        OnlineStatusBinarySensor
+    )
 
 def handle_ping(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
-    """Handle ping messages.
-    
-    For ping messages, we don't update the last_seen timestamp since we want to
-    rely on the existing last_seen to determine if the device is online (within 5 minutes)
-    or offline (more than 5 minutes since last seen).
-    """
-    _LOGGER.debug("Received ping message")
-    # Update online status based on last_seen timestamp
-    for sensor in sensors:
-        if isinstance(sensor, OnlineStatusBinarySensor):
-            # Pass empty data since we only care about the last_seen timestamp
-            sensor.handle_update({}, update_last_seen=False)
+    """Handle ping messages."""
+    LeakomaticMessageHandler.handle_ping(
+        message, 
+        sensors, 
+        OnlineStatusBinarySensor
+    )
 
 def handle_device_offline(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle device_offline messages."""
-    _LOGGER.debug("Received device_offline message")
-    # Set all online status sensors to offline
-    for sensor in sensors:
-        if isinstance(sensor, OnlineStatusBinarySensor):
-            # Don't update last_seen for device_offline messages
-            sensor.handle_update({"is_online": False}, update_last_seen=False)
+    LeakomaticMessageHandler.handle_device_offline(
+        message, 
+        sensors, 
+        OnlineStatusBinarySensor
+    )
 
 def handle_alarm_triggered(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle alarm_triggered messages."""
-    data = message.get("message", {}).get("data", {})
-    # Update online status for any message
-    for sensor in sensors:
-        if isinstance(sensor, OnlineStatusBinarySensor):
-            sensor.handle_update({"is_online": True}, update_last_seen=True)
+    LeakomaticMessageHandler.handle_alarm_triggered(
+        message, 
+        sensors, 
+        (),  # No alarm binary sensors
+        OnlineStatusBinarySensor
+    )
 
 def handle_default(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle any other message type."""
-    msg_type = message.get("type", message.get('message', {}).get('operation', 'unknown'))
-    _LOGGER.debug("Received unhandled message type %s", msg_type)
+    LeakomaticMessageHandler.handle_default(message, sensors)
 
 # Register all handlers
 message_registry.register(MessageType.FLOW_UPDATED.value, handle_flow_update)

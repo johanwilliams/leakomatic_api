@@ -5,7 +5,7 @@ This module contains shared code used by both sensor and binary_sensor platforms
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Dict, Optional, TypeVar, Generic
+from typing import Any, Callable, Dict, Optional, TypeVar, Generic, Type, Union
 
 from homeassistant.helpers.entity import DeviceInfo
 
@@ -13,6 +13,108 @@ _LOGGER = logging.getLogger(__name__)
 
 # Type variable for the entity type
 T = TypeVar('T')
+
+class LeakomaticMessageHandler:
+    """Common message handler for Leakomatic entities.
+    
+    This class contains the shared message handling logic used by both binary sensors
+    and regular sensors. It provides methods to handle different types of messages
+    and update the appropriate entities.
+    """
+    
+    @staticmethod
+    def handle_flow_update(message: dict, entities: list[T], flow_sensor_type: Type[T] | None, online_sensor_type: Type[T] | None) -> None:
+        """Handle flow_updated messages."""
+        data = message.get("message", {}).get("data", {})
+        # Update all relevant sensors
+        for entity in entities:
+            if flow_sensor_type is not None and isinstance(entity, flow_sensor_type):
+                entity.handle_update(data)
+            if online_sensor_type is not None and isinstance(entity, online_sensor_type):
+                entity.handle_update({"is_online": True}, update_last_seen=True)
+
+    @staticmethod
+    def handle_device_update(message: dict, entities: list[T], flow_sensor_type: Type[T] | None, online_sensor_type: Type[T] | None) -> None:
+        """Handle device_updated messages."""
+        data = message.get("message", {}).get("data", {})
+        # Update all relevant sensors
+        for entity in entities:
+            if flow_sensor_type is not None and isinstance(entity, flow_sensor_type):
+                entity.handle_update(data)
+            if online_sensor_type is not None and isinstance(entity, online_sensor_type):
+                entity.handle_update({"is_online": True}, update_last_seen=True)
+
+    @staticmethod
+    def handle_quick_test_update(message: dict, entities: list[T], quick_test_sensor_type: Type[T] | None, online_sensor_type: Type[T] | None) -> None:
+        """Handle quick_test_updated messages."""
+        data = message.get("message", {}).get("data", {})
+        value = data.get("value")
+        # Update all relevant sensors
+        for entity in entities:
+            if quick_test_sensor_type is not None and isinstance(entity, quick_test_sensor_type):
+                entity.handle_update({"value": value})
+            if online_sensor_type is not None and isinstance(entity, online_sensor_type):
+                entity.handle_update({"is_online": True}, update_last_seen=True)
+
+    @staticmethod
+    def handle_tightness_test_update(message: dict, entities: list[T], tightness_sensor_type: Type[T] | None, online_sensor_type: Type[T] | None) -> None:
+        """Handle tightness_test_updated messages."""
+        data = message.get("message", {}).get("data", {})
+        value = data.get("value")
+        # Update all relevant sensors
+        for entity in entities:
+            if tightness_sensor_type is not None and isinstance(entity, tightness_sensor_type):
+                entity.handle_update({"value": value})
+            if online_sensor_type is not None and isinstance(entity, online_sensor_type):
+                entity.handle_update({"is_online": True}, update_last_seen=True)
+
+    @staticmethod
+    def handle_status_update(message: dict, entities: list[T], status_sensor_type: Type[T] | None, online_sensor_type: Type[T] | None) -> None:
+        """Handle status_message messages."""
+        data = message.get("message", {}).get("data", {})
+        # Update all relevant sensors
+        for entity in entities:
+            if status_sensor_type is not None and isinstance(entity, status_sensor_type):
+                entity.handle_update(data)
+            if online_sensor_type is not None and isinstance(entity, online_sensor_type):
+                entity.handle_update({"is_online": True}, update_last_seen=True)
+
+    @staticmethod
+    def handle_ping(message: dict, entities: list[T], online_sensor_type: Type[T] | None) -> None:
+        """Handle ping messages."""
+        _LOGGER.debug("Received ping message")
+        # Update online status based on last_seen timestamp
+        for entity in entities:
+            if online_sensor_type is not None and isinstance(entity, online_sensor_type):
+                # Pass empty data since we only care about the last_seen timestamp
+                entity.handle_update({}, update_last_seen=False)
+
+    @staticmethod
+    def handle_device_offline(message: dict, entities: list[T], online_sensor_type: Type[T] | None) -> None:
+        """Handle device_offline messages."""
+        _LOGGER.debug("Received device_offline message")
+        # Set all online status sensors to offline
+        for entity in entities:
+            if online_sensor_type is not None and isinstance(entity, online_sensor_type):
+                # Don't update last_seen for device_offline messages
+                entity.handle_update({"is_online": False}, update_last_seen=False)
+
+    @staticmethod
+    def handle_alarm_triggered(message: dict, entities: list[T], alarm_sensor_types: tuple[Type[T], ...] | None, online_sensor_type: Type[T] | None) -> None:
+        """Handle alarm_triggered messages."""
+        data = message.get("message", {}).get("data", {})
+        # Update all relevant sensors
+        for entity in entities:
+            if alarm_sensor_types is not None and isinstance(entity, alarm_sensor_types):
+                entity.handle_update(data)
+            if online_sensor_type is not None and isinstance(entity, online_sensor_type):
+                entity.handle_update({"is_online": True}, update_last_seen=True)
+
+    @staticmethod
+    def handle_default(message: dict, entities: list[T]) -> None:
+        """Handle any other message type."""
+        msg_type = message.get("type", message.get('message', {}).get('operation', 'unknown'))
+        _LOGGER.debug("Received unhandled message type: %s", msg_type)
 
 class MessageHandlerRegistry(Generic[T]):
     """Registry for WebSocket message handlers."""

@@ -26,7 +26,7 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.typing import StateType
 
 from .const import DOMAIN, MessageType, TestState
-from .common import LeakomaticEntity, MessageHandlerRegistry
+from .common import LeakomaticEntity, MessageHandlerRegistry, LeakomaticMessageHandler
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -66,58 +66,61 @@ message_registry = MessageHandlerRegistry[LeakomaticSensor]()
 # Define message handlers
 def handle_device_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
     """Handle device_updated messages."""
-    data = message.get("message", {}).get("data", {})
-    # Update all relevant sensors
-    for sensor in sensors:
-        if isinstance(sensor, SignalStrengthSensor):
-            sensor.handle_update(data)
+    LeakomaticMessageHandler.handle_device_update(
+        message, 
+        sensors, 
+        None,  # No flow sensor
+        None   # No online sensor
+    )
 
 def handle_quick_test_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
     """Handle quick_test_updated messages."""
-    data = message.get("message", {}).get("data", {})
-    value = data.get("value")
-    # Update the QuickTestSensor
-    for sensor in sensors:
-        if isinstance(sensor, QuickTestIndexSensor):
-            sensor.handle_update({"value": value})
+    LeakomaticMessageHandler.handle_quick_test_update(
+        message, 
+        sensors, 
+        QuickTestIndexSensor,
+        None   # No online sensor
+    )
 
 def handle_flow_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
     """Handle flow_updated messages."""
-    data = message.get("message", {}).get("data", {})
-    # Update all relevant sensors
-    for sensor in sensors:
-        if isinstance(sensor, FlowDurationSensor):
-            sensor.handle_update(data)
+    LeakomaticMessageHandler.handle_flow_update(
+        message, 
+        sensors, 
+        FlowDurationSensor,
+        None   # No online sensor
+    )
 
 def handle_tightness_test_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
     """Handle tightness_test_updated messages."""
-    data = message.get("message", {}).get("data", {})
-    value = data.get("value")
-    # Update the LongestTightnessPeriodSensor
-    for sensor in sensors:
-        if isinstance(sensor, LongestTightnessPeriodSensor):
-            sensor.handle_update({"value": value})
+    LeakomaticMessageHandler.handle_tightness_test_update(
+        message, 
+        sensors, 
+        LongestTightnessPeriodSensor,
+        None   # No online sensor
+    )
 
 def handle_status_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
     """Handle status_message messages."""
-    data = message.get("message", {}).get("data", {})
-    # Update all relevant sensors
-    for sensor in sensors:
-        if isinstance(sensor, SignalStrengthSensor):
-            sensor.handle_update(data)
-
-def handle_default(message: dict, sensors: list[LeakomaticSensor]) -> None:
-    """Handle any other message type."""
-    msg_type = message.get("type", message.get('message', {}).get('operation', 'unknown'))
-    _LOGGER.debug("Received unhandled message type: %s", msg_type)
+    LeakomaticMessageHandler.handle_status_update(
+        message, 
+        sensors, 
+        SignalStrengthSensor,
+        None   # No online sensor
+    )
 
 def handle_alarm_triggered(message: dict, sensors: list[LeakomaticSensor]) -> None:
     """Handle alarm_triggered messages."""
-    data = message.get("message", {}).get("data", {})
-    # Update the FlowTestSensor, QuickTestSensor, and TightnessTestSensor
-    for sensor in sensors:
-        if isinstance(sensor, (FlowTestSensor, QuickTestSensor, TightnessTestSensor)):
-            sensor.handle_update(data)
+    LeakomaticMessageHandler.handle_alarm_triggered(
+        message, 
+        sensors, 
+        (FlowTestSensor, QuickTestSensor, TightnessTestSensor),
+        None   # No online sensor
+    )
+
+def handle_default(message: dict, sensors: list[LeakomaticSensor]) -> None:
+    """Handle any other message type."""
+    LeakomaticMessageHandler.handle_default(message, sensors)
 
 # Register all handlers
 message_registry.register(MessageType.DEVICE_UPDATED.value, handle_device_update)
