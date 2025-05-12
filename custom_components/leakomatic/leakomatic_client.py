@@ -78,12 +78,10 @@ class LeakomaticClient:
         
         # Always add the XSRF token to the headers if it exists
         if self._xsrf_token:
-            _LOGGER.debug("Adding XSRF token to session headers")
             headers[XSRF_TOKEN_HEADER] = urllib.parse.unquote(self._xsrf_token)
         else:
             _LOGGER.warning("No XSRF token available for session headers")
         
-        _LOGGER.debug("Creating new session with cookies")
         return aiohttp.ClientSession(cookies=self._cookies, headers=headers)
 
     async def _update_session_from_response(self, response: aiohttp.ClientResponse) -> None:
@@ -186,7 +184,6 @@ class LeakomaticClient:
         match = re.search(XSRF_TOKEN_PATTERN, xsrf_token_str)
         if match:
             xsrf_token_value = match.group(1)
-            _LOGGER.debug("Retrieved XSRF token successfully")
             return xsrf_token_value
         else:
             _LOGGER.warning("Failed to extract XSRF token using regex pattern")
@@ -514,8 +511,6 @@ class LeakomaticClient:
             if not auth_success:
                 _LOGGER.error("Failed to reconnect to Leakomatic API")
                 return False
-        else:
-            _LOGGER.debug("Using existing XSRF token")
         return True
 
     def _extract_message_type(self, parsed_response: dict) -> str:
