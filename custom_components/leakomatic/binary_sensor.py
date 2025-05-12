@@ -63,6 +63,8 @@ def handle_flow_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> 
     for sensor in sensors:
         if isinstance(sensor, FlowIndicatorBinarySensor):
             sensor.handle_update(data)
+        elif isinstance(sensor, OnlineStatusBinarySensor):
+            sensor.handle_update({"is_online": True}, update_last_seen=True)
 
 def handle_device_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle device_updated messages."""
@@ -71,6 +73,8 @@ def handle_device_update(message: dict, sensors: list[LeakomaticBinarySensor]) -
     for sensor in sensors:
         if isinstance(sensor, FlowIndicatorBinarySensor):
             sensor.handle_update(data)
+        elif isinstance(sensor, OnlineStatusBinarySensor):
+            sensor.handle_update({"is_online": True}, update_last_seen=True)
 
 def handle_quick_test_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle quick_test_updated messages."""
@@ -121,6 +125,14 @@ def handle_device_offline(message: dict, sensors: list[LeakomaticBinarySensor]) 
             # Don't update last_seen for device_offline messages
             sensor.handle_update({"is_online": False}, update_last_seen=False)
 
+def handle_alarm_triggered(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
+    """Handle alarm_triggered messages."""
+    data = message.get("message", {}).get("data", {})
+    # Update online status for any message
+    for sensor in sensors:
+        if isinstance(sensor, OnlineStatusBinarySensor):
+            sensor.handle_update({"is_online": True}, update_last_seen=True)
+
 def handle_default(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle any other message type."""
     msg_type = message.get("type", message.get('message', {}).get('operation', 'unknown'))
@@ -134,6 +146,7 @@ message_registry.register(MessageType.TIGHTNESS_TEST_UPDATED.value, handle_tight
 message_registry.register(MessageType.STATUS_MESSAGE.value, handle_status_update)
 message_registry.register(MessageType.PING.value, handle_ping)
 message_registry.register(MessageType.DEVICE_OFFLINE.value, handle_device_offline)
+message_registry.register(MessageType.ALARM_TRIGGERED.value, handle_alarm_triggered)
 message_registry.register_default(handle_default)
 
 async def async_setup_entry(
