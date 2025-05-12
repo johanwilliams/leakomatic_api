@@ -34,6 +34,14 @@ Water damage is a common issue in properties that can lead to significant costs 
 - Service to change device operating mode
 - Button to reset alarms
 
+## Requirements
+
+- Home Assistant 2023.1.0 or newer
+- Python packages:
+  - aiohttp >= 3.8.0
+  - beautifulsoup4 >= 4.9.3
+  - websockets >= 13.1
+
 ## Available Entities
 
 The integration provides the following entities:
@@ -182,9 +190,19 @@ If you encounter any issues with the integration:
 
 ## Development Status
 
-This integration is currently in active development. Future enhancements planned:
+This integration is currently in active development. Current version: 0.1.0
+
+Future enhancements planned:
 - Support for multiple devices
 - Enhanced error handling and recovery
 - More detailed alarm state reporting
 - Historical data analysis features
-- Additional sensor types for various device metrics 
+- Additional sensor types for various device metrics
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+
+## License
+
+This project is licensed under the terms of the license included in the repository. 

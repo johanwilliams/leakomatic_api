@@ -40,3 +40,21 @@ Thumbs.db
 # Cursor
 .cusorrules
 /.cusorrules
+
+# Logs
+*.log
+logs/
+
+# Local configuration
+*.local.yaml
+*.local.yml
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Environment variables
+.env
+.env.*
