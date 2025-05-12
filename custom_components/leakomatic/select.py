@@ -55,14 +55,13 @@ class LeakomaticSelect(LeakomaticEntity, SelectEntity):
 message_registry = MessageHandlerRegistry[LeakomaticSelect]()
 
 # Define message handlers
-def handle_device_update(message: dict, selects: list[LeakomaticSelect]) -> None:
+def handle_device_update(message: dict, sensors: list[LeakomaticSelect]) -> None:
     """Handle device_updated messages."""
     data = message.get("message", {}).get("data", {})
-    _LOGGER.debug("Received device update - Mode: %s", data.get("mode"))
-    # Update all relevant select entities
-    for select in selects:
-        if isinstance(select, ModeSelect):
-            select.handle_update(data)
+    # Update all relevant sensors
+    for sensor in sensors:
+        if isinstance(sensor, ModeSelect):
+            sensor.handle_update(data)
 
 # Register all handlers
 message_registry.register(MessageType.DEVICE_UPDATED.value, handle_device_update)

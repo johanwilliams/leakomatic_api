@@ -441,11 +441,6 @@ class LeakomaticClient:
                             else:
                                 # For all other message types, call all callbacks
                                 if msg_type:
-                                    if msg_type == MessageType.DEVICE_UPDATED.value:
-                                        data = parsed_response.get('message', {}).get('data', {})
-                                        _LOGGER.debug("Received device update - Mode: %s, Alarm: %s", 
-                                                    data.get('mode'), 
-                                                    data.get('alarm'))
                                     _LOGGER.debug("Received message of type %s", msg_type)
                                     # Call all registered callbacks
                                     for callback in self._ws_callbacks:

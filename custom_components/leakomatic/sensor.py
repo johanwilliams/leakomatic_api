@@ -67,9 +67,6 @@ message_registry = MessageHandlerRegistry[LeakomaticSensor]()
 def handle_device_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
     """Handle device_updated messages."""
     data = message.get("message", {}).get("data", {})
-    _LOGGER.debug("Received device update - Mode: %s, RSSI: %s", 
-                 data.get("mode"), 
-                 data.get("rssi"))
     # Update all relevant sensors
     for sensor in sensors:
         if isinstance(sensor, SignalStrengthSensor):
@@ -79,7 +76,6 @@ def handle_quick_test_update(message: dict, sensors: list[LeakomaticSensor]) -> 
     """Handle quick_test_updated messages."""
     data = message.get("message", {}).get("data", {})
     value = data.get("value")
-    _LOGGER.debug("Received quick test update - value: %s", value)
     # Update the QuickTestSensor
     for sensor in sensors:
         if isinstance(sensor, QuickTestIndexSensor):
@@ -88,8 +84,6 @@ def handle_quick_test_update(message: dict, sensors: list[LeakomaticSensor]) -> 
 def handle_flow_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
     """Handle flow_updated messages."""
     data = message.get("message", {}).get("data", {})
-    _LOGGER.debug("Received flow duration update - Duration: %s", 
-                 data.get("flow_duration"))
     # Update all relevant sensors
     for sensor in sensors:
         if isinstance(sensor, FlowDurationSensor):
@@ -99,7 +93,6 @@ def handle_tightness_test_update(message: dict, sensors: list[LeakomaticSensor])
     """Handle tightness_test_updated messages."""
     data = message.get("message", {}).get("data", {})
     value = data.get("value")
-    _LOGGER.debug("Received tightness test update - value: %s", value)
     # Update the LongestTightnessPeriodSensor
     for sensor in sensors:
         if isinstance(sensor, LongestTightnessPeriodSensor):
@@ -108,8 +101,6 @@ def handle_tightness_test_update(message: dict, sensors: list[LeakomaticSensor])
 def handle_status_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
     """Handle status_message messages."""
     data = message.get("message", {}).get("data", {})
-    _LOGGER.debug("Received status message - RSSI: %s", 
-                 data.get("rssi"))
     # Update all relevant sensors
     for sensor in sensors:
         if isinstance(sensor, SignalStrengthSensor):
@@ -123,7 +114,6 @@ def handle_default(message: dict, sensors: list[LeakomaticSensor]) -> None:
 def handle_alarm_triggered(message: dict, sensors: list[LeakomaticSensor]) -> None:
     """Handle alarm_triggered messages."""
     data = message.get("message", {}).get("data", {})
-    _LOGGER.debug("Received alarm triggered message - Data: %s", data)
     # Update the FlowTestSensor, QuickTestSensor, and TightnessTestSensor
     for sensor in sensors:
         if isinstance(sensor, (FlowTestSensor, QuickTestSensor, TightnessTestSensor)):
@@ -230,30 +220,21 @@ class QuickTestIndexSensor(LeakomaticSensor):
     def native_value(self) -> StateType:
         """Return the state of the sensor."""
         if not self._device_data:
-            _LOGGER.debug("No device data available")
             return None
         
         # Get the quick test value - try both possible field names
         value = self._device_data.get("value")
-        if value is not None:
-            _LOGGER.debug("Found quick test value in 'value' field: %s (type: %s)", 
-                         value, type(value).__name__)
-        else:
+        if value is None:
             value = self._device_data.get("current_quick_test")
-            if value is not None:
-                _LOGGER.debug("Found quick test value in 'current_quick_test' field: %s (type: %s)", 
-                             value, type(value).__name__)
         
         if value is not None:
             try:
                 return round(float(value), 2)  # Round to 2 decimal places
             except (ValueError, TypeError):
-                _LOGGER.warning("Invalid quick test value: %s (type: %s)", 
-                              value, type(value).__name__)
+                _LOGGER.warning("Invalid quick test value: %s", value)
                 return None
         
         return None
-
 
 
 class FlowDurationSensor(LeakomaticSensor):
@@ -288,19 +269,12 @@ class FlowDurationSensor(LeakomaticSensor):
     def native_value(self) -> StateType:
         """Return the state of the sensor."""
         if not self._device_data:
-            _LOGGER.debug("No device data available")
             return self._last_known_duration
         
         # Get the flow duration value - try both possible field names
         value = self._device_data.get("flow_duration")
-        if value is not None:
-            _LOGGER.debug("Found flow duration in 'flow_duration' field: %s (type: %s)", 
-                         value, type(value).__name__)
-        else:
+        if value is None:
             value = self._device_data.get("current_flow_duration")
-            if value is not None:
-                _LOGGER.debug("Found flow duration in 'current_flow_duration' field: %s (type: %s)", 
-                             value, type(value).__name__)
         
         if value is not None:
             try:
@@ -310,8 +284,7 @@ class FlowDurationSensor(LeakomaticSensor):
                     self._last_known_duration = duration
                 return self._last_known_duration
             except (ValueError, TypeError):
-                _LOGGER.warning("Invalid flow duration value: %s (type: %s)", 
-                              value, type(value).__name__)
+                _LOGGER.warning("Invalid flow duration value: %s", value)
                 return self._last_known_duration
         
         return self._last_known_duration
@@ -347,7 +320,6 @@ class SignalStrengthSensor(LeakomaticSensor):
     def native_value(self) -> StateType:
         """Return the state of the sensor."""
         if not self._device_data:
-            _LOGGER.debug("No device data available")
             return None
         
         # Get the RSSI value
@@ -356,11 +328,17 @@ class SignalStrengthSensor(LeakomaticSensor):
             try:
                 return int(rssi)  # RSSI should be an integer
             except (ValueError, TypeError):
-                _LOGGER.warning("Invalid RSSI value: %s (type: %s)", 
-                              rssi, type(rssi).__name__)
+                _LOGGER.warning("Invalid RSSI value: %s", rssi)
                 return None
         
         return None
+
+    @callback
+    def handle_update(self, data: dict[str, Any]) -> None:
+        """Handle updated data from WebSocket."""
+        self._device_data = data
+        self.async_write_ha_state()
+        _LOGGER.debug("%s value updated: %s", self.name, self.native_value)
 
 
 class LongestTightnessPeriodSensor(LeakomaticSensor):
@@ -393,30 +371,22 @@ class LongestTightnessPeriodSensor(LeakomaticSensor):
     def native_value(self) -> StateType:
         """Return the state of the sensor."""
         if not self._device_data:
-            _LOGGER.debug("No device data available")
             return None
         
         # Get the tightness period value - try both possible field names
         value = self._device_data.get("value")
-        if value is not None:
-            _LOGGER.debug("Found tightness period value in 'value' field: %s (type: %s)", 
-                         value, type(value).__name__)
-        else:
+        if value is None:
             value = self._device_data.get("current_tightness_test")
-            if value is not None:
-                _LOGGER.debug("Found tightness period value in 'current_tightness_test' field: %s (type: %s)", 
-                             value, type(value).__name__)
         
         if value is not None:
             try:
                 # Convert to integer since we're dealing with seconds
                 return int(float(value))
             except (ValueError, TypeError):
-                _LOGGER.warning("Invalid tightness period value: %s (type: %s)", 
-                              value, type(value).__name__)
+                _LOGGER.warning("Invalid tightness period value: %s", value)
                 return None
         
-        return None 
+        return None
 
 
 class AlarmTestSensor(LeakomaticSensor):
@@ -477,7 +447,6 @@ class AlarmTestSensor(LeakomaticSensor):
         if data.get("operation") == "alarm_triggered":
             # Verify this is the correct alarm type
             if data.get("alarm_type") == self._alarm_type:
-                _LOGGER.debug("%s received alarm update: %s", self._log_prefix, data)
                 alarm_level = data.get("alarm_level")
                 if alarm_level == "1":
                     self._state = TestState.WARNING.value
@@ -489,7 +458,6 @@ class AlarmTestSensor(LeakomaticSensor):
                     _LOGGER.warning("Unknown alarm level received: %s", alarm_level)
                 self._device_data = data
                 self.async_write_ha_state()
-                _LOGGER.debug("%s value updated: %s", self.name, self.native_value)
 
 
 class FlowTestSensor(AlarmTestSensor):

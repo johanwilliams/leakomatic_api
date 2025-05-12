@@ -59,25 +59,17 @@ message_registry = MessageHandlerRegistry[LeakomaticBinarySensor]()
 def handle_flow_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle flow_updated messages."""
     data = message.get("message", {}).get("data", {})
-    _LOGGER.debug("Received flow update - Flow Mode: %s", data.get("flow_mode"))
     # Update all relevant sensors
     for sensor in sensors:
         if isinstance(sensor, FlowIndicatorBinarySensor):
             sensor.handle_update(data)
-        elif isinstance(sensor, OnlineStatusBinarySensor):
-            sensor.handle_update({"is_online": True}, update_last_seen=True)
 
 def handle_device_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle device_updated messages."""
     data = message.get("message", {}).get("data", {})
-    _LOGGER.debug("Received device update - Online: %s, Port State: %s", 
-                 data.get("is_online"), 
-                 data.get("port_state"))
     # Update all relevant sensors
     for sensor in sensors:
-        if isinstance(sensor, OnlineStatusBinarySensor):
-            sensor.handle_update(data, update_last_seen=True)
-        elif isinstance(sensor, ValveBinarySensor):
+        if isinstance(sensor, FlowIndicatorBinarySensor):
             sensor.handle_update(data)
 
 def handle_quick_test_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
@@ -102,8 +94,6 @@ def handle_tightness_test_update(message: dict, sensors: list[LeakomaticBinarySe
 def handle_status_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle status_message messages."""
     data = message.get("message", {}).get("data", {})
-    _LOGGER.debug("Received status message - Port State: %s", 
-                 data.get("port_state"))
     # Update all relevant sensors
     for sensor in sensors:
         if isinstance(sensor, ValveBinarySensor):
@@ -251,23 +241,25 @@ class FlowIndicatorBinarySensor(LeakomaticBinarySensor):
         )
 
     @property
-    def is_on(self) -> bool | None:
-        """Return the state of the binary sensor."""
+    def is_on(self) -> bool:
+        """Return true if flow is detected."""
         if not self._device_data:
-            _LOGGER.debug("No device data available - assuming unknown state")
-            return None
+            return False
         
-        # Get the flow mode from the device data
+        # Get the flow mode value
         flow_mode = self._device_data.get("flow_mode")
-        _LOGGER.debug("Reading flow mode value: %s (type: %s)", flow_mode, type(flow_mode).__name__)
+        if flow_mode is not None:
+            try:
+                return int(flow_mode) == 1
+            except (ValueError, TypeError):
+                _LOGGER.warning("Invalid flow mode value: %s", flow_mode)
+                return False
         
-        # Return True if water is flowing (flow_mode = 1), False otherwise
-        return flow_mode == 1 
+        return False
 
     @callback
     def handle_update(self, data: dict[str, Any]) -> None:
         """Handle updated data from WebSocket."""
-        _LOGGER.debug("FlowIndicatorBinarySensor received update: %s", data)
         self._device_data = data
         self.async_write_ha_state()
         _LOGGER.debug("%s value updated: %s", self.name, self.is_on)
@@ -313,22 +305,21 @@ class OnlineStatusBinarySensor(LeakomaticBinarySensor):
                 _LOGGER.warning("Failed to parse last_seen_at from device data: %s", err)
 
     @property
-    def is_on(self) -> bool | None:
-        """Return the state of the binary sensor."""
+    def is_on(self) -> bool:
+        """Return true if device is online."""
         if not self._device_data:
-            return None
+            return False
         
-        # If we have a last_seen timestamp, use it to determine online status
-        if self._last_seen:
-            now = datetime.now(timezone.utc).replace(microsecond=0)
-            minutes_since_last_seen = (now - self._last_seen).total_seconds() / 60
-            
-            is_online = minutes_since_last_seen < 5  # 5 minutes timeout
-            return is_online
-        
-        # If no last_seen timestamp, use the is_online value directly
+        # Get the online status
         is_online = self._device_data.get("is_online")
-        return bool(is_online)
+        if is_online is not None:
+            try:
+                return bool(is_online)
+            except (ValueError, TypeError):
+                _LOGGER.warning("Invalid online status value: %s", is_online)
+                return False
+        
+        return False
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -397,20 +388,21 @@ class ValveBinarySensor(LeakomaticBinarySensor):
         )
 
     @property
-    def is_on(self) -> bool | None:
-        """Return the state of the binary sensor."""
+    def is_on(self) -> bool:
+        """Return true if valve is open."""
         if not self._device_data:
-            return None
+            return False
         
-        # Get the port state from the device data
+        # Get the port state value
         port_state = self._device_data.get("port_state")
-        if port_state is None:
-            return None
-            
-        # Check if the 8th bit (bit 7) is set
-        # If bit 7 is 1 → valve is closed (is_on = False)
-        # If bit 7 is 0 → valve is open (is_on = True)
-        return (port_state & (1 << 7)) == 0
+        if port_state is not None:
+            try:
+                return int(port_state) == 1
+            except (ValueError, TypeError):
+                _LOGGER.warning("Invalid port state value: %s", port_state)
+                return False
+        
+        return False
 
     @callback
     def handle_update(self, data: dict[str, Any]) -> None:

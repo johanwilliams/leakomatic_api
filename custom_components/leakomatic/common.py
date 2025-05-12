@@ -44,9 +44,6 @@ class MessageHandlerRegistry(Generic[T]):
         elif 'type' in message:
             msg_type = message['type']
         
-        _LOGGER.debug("Processing WebSocket message with type/operation: %s in registry for %s", 
-                     msg_type, type(entities[0]).__name__ if entities else "unknown")
-        
         # Get the appropriate handler
         handler = self._handlers.get(msg_type)
         if handler is None:
@@ -56,8 +53,7 @@ class MessageHandlerRegistry(Generic[T]):
             handler(message, entities)
         elif msg_type in self._registered_types:
             # Only log a warning if this is a message type we care about
-            _LOGGER.warning("No handler found for message type: %s in registry for %s", 
-                          msg_type, type(entities[0]).__name__ if entities else "unknown")
+            _LOGGER.warning("No handler found for message type: %s", msg_type)
 
 class LeakomaticEntity:
     """Base class for all Leakomatic entities.
