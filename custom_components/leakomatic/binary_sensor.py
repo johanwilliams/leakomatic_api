@@ -75,8 +75,6 @@ def handle_device_update(message: dict, sensors: list[LeakomaticBinarySensor]) -
 def handle_quick_test_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle quick_test_updated messages."""
     data = message.get("message", {}).get("data", {})
-    value = data.get("value")
-    _LOGGER.debug("Received quick test update - value: %s", value)
     # Update online status for any message
     for sensor in sensors:
         if isinstance(sensor, OnlineStatusBinarySensor):
@@ -85,7 +83,6 @@ def handle_quick_test_update(message: dict, sensors: list[LeakomaticBinarySensor
 def handle_tightness_test_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
     """Handle tightness_test_updated messages."""
     data = message.get("message", {}).get("data", {})
-    _LOGGER.debug("Received tightness test update - data: %s", data)
     # Update online status for any message
     for sensor in sensors:
         if isinstance(sensor, OnlineStatusBinarySensor):
