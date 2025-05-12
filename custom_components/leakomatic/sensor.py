@@ -289,6 +289,13 @@ class FlowDurationSensor(LeakomaticSensor):
         
         return self._last_known_duration
 
+    @callback
+    def handle_update(self, data: dict[str, Any]) -> None:
+        """Handle updated data from WebSocket."""
+        self._device_data = data
+        self.async_write_ha_state()
+        _LOGGER.debug("%s value updated: %s", self.name, self.native_value)
+
 
 class SignalStrengthSensor(LeakomaticSensor):
     """Representation of a Leakomatic Signal Strength sensor.
