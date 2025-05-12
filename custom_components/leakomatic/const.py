@@ -103,8 +103,10 @@ WEBSOCKET_HEADERS = {
 }
 
 # Reconnection Parameters
-MAX_RETRIES = 5
-RETRY_DELAY = 60  # seconds
+MAX_RETRIES = 10  # Increased from 5 to 10
+INITIAL_RETRY_DELAY = 5  # Start with 5 seconds
+MAX_RETRY_DELAY = 3600  # Maximum delay of 1 hour
+RETRY_BACKOFF_FACTOR = 2  # Exponential backoff factor
 
 # Error Codes
 ERROR_AUTH_TOKEN_MISSING = "auth_token_missing"

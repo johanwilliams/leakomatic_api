@@ -12,6 +12,7 @@ import logging
 import re
 import ssl
 import asyncio
+import random
 from typing import Any, Optional, Callable, Dict
 
 import aiohttp
@@ -22,7 +23,8 @@ import json
 
 from .const import (
     LOGGER_NAME, START_URL, LOGIN_URL, STATUS_URL, WEBSOCKET_URL,
-    MessageType, DEFAULT_HEADERS, WEBSOCKET_HEADERS, MAX_RETRIES, RETRY_DELAY,
+    MessageType, DEFAULT_HEADERS, WEBSOCKET_HEADERS, MAX_RETRIES, INITIAL_RETRY_DELAY,
+    MAX_RETRY_DELAY, RETRY_BACKOFF_FACTOR,
     ERROR_AUTH_TOKEN_MISSING, ERROR_INVALID_CREDENTIALS, ERROR_XSRF_TOKEN_MISSING, ERROR_NO_DEVICES_FOUND,
     XSRF_TOKEN_HEADER, DeviceMode, XSRF_TOKEN_PATTERN
 )
@@ -395,10 +397,11 @@ class LeakomaticClient:
 
         # Reconnection parameters
         retry_count = 0
+        retry_delay = INITIAL_RETRY_DELAY
 
         while self._ws_running and retry_count < MAX_RETRIES:
             try:
-                _LOGGER.debug("Attempting WebSocket connection (attempt %d)", retry_count + 1)
+                _LOGGER.debug("Attempting WebSocket connection (attempt %d/%d)", retry_count + 1, MAX_RETRIES)
                 
                 # Use a timeout for the connection to prevent blocking
                 async with websockets.connect(
@@ -411,6 +414,8 @@ class LeakomaticClient:
                     close_timeout=5    # Wait 5 seconds for close response
                 ) as websocket:
                     _LOGGER.debug("Connected to websocket server")
+                    # Reset retry delay on successful connection
+                    retry_delay = INITIAL_RETRY_DELAY
 
                     # Send subscription message
                     msg_subscribe = {
@@ -465,8 +470,23 @@ class LeakomaticClient:
             except Exception as err:
                 retry_count += 1
                 if retry_count < MAX_RETRIES:
-                    _LOGGER.info("Waiting %d seconds before reconnection attempt %d", RETRY_DELAY, retry_count + 1)
-                    await asyncio.sleep(RETRY_DELAY)
+                    # Calculate next retry delay with exponential backoff and jitter
+                    retry_delay = min(
+                        retry_delay * RETRY_BACKOFF_FACTOR,
+                        MAX_RETRY_DELAY
+                    )
+                    # Add jitter (±20%)
+                    jitter = retry_delay * 0.2
+                    actual_delay = retry_delay + random.uniform(-jitter, jitter)
+                    
+                    _LOGGER.info(
+                        "WebSocket connection failed (attempt %d/%d). Retrying in %.1f seconds. Error: %s",
+                        retry_count,
+                        MAX_RETRIES,
+                        actual_delay,
+                        str(err)
+                    )
+                    await asyncio.sleep(actual_delay)
                 else:
                     return self._handle_error(
                         f"Maximum reconnection attempts reached ({MAX_RETRIES}). Giving up.",
