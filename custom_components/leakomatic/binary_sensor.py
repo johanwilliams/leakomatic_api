@@ -388,6 +388,7 @@ class ValveBinarySensor(LeakomaticBinarySensor):
             icon="mdi:valve",
             device_class=BinarySensorDeviceClass.OPENING,
         )
+        self._previous_state: bool | None = None
 
     @property
     def is_on(self) -> bool:
@@ -399,7 +400,18 @@ class ValveBinarySensor(LeakomaticBinarySensor):
         port_state = self._device_data.get("port_state")
         if port_state is not None:
             try:
-                return int(port_state) == 1
+                port_state_int = int(port_state)
+                # Check if bit 7 is 0 (valve is open)
+                is_open = (port_state_int & (1 << 7)) == 0
+                
+                # Only log if the state has changed
+                if is_open != self._previous_state:
+                    _LOGGER.debug("Valve state changed from %s to %s", 
+                                "open" if self._previous_state else "closed" if self._previous_state is not None else "unknown",
+                                "open" if is_open else "closed")
+                    self._previous_state = is_open
+                
+                return is_open
             except (ValueError, TypeError):
                 _LOGGER.warning("Invalid port state value: %s", port_state)
                 return False
@@ -409,9 +421,5 @@ class ValveBinarySensor(LeakomaticBinarySensor):
     @callback
     def handle_update(self, data: dict[str, Any]) -> None:
         """Handle updated data from WebSocket."""
-        port_state = data.get("port_state")
-        if port_state is not None:
-            valve_state = "open" if (port_state & (1 << 7)) == 0 else "closed"
-            _LOGGER.debug("Valve state changed to %s", valve_state)
         self._device_data = data
         self.async_write_ha_state() 
