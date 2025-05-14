@@ -60,7 +60,10 @@
                     "clear": "Klar",
                     "warning": "Varning",
                     "alarm": "Larm"
-                }
+                },
+                "duration_away": "Flödestid borta (sekunder)",
+                "duration_home": "Flödestid hemma (minuter)",
+                "alarm_delay": "Alarmfördröjning (minuter)"
             },
             "tightness_test": {
                 "name": "Tätthetstest",

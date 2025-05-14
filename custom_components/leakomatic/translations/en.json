@@ -60,7 +60,10 @@
                     "clear": "Clear",
                     "warning": "Warning",
                     "alarm": "Alarm"
-                }
+                },
+                "duration_away": "Duration Away (seconds)",
+                "duration_home": "Duration Home (minutes)",
+                "alarm_delay": "Alarm delay (minutes)"
             },
             "tightness_test": {
                 "name": "Tightness Test",

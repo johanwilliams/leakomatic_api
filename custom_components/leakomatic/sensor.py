@@ -495,6 +495,35 @@ class FlowTestSensor(AlarmTestSensor):
             log_prefix="FlowTestSensor",
         )
 
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return extra state attributes for flow test thresholds and delays if available."""
+        attrs = super().extra_state_attributes or {}
+        configurations = self._device_data.get("configurations") if self._device_data else None
+        duration_away = None
+        duration_home = None
+        alarm_delay = None
+        if configurations and isinstance(configurations, list):
+            latest_config = max(
+                configurations,
+                key=lambda c: (c.get("time") or "", c.get("id") or 0),
+                default=None
+            )
+            if latest_config:
+                if "ft_alarm_away" in latest_config:
+                    duration_away = latest_config["ft_alarm_away"]
+                if "ft_warning_home" in latest_config:
+                    duration_home = latest_config["ft_warning_home"]
+                if "ft_alarm_delay" in latest_config:
+                    alarm_delay = latest_config["ft_alarm_delay"]
+        if duration_away is not None:
+            attrs["duration_away"] = duration_away
+        if duration_home is not None:
+            attrs["duration_home"] = duration_home
+        if alarm_delay is not None:
+            attrs["alarm_delay"] = alarm_delay
+        return attrs
+
 
 class QuickTestSensor(AlarmTestSensor):
     """Representation of a Leakomatic Quick Test sensor.
