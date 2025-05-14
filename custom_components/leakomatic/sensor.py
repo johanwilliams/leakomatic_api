@@ -494,6 +494,7 @@ class FlowTestSensor(AlarmTestSensor):
             alarm_type="0",
             log_prefix="FlowTestSensor",
         )
+        self._attr_translation_key = "flow_test"
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -549,6 +550,7 @@ class QuickTestSensor(AlarmTestSensor):
             alarm_type="1",
             log_prefix="QuickTestSensor",
         )
+        self._attr_translation_key = "quick_test"
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -600,6 +602,7 @@ class TightnessTestSensor(AlarmTestSensor):
             alarm_type="2",
             log_prefix="TightnessTestSensor",
         )
+        self._attr_translation_key = "tightness_test"
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
