@@ -254,7 +254,7 @@ class FlowIndicatorBinarySensor(LeakomaticBinarySensor):
             try:
                 return int(flow_mode) == 1
             except (ValueError, TypeError):
-                _LOGGER.warning("Invalid flow mode value: %s", flow_mode)
+                _LOGGER.warning("%s: Invalid flow mode value: %s", self._device_id, flow_mode)
                 return False
         
         return False
@@ -264,7 +264,7 @@ class FlowIndicatorBinarySensor(LeakomaticBinarySensor):
         """Handle updated data from WebSocket."""
         self._device_data = data
         self.async_write_ha_state()
-        _LOGGER.debug("%s value updated: %s", self.name, self.is_on)
+        _LOGGER.debug("%s: %s value updated: %s", self._device_id, self.name, self.is_on)
 
 class OnlineStatusBinarySensor(LeakomaticBinarySensor):
     """Representation of a Leakomatic Online Status binary sensor.
@@ -304,7 +304,7 @@ class OnlineStatusBinarySensor(LeakomaticBinarySensor):
                 parsed_time = datetime.fromisoformat(device_data["last_seen_at"].replace("Z", "+00:00"))
                 self._last_seen = parsed_time.replace(microsecond=0)
             except (ValueError, TypeError) as err:
-                _LOGGER.warning("Failed to parse last_seen_at from device data: %s", err)
+                _LOGGER.warning("%s: Failed to parse last_seen_at from device data: %s", self._device_id, err)
 
     @property
     def is_on(self) -> bool:
@@ -318,7 +318,7 @@ class OnlineStatusBinarySensor(LeakomaticBinarySensor):
             try:
                 return bool(is_online)
             except (ValueError, TypeError):
-                _LOGGER.warning("Invalid online status value: %s", is_online)
+                _LOGGER.warning("%s: Invalid online status value: %s", self._device_id, is_online)
                 return False
         
         return False
@@ -352,7 +352,7 @@ class OnlineStatusBinarySensor(LeakomaticBinarySensor):
                     parsed_time = datetime.fromisoformat(data["last_seen_at"].replace("Z", "+00:00"))
                     self._last_seen = parsed_time.replace(microsecond=0)
                 except (ValueError, TypeError) as err:
-                    _LOGGER.warning("Failed to parse last_seen_at from device data: %s", err)
+                    _LOGGER.warning("%s: Failed to parse last_seen_at from device data: %s", self._device_id, err)
                     # Fall back to current time if parsing fails
                     self._last_seen = datetime.now(timezone.utc).replace(microsecond=0)
             else:
@@ -406,14 +406,15 @@ class ValveBinarySensor(LeakomaticBinarySensor):
                 
                 # Only log if the state has changed
                 if is_open != self._previous_state:
-                    _LOGGER.debug("Valve state changed from %s to %s", 
+                    _LOGGER.debug("%s: Valve state changed from %s to %s", 
+                                self._device_id,
                                 "open" if self._previous_state else "closed" if self._previous_state is not None else "unknown",
                                 "open" if is_open else "closed")
                     self._previous_state = is_open
                 
                 return is_open
             except (ValueError, TypeError):
-                _LOGGER.warning("Invalid port state value: %s", port_state)
+                _LOGGER.warning("%s: Invalid port state value: %s", self._device_id, port_state)
                 return False
         
         return False

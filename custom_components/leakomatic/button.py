@@ -115,6 +115,6 @@ class ResetAlarmsButton(LeakomaticButton):
         """Handle the button press."""
         success = await self._client.async_reset_alarms()
         if success:
-            _LOGGER.info("Successfully reset all alarms")
+            _LOGGER.info("%s: Successfully reset all alarms", self._device_id)
         else:
-            _LOGGER.error("Failed to reset alarms") 
+            _LOGGER.error("%s: Failed to reset alarms", self._device_id) 

@@ -234,7 +234,7 @@ class QuickTestIndexSensor(LeakomaticSensor):
             try:
                 return round(float(value), 2)  # Round to 2 decimal places
             except (ValueError, TypeError):
-                _LOGGER.warning("Invalid quick test value: %s", value)
+                _LOGGER.warning("%s: Invalid quick test value: %s", self._device_id, value)
                 return None
         
         return None
@@ -287,7 +287,7 @@ class FlowDurationSensor(LeakomaticSensor):
                     self._last_known_duration = duration
                 return self._last_known_duration
             except (ValueError, TypeError):
-                _LOGGER.warning("Invalid flow duration value: %s", value)
+                _LOGGER.warning("%s: Invalid flow duration value: %s", self._device_id, value)
                 return self._last_known_duration
         
         return self._last_known_duration
@@ -297,7 +297,7 @@ class FlowDurationSensor(LeakomaticSensor):
         """Handle updated data from WebSocket."""
         self._device_data = data
         self.async_write_ha_state()
-        _LOGGER.debug("%s value updated: %s", self.name, self.native_value)
+        _LOGGER.debug("%s: value updated: %s", self._device_id, self.native_value)
 
 
 class SignalStrengthSensor(LeakomaticSensor):
@@ -338,7 +338,7 @@ class SignalStrengthSensor(LeakomaticSensor):
             try:
                 return int(rssi)  # RSSI should be an integer
             except (ValueError, TypeError):
-                _LOGGER.warning("Invalid RSSI value: %s", rssi)
+                _LOGGER.warning("%s: Invalid RSSI value: %s", self._device_id, rssi)
                 return None
         
         return None
@@ -348,7 +348,7 @@ class SignalStrengthSensor(LeakomaticSensor):
         """Handle updated data from WebSocket."""
         self._device_data = data
         self.async_write_ha_state()
-        _LOGGER.debug("%s value updated: %s", self.name, self.native_value)
+        _LOGGER.debug("%s: value updated: %s", self._device_id, self.native_value)
 
 
 class LongestTightnessPeriodSensor(LeakomaticSensor):
@@ -393,7 +393,7 @@ class LongestTightnessPeriodSensor(LeakomaticSensor):
                 # Convert to integer since we're dealing with seconds
                 return int(float(value))
             except (ValueError, TypeError):
-                _LOGGER.warning("Invalid tightness period value: %s", value)
+                _LOGGER.warning("%s: Invalid tightness period value: %s", self._device_id, value)
                 return None
         
         return None
@@ -435,7 +435,7 @@ class AlarmTestSensor(LeakomaticSensor):
             current_alarm = device_data["current_alarm"]
             if current_alarm and current_alarm.get("alarm_type") == int(self._alarm_type):
                 alarm_level = str(current_alarm.get("level", "0"))
-                _LOGGER.debug("%s found current alarm with level %s", self._log_prefix, alarm_level)
+                _LOGGER.debug("%s: found current alarm with level %s", self._device_id, alarm_level)
                 if alarm_level == "1":
                     self._state = TestState.WARNING.value
                 elif alarm_level == "2":
@@ -443,7 +443,7 @@ class AlarmTestSensor(LeakomaticSensor):
                 elif alarm_level == "0":
                     self._state = TestState.CLEAR.value
                 else:
-                    _LOGGER.warning("%s unknown alarm level received: %s", self._log_prefix, alarm_level)
+                    _LOGGER.warning("%s: unknown alarm level received: %s", self._device_id, alarm_level)
 
     @property
     def native_value(self) -> StateType:
@@ -465,7 +465,7 @@ class AlarmTestSensor(LeakomaticSensor):
                 elif alarm_level == "0":
                     self._state = TestState.CLEAR.value
                 else:
-                    _LOGGER.warning("Unknown alarm level received: %s", alarm_level)
+                    _LOGGER.warning("%s: unknown alarm level received: %s", self._device_id, alarm_level)
                 self._device_data = data
                 self.async_write_ha_state()
 

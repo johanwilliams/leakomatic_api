@@ -82,12 +82,8 @@ class LeakomaticMessageHandler:
     @staticmethod
     def handle_ping(message: dict, entities: list[T], online_sensor_type: Type[T] | None) -> None:
         """Handle ping messages."""
-        _LOGGER.debug("Received ping message")
-        # Update online status based on last_seen timestamp
-        for entity in entities:
-            if online_sensor_type is not None and isinstance(entity, online_sensor_type):
-                # Pass empty data since we only care about the last_seen timestamp
-                entity.handle_update({}, update_last_seen=False)
+        # Do nothing for ping messages, as they cannot be tied to a specific device and logging would flood the logs
+        #TODO: Consider adding logic to reconnect to the websocket if no ping is received for a while
 
     @staticmethod
     def handle_device_offline(message: dict, entities: list[T], online_sensor_type: Type[T] | None) -> None:
@@ -114,7 +110,7 @@ class LeakomaticMessageHandler:
     def handle_default(message: dict, entities: list[T]) -> None:
         """Handle any other message type."""
         msg_type = message.get("type", message.get('message', {}).get('operation', 'unknown'))
-        _LOGGER.debug("Received unhandled message type: %s", msg_type)
+        _LOGGER.debug("%s: Received unhandled message type: %s", self._device_id, msg_type)
 
 class MessageHandlerRegistry(Generic[T]):
     """Registry for WebSocket message handlers."""
@@ -155,7 +151,7 @@ class MessageHandlerRegistry(Generic[T]):
             handler(message, entities)
         elif msg_type in self._registered_types:
             # Only log a warning if this is a message type we care about
-            _LOGGER.warning("No handler found for message type: %s", msg_type)
+            _LOGGER.warning("%s: No handler found for message type: %s", self._device_id, msg_type)
 
 class LeakomaticEntity:
     """Base class for all Leakomatic entities.
@@ -198,4 +194,4 @@ class LeakomaticEntity:
         """Handle updated data from WebSocket."""
         self._device_data = data
         self.async_write_ha_state()
-        _LOGGER.debug("%s value updated", self.name) 
+        _LOGGER.debug("%s: value updated", self._device_id) 

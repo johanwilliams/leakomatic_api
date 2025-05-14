@@ -242,7 +242,7 @@ class LeakomaticClient:
                     self._error_code = ERROR_NO_DEVICES_FOUND
                     return False
                 
-                # Get the first device ID (we'll handle multiple devices later)
+                #TODO: Handle multiple devices (instead of just the first one)
                 device_id = device_elements[0]['id'].replace('device_', '')
                 self._device_id = device_id
                 
@@ -300,13 +300,6 @@ class LeakomaticClient:
                     
                     # Parse the JSON response
                     device_data = await response.json()
-                    
-                    # Log only key information instead of the full JSON
-                    if device_data:
-                        _LOGGER.debug("Device data received - Mode: %s, Status: %s",
-                                     device_data.get("mode", "unknown"),
-                                     "ALARM" if device_data.get("alarm") else "OK")
-                    
                     return device_data
                 
         except Exception as err:
@@ -329,7 +322,7 @@ class LeakomaticClient:
             return None
             
         try:
-            _LOGGER.debug("Fetching websocket token for device %s", self._device_id)
+            _LOGGER.debug("Fetching websocket token")
             
             # Create a new session with the saved cookies
             async with await self._create_session() as session:
@@ -443,7 +436,8 @@ class LeakomaticClient:
                             else:
                                 # For all other message types, call all callbacks
                                 if msg_type:
-                                    _LOGGER.debug("Received message of type %s", msg_type)
+                                    device_identifier = parsed_response.get('message', {}).get('data', {}).get('device', 'unknown')
+                                    _LOGGER.debug("%s: Received message %s", device_identifier, msg_type)
                                     # Call all registered callbacks
                                     for callback in self._ws_callbacks:
                                         try:

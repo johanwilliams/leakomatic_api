@@ -82,13 +82,12 @@ async def async_setup_entry(
         config_entry: The config entry to set up select entities for
         async_add_entities: Callback to register new entities
     """
-    _LOGGER.debug("Setting up Leakomatic select entity for config entry: %s", config_entry.entry_id)
-    
-    # Get the client and device ID from hass.data
     domain_data = hass.data.get(DOMAIN, {}).get(config_entry.entry_id, {})
     client = domain_data.get("client")
     device_id = domain_data.get("device_id")
     device_entry = domain_data.get("device_entry")
+
+    _LOGGER.debug("%s: Setting up Leakomatic select entity for config entry: %s", device_id, config_entry.entry_id)
     
     if not client or not device_id or not device_entry:
         _LOGGER.error("Missing client, device ID, or device entry")
@@ -181,10 +180,10 @@ class ModeSelect(LeakomaticSelect):
 
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""
-        _LOGGER.debug("Changing mode to %s", option)
+        _LOGGER.debug("%s: Changing mode to %s", self._device_id, option)
         success = await self._client.async_change_mode(option)
         if not success:
-            _LOGGER.error("Failed to change mode to %s", option)
+            _LOGGER.error("%s: Failed to change mode to %s", self._device_id, option)
 
     @callback
     def handle_update(self, data: dict[str, Any]) -> None:
@@ -192,6 +191,6 @@ class ModeSelect(LeakomaticSelect):
         mode = data.get("mode")
         if mode is not None:
             mode_str = "home" if mode == 0 else "away" if mode == 1 else "pause" if mode == 2 else str(mode)
-            _LOGGER.debug("Mode changed to %s", mode_str)
+            _LOGGER.debug("%s: Mode changed to %s", self._device_id, mode_str)
         self._device_data = data
         self.async_write_ha_state() 
