@@ -1,0 +1,23 @@
+{
+  "state_attributes": {
+    "sensor.quick_test": {
+      "alarm_delay": {
+        "name": "Alarm delay (hours)"
+      },
+      "index_limit": {
+        "name": "Index limit"
+      }
+    },
+    "sensor.flow_test": {
+      "duration_away": {
+        "name": "Duration Away (seconds)"
+      },
+      "duration_home": {
+        "name": "Duration Home (minutes)"
+      },
+      "alarm_delay": {
+        "name": "Alarm delay (minutes)"
+      }
+    }
+  }
+} 
