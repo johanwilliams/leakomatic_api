@@ -521,6 +521,31 @@ class QuickTestSensor(AlarmTestSensor):
             log_prefix="QuickTestSensor",
         )
 
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return extra state attributes, including alarm delay and index limit if available."""
+        attrs = super().extra_state_attributes or {}
+        configurations = self._device_data.get("configurations") if self._device_data else None
+        alarm_delay = None
+        index_limit = None
+        if configurations and isinstance(configurations, list):
+            # Find the configuration with the latest 'time' (ISO8601 string)
+            latest_config = max(
+                configurations,
+                key=lambda c: (c.get("time") or "", c.get("id") or 0),
+                default=None
+            )
+            if latest_config:
+                if "qt_alarm_delay" in latest_config:
+                    alarm_delay = latest_config["qt_alarm_delay"]
+                if "qt_index_limit" in latest_config:
+                    index_limit = latest_config["qt_index_limit"]
+        if alarm_delay is not None:
+            attrs["alarm_delay"] = alarm_delay
+        if index_limit is not None:
+            attrs["index_limit"] = index_limit
+        return attrs
+
 
 class TightnessTestSensor(AlarmTestSensor):
     """Representation of a Leakomatic Tightness Test sensor.

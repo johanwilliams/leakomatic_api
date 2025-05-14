@@ -38,7 +38,9 @@
                     "clear": "Klart",
                     "warning": "Varning",
                     "alarm": "Larm"
-                }
+                },
+                "alarm_delay": "Larmfördröjning (timmar)",
+                "index_limit": "Indexgräns"
             },
             "longest_tightness_period": {
                 "name": "Längsta tätthetsperiod",

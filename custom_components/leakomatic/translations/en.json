@@ -38,7 +38,9 @@
                     "clear": "Clear",
                     "warning": "Warning",
                     "alarm": "Alarm"
-                }
+                },
+                "alarm_delay": "Alarm delay (hours)",
+                "index_limit": "Index limit"
             },
             "longest_tightness_period": {
                 "name": "Tightness Period",
