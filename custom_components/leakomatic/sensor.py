@@ -600,3 +600,32 @@ class TightnessTestSensor(AlarmTestSensor):
             alarm_type="2",
             log_prefix="TightnessTestSensor",
         )
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return extra state attributes for tightness test configuration if available."""
+        attrs = super().extra_state_attributes or {}
+        configurations = self._device_data.get("configurations") if self._device_data else None
+        pulse_free_periods = None
+        period_duration = None
+        alarm_delay = None
+        if configurations and isinstance(configurations, list):
+            latest_config = max(
+                configurations,
+                key=lambda c: (c.get("time") or "", c.get("id") or 0),
+                default=None
+            )
+            if latest_config:
+                if "tt_count" in latest_config:
+                    pulse_free_periods = latest_config["tt_count"]
+                if "tt_length" in latest_config:
+                    period_duration = latest_config["tt_length"]
+                if "tt_alarm_delay" in latest_config:
+                    alarm_delay = latest_config["tt_alarm_delay"]
+        if pulse_free_periods is not None:
+            attrs["pulse_free_periods"] = pulse_free_periods
+        if period_duration is not None:
+            attrs["period_duration"] = period_duration
+        if alarm_delay is not None:
+            attrs["alarm_delay"] = alarm_delay
+        return attrs

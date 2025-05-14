@@ -71,7 +71,10 @@
                     "clear": "Clear",
                     "warning": "Warning",
                     "alarm": "Alarm"
-                }
+                },
+                "pulse_free_periods": "Pulse free periods",
+                "period_duration": "Period duration (minutes)",
+                "alarm_delay": "Alarm delay (days)"
             }
         },
         "binary_sensor": {

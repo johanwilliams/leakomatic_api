@@ -71,7 +71,10 @@
                     "clear": "Klar",
                     "warning": "Varning",
                     "alarm": "Larm"
-                }
+                },
+                "pulse_free_periods": "Pulsfria perioder",
+                "period_duration": "Pulsfri tid (minuter)",
+                "alarm_delay": "Alarmfördröjning (dagar)"
             }
         },
         "binary_sensor": {

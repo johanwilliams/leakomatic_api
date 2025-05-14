@@ -18,6 +18,17 @@
       "alarm_delay": {
         "name": "Alarm delay (minutes)"
       }
+    },
+    "sensor.tightness_test": {
+      "pulse_free_periods": {
+        "name": "Pulse free periods"
+      },
+      "period_duration": {
+        "name": "Period duration (minutes)"
+      },
+      "alarm_delay": {
+        "name": "Alarm delay (days)"
+      }
     }
   }
 } 
