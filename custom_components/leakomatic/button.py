@@ -54,37 +54,43 @@ async def async_setup_entry(
     
     This function:
     1. Gets the device information from the config entry
-    2. Creates and adds the button entities
+    2. Creates and adds the button entities for each device
     
     Args:
         hass: The Home Assistant instance
         config_entry: The config entry to set up buttons for
         async_add_entities: Callback to register new entities
     """
-    _LOGGER.debug("Setting up Leakomatic button for config entry: %s", config_entry.entry_id)
+    _LOGGER.debug("Setting up Leakomatic buttons for config entry: %s", config_entry.entry_id)
     
-    # Get the device ID and device entry from hass.data
+    # Get the device IDs and device entries from hass.data
     domain_data = hass.data.get(DOMAIN, {}).get(config_entry.entry_id, {})
-    device_id = domain_data.get("device_id")
-    device_entry = domain_data.get("device_entry")
+    device_ids = domain_data.get("device_ids", [])
+    device_entries = domain_data.get("device_entries", {})
+    device_infos = domain_data.get("device_infos", {})
     client = domain_data.get("client")
     
-    if not device_id or not device_entry or not client:
-        _LOGGER.error("Missing device ID, device entry, or client")
+    if not device_ids or not device_entries or not device_infos or not client:
+        _LOGGER.error("Missing device IDs, device entries, device infos, or client")
         return
     
-    # Get the device info from hass.data
-    device_info = domain_data.get("device_info")
-    if not device_info:
-        _LOGGER.error("Missing device info")
-        return
+    # Create buttons for each device
+    all_buttons = []
+    for device_id in device_ids:
+        # Get device info and entry for this device
+        device_info = device_infos.get(device_id)
+        device_entry = device_entries.get(device_id)
+        if not device_info or not device_entry:
+            _LOGGER.warning("Missing device info or entry for device %s", device_id)
+            continue
+        
+        # Create buttons for this device
+        device_buttons = [
+            ResetAlarmsButton(device_info, device_id, client),
+        ]
+        all_buttons.extend(device_buttons)
     
-    # Create buttons
-    buttons = [
-        ResetAlarmsButton(device_info, device_id, client),
-    ]
-    
-    async_add_entities(buttons)
+    async_add_entities(all_buttons)
 
 class ResetAlarmsButton(LeakomaticButton):
     """Representation of a Leakomatic Reset Alarms button.
@@ -110,7 +116,7 @@ class ResetAlarmsButton(LeakomaticButton):
 
     async def async_press(self) -> None:
         """Handle the button press."""
-        success = await self._client.async_reset_alarms()
+        success = await self._client.async_reset_alarms(self._device_id)
         if success:
             log_with_entity(_LOGGER, logging.INFO, self, "Successfully reset all alarms")
         else:

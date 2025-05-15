@@ -52,99 +52,116 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {
         "client": client,
-        "device_id": None,  # Will be set after authentication
-        "device_entry": None,  # Will be set after device creation
+        "device_ids": [],  # Will be set after authentication
+        "device_entries": {},  # Will store device entries by device_id
+        "device_infos": {},  # Will store device info by device_id
     }
     
-    # Authenticate to get the device ID
+    # Authenticate to get the device IDs
     auth_success = await client.async_authenticate()
     if not auth_success:
         _LOGGER.error("Failed to authenticate with Leakomatic API")
         return False
     
-    # Get the device ID
-    device_id = client.device_id
-    if not device_id:
-        _LOGGER.error("No device ID found after authentication")
+    # Get the device IDs
+    device_ids = client.device_ids
+    if not device_ids:
+        _LOGGER.error("No device IDs found after authentication")
         return False
     
-    # Store the device ID
-    hass.data[DOMAIN][entry.entry_id]["device_id"] = device_id
+    # Store the device IDs
+    hass.data[DOMAIN][entry.entry_id]["device_ids"] = device_ids
 
-    # Fetch initial device data
+    # Fetch initial device data for all devices
     device_data = await client.async_get_device_data()
-
-    # Store the device_identifier (serial number) if available
-    device_identifier = None
-    if device_data and "device_identifier" in device_data:
-        device_identifier = device_data["device_identifier"]
-    else:
-        _LOGGER.warning("%s: No device identifier found in device data", device_id)
+    if not device_data:
+        _LOGGER.error("Failed to fetch device data")
         return False
-    
-    name = f"{DEFAULT_NAME} {device_id}"
-    if device_data and "name" in device_data:
-        name = device_data["name"]
-    else:
-        _LOGGER.warning("%s: Could not find name in device data, using %s", device_id, name)
-    
-    # If device data is available and contains sw_version, use it
-    sw_version = "Unknown"
-    if device_data and "sw_version" in device_data and "sw_release" in device_data:
-        sw_version = f"{device_data['sw_release']}-{device_data['sw_version']}"
-    else:
-        _LOGGER.warning("%s: Could not find software version in device data", device_id)
 
-    model = "Unknown"
-    if device_data and "model_name" in device_data:
-        model = device_data["model_name"]
-    else:
-        _LOGGER.warning("%s: Could not find model in device data", device_id)
-
-    location = None
-    if device_data and "location" in device_data:
-        location = device_data["location"]
-    else:
-        _LOGGER.warning("%s: Could not find location in device data", device_id)
-
-    model_id = None
-    if device_data and "product_id" in device_data:
-        model_id = device_data["product_id"]
-    else:
-        _LOGGER.warning("%s: Could not find product id in device data", device_id)
-
-    _LOGGER.debug("Creating device entry for device %s with name '%s' in suggested area '%s'. Model: %s, Product ID: %s, Software version: %s, Device identifier: %s", device_id, name, location, model, model_id, sw_version, device_identifier)
-    
-    # Create device entry
+    # Create device entries for each device
     device_registry = async_get_device_registry(hass)
-    identifiers = {(DOMAIN, str(device_id))}
-    device_entry = device_registry.async_get_or_create(
-        config_entry_id=entry.entry_id,
-        identifiers=identifiers,
-        name=name,
-        manufacturer="Leakomatic",
-        model=model,
-        sw_version=sw_version,
-        suggested_area=location,
-        serial_number=device_identifier,
-        model_id=model_id
-    )
     
-    # Store the device entry
-    hass.data[DOMAIN][entry.entry_id]["device_entry"] = device_entry
+    # If we got data for a single device, convert it to a dict
+    if isinstance(device_data, dict) and "device_identifier" in device_data:
+        device_data = {device_ids[0]: device_data}
+    
+    for device_id in device_ids:
+        # Get data for this specific device
+        dev_data = device_data.get(device_id)
+        if not dev_data:
+            _LOGGER.warning("No data found for device %s", device_id)
+            continue
 
-    # Create device info dictionary using the device entry's information
-    device_info = {
-        "identifiers": {(DOMAIN, device_id)},
-        "name": device_entry.name,
-        "manufacturer": device_entry.manufacturer,
-        "model": device_entry.model,
-        "sw_version": device_entry.sw_version,
-        "serial_number": device_identifier,  # Add the device identifier for easy access
-    }
-    
-    # Store the device info in hass.data
-    hass.data[DOMAIN][entry.entry_id]["device_info"] = device_info
+        # Store the device_identifier (serial number) if available
+        device_identifier = None
+        if "device_identifier" in dev_data:
+            device_identifier = dev_data["device_identifier"]
+        else:
+            _LOGGER.warning("%s: No device identifier found in device data", device_id)
+            continue
+        
+        name = f"{DEFAULT_NAME} {device_id}"
+        if "name" in dev_data:
+            name = dev_data["name"]
+        else:
+            _LOGGER.warning("%s: Could not find name in device data, using %s", device_id, name)
+        
+        # If device data is available and contains sw_version, use it
+        sw_version = "Unknown"
+        if "sw_version" in dev_data and "sw_release" in dev_data:
+            sw_version = f"{dev_data['sw_release']}-{dev_data['sw_version']}"
+        else:
+            _LOGGER.warning("%s: Could not find software version in device data", device_id)
+
+        model = "Unknown"
+        if "model_name" in dev_data:
+            model = dev_data["model_name"]
+        else:
+            _LOGGER.warning("%s: Could not find model in device data", device_id)
+
+        location = None
+        if "location" in dev_data:
+            location = dev_data["location"]
+        else:
+            _LOGGER.warning("%s: Could not find location in device data", device_id)
+
+        model_id = None
+        if "product_id" in dev_data:
+            model_id = dev_data["product_id"]
+        else:
+            _LOGGER.warning("%s: Could not find product id in device data", device_id)
+
+        _LOGGER.debug("Creating device entry for device %s with name '%s' in suggested area '%s'. Model: %s, Product ID: %s, Software version: %s, Device identifier: %s", device_id, name, location, model, model_id, sw_version, device_identifier)
+        
+        # Create device entry
+        identifiers = {(DOMAIN, str(device_id))}
+        device_entry = device_registry.async_get_or_create(
+            config_entry_id=entry.entry_id,
+            identifiers=identifiers,
+            name=name,
+            manufacturer="Leakomatic",
+            model=model,
+            sw_version=sw_version,
+            suggested_area=location,
+            serial_number=device_identifier,
+            model_id=model_id
+        )
+        
+        # Store the device entry
+        hass.data[DOMAIN][entry.entry_id]["device_entries"][device_id] = device_entry
+
+        # Create device info dictionary using the device entry's information
+        device_info = {
+            "identifiers": {(DOMAIN, device_id)},
+            "name": device_entry.name,
+            "manufacturer": device_entry.manufacturer,
+            "model": device_entry.model,
+            "sw_version": device_entry.sw_version,
+            "serial_number": device_identifier,  # Add the device identifier for easy access
+        }
+        
+        # Store the device info in hass.data
+        hass.data[DOMAIN][entry.entry_id]["device_infos"][device_id] = device_info
     
     # Set up platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -154,7 +171,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if not ws_token:
         _LOGGER.warning("Could not get websocket token, websocket functionality will not be available")
 
-    
     # Start websocket connection after platforms are set up
     if ws_token:
         # Create a background task for the websocket connection
@@ -180,7 +196,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         mode = call.data.get("mode")
         
         if not mode:
-            _LOGGER.error("%s: Missing required parameter: mode", device_id)
+            _LOGGER.error("Missing required parameter: mode")
             return
             
         # Validate the mode
@@ -188,7 +204,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             # This will raise ValueError if the mode is invalid
             DeviceMode.from_string(mode)
         except ValueError as err:
-            _LOGGER.error("%s: Invalid mode: %s", device_id, err)
+            _LOGGER.error("Invalid mode: %s", err)
             return
             
         # Get the entity registry using the proper import
@@ -202,7 +218,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             entity_ids = call.data.get(ATTR_ENTITY_ID)
             
         if not entity_ids:
-            _LOGGER.error("%s: Missing required parameter: entity_id", device_id)
+            _LOGGER.error("Missing required parameter: entity_id")
             return
             
         # Convert to list if it's a string
@@ -217,15 +233,38 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             # Get the entity from the registry
             entity = entity_registry.async_get(entity_id)
             if not entity:
-                _LOGGER.error("%s: Entity not found: %s", device_id, entity_id)
+                _LOGGER.error("Entity not found: %s", entity_id)
+                continue
+                
+            # Extract device_id from the entity's device_id
+            device_id = entity.device_id
+            if not device_id:
+                _LOGGER.error("Entity %s has no device_id", entity_id)
+                continue
+                
+            # Get the device entry to find the Leakomatic device_id
+            device_entry = device_registry.async_get(device_id)
+            if not device_entry:
+                _LOGGER.error("Device entry not found for %s", device_id)
+                continue
+                
+            # Find the Leakomatic device_id from the identifiers
+            leakomatic_device_id = None
+            for identifier in device_entry.identifiers:
+                if identifier[0] == DOMAIN:
+                    leakomatic_device_id = identifier[1]
+                    break
+                    
+            if not leakomatic_device_id:
+                _LOGGER.error("Could not find Leakomatic device_id for %s", device_id)
                 continue
                 
             # Change the mode
-            success = await client.async_change_mode(mode)
+            success = await client.async_change_mode(mode, leakomatic_device_id)
             if success:
-                _LOGGER.info("%s: Successfully changed mode to %s for entity %s", device_id, mode, entity_id)
+                _LOGGER.info("Successfully changed mode to %s for device %s", mode, leakomatic_device_id)
             else:
-                _LOGGER.error("%s: Failed to change mode for entity %s", device_id, entity_id)
+                _LOGGER.error("Failed to change mode for device %s", leakomatic_device_id)
     
     # Register the service
     hass.services.async_register(DOMAIN, "change_mode", async_change_mode)

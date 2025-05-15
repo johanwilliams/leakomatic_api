@@ -54,7 +54,7 @@ class LeakomaticClient:
         self._email = email
         self._password = password
         self._auth_token: Optional[str] = None
-        self._device_id: Optional[str] = None
+        self._device_ids: list[str] = []
         self._user_id: Optional[str] = None
         self._session: Optional[aiohttp.ClientSession] = None
         self._error_code: Optional[str] = None
@@ -62,8 +62,8 @@ class LeakomaticClient:
         self._cookies: Optional[aiohttp.CookieJar] = None
         self._ws_running = True
         self._ws_callbacks: list[Callable[[dict], None]] = []
-        self._device_data_cache = None
-        self._device_data_cache_time = None
+        self._device_data_cache: dict[str, Any] = {}
+        self._device_data_cache_time: dict[str, datetime] = {}
 
     async def _create_session(self, headers: Optional[Dict[str, str]] = None) -> aiohttp.ClientSession:
         """Create a new session with the saved cookies and headers.
@@ -139,9 +139,14 @@ class LeakomaticClient:
         return self._error_code
     
     @property
+    def device_ids(self) -> list[str]:
+        """Get the list of device IDs."""
+        return self._device_ids
+
+    @property
     def device_id(self) -> Optional[str]:
-        """Get the device ID."""
-        return self._device_id
+        """Get the first device ID for backward compatibility."""
+        return self._device_ids[0] if self._device_ids else None
 
     async def _async_get_startpage(self) -> Optional[str]:
         """Get the auth token from the start page."""
@@ -264,41 +269,59 @@ class LeakomaticClient:
                     self._error_code = ERROR_NO_DEVICES_FOUND
                     return False
                 
-                #TODO: Handle multiple devices (instead of just the first one)
-                device_id = device_elements[0]['id'].replace('device_', '')
-                self._device_id = device_id
-                
-                
-                _LOGGER.debug("Found Leakomatic device with ID: %s", device_id)
+                # Store all device IDs
+                self._device_ids = [element['id'].replace('device_', '') for element in device_elements]
+                _LOGGER.debug("Found %d Leakomatic devices with IDs: %s", len(self._device_ids), self._device_ids)
                 return True
                 
         except Exception as err:
             _LOGGER.error("Login error: %s", err)
             return False
 
-    async def async_get_device_data(self) -> Optional[dict[str, Any]]:
-        """Get device data from the Leakomatic API, with 15-minute cache."""
+    async def async_get_device_data(self, device_id: Optional[str] = None) -> Optional[dict[str, Any]]:
+        """Get device data from the Leakomatic API, with 15-minute cache.
+        
+        Args:
+            device_id: Optional device ID to get data for. If not provided, returns data for all devices.
+            
+        Returns:
+            Optional[dict]: Device data for the specified device, or None if not found/error.
+        """
         now = datetime.now(tz=timezone.utc)
-        if (
-            self._device_data_cache is not None and
-            self._device_data_cache_time is not None and
-            (now - self._device_data_cache_time) < timedelta(minutes=15)
-        ):
-            return self._device_data_cache
-        if not self._device_id:
+        
+        # If no device_id specified and we have multiple devices, return data for all devices
+        if device_id is None and len(self._device_ids) > 1:
+            result = {}
+            for dev_id in self._device_ids:
+                data = await self.async_get_device_data(dev_id)
+                if data:
+                    result[dev_id] = data
+            return result if result else None
+            
+        # Use first device if none specified (backward compatibility)
+        device_id = device_id or self.device_id
+        if not device_id:
             return self._handle_error("Cannot fetch data - no device configured", return_value=None, level="warning")
+            
+        # Check cache for this specific device
+        if (
+            device_id in self._device_data_cache and
+            device_id in self._device_data_cache_time and
+            (now - self._device_data_cache_time[device_id]) < timedelta(minutes=15)
+        ):
+            return self._device_data_cache[device_id]
             
         # Ensure we're authenticated
         if not await self._ensure_authenticated():
             return None
             
         try:
-            _LOGGER.debug("Fetching data for device with ID: %s", self._device_id)
+            _LOGGER.debug("Fetching data for device with ID: %s", device_id)
             
             # Create a new session with the saved cookies
             async with await self._create_session() as session:
                 # Construct the URL for the device status JSON
-                url = f"{STATUS_URL}/{self._device_id}.json"
+                url = f"{STATUS_URL}/{device_id}.json"
                 
                 async with session.get(url) as response:
                     if response.status != 200:
@@ -313,8 +336,8 @@ class LeakomaticClient:
                     
                     # Parse the JSON response
                     device_data = await response.json()
-                    self._device_data_cache = device_data
-                    self._device_data_cache_time = now
+                    self._device_data_cache[device_id] = device_data
+                    self._device_data_cache_time[device_id] = now
                     return device_data
                 
         except Exception as err:
@@ -329,8 +352,8 @@ class LeakomaticClient:
 
     async def async_get_websocket_token(self) -> Optional[str]:
         """Get the websocket token from the device page."""
-        if not self._device_id:
-            return self._handle_error("Cannot fetch websocket token - no device configured", return_value=None, level="warning")
+        if not self.device_ids:
+            return self._handle_error("Cannot fetch websocket token - no devices configured", return_value=None, level="warning")
             
         # Ensure we're authenticated
         if not await self._ensure_authenticated():
@@ -342,7 +365,7 @@ class LeakomaticClient:
             # Create a new session with the saved cookies
             async with await self._create_session() as session:
                 # Construct the URL for the device status page (not JSON)
-                url = f"{STATUS_URL}/{self._device_id}"
+                url = f"{STATUS_URL}/{self.device_ids[0]}"
                 
                 async with session.get(url) as response:
                     if response.status != 200:
@@ -572,18 +595,21 @@ class LeakomaticClient:
             
         return return_value 
 
-    async def _async_make_request(self, endpoint: str, data: dict, operation: str) -> bool:
+    async def _async_make_request(self, endpoint: str, data: dict, operation: str, device_id: Optional[str] = None) -> bool:
         """Make an HTTP request to the Leakomatic API.
         
         Args:
             endpoint: The API endpoint to call (e.g. 'change_mode.json' or 'reset_alarms.json')
             data: The data to send in the request
             operation: A description of the operation being performed (for logging)
+            device_id: Optional device ID to make the request for. If not provided, uses the first device.
             
         Returns:
             bool: True if the request was successful, False otherwise
         """
-        if not self._device_id:
+        # Use first device if none specified (backward compatibility)
+        device_id = device_id or self.device_id
+        if not device_id:
             return self._handle_error(f"Cannot {operation} - no device configured", return_value=False, level="warning")
             
         # Ensure we're authenticated
@@ -591,7 +617,7 @@ class LeakomaticClient:
             return False
             
         try:
-            _LOGGER.debug("%s for device %s", operation.capitalize(), self._device_id)
+            _LOGGER.debug("%s for device %s", operation.capitalize(), device_id)
             
             # Create headers for JSON content
             headers = {
@@ -604,7 +630,7 @@ class LeakomaticClient:
             session = await self._create_session(headers=headers)
             try:
                 # Construct the URL
-                url = f"{STATUS_URL}/{self._device_id}/{endpoint}"
+                url = f"{STATUS_URL}/{device_id}/{endpoint}"
                 
                 _LOGGER.debug("Requesting URL %s", url)
                 
@@ -625,7 +651,7 @@ class LeakomaticClient:
                     await self._update_session_from_response(response)
                     
                     # For 200 status code, consider it a success
-                    _LOGGER.info("Successfully %s for device %s", operation, self._device_id)
+                    _LOGGER.info("Successfully %s for device %s", operation, device_id)
                     return True
             finally:
                 # Always close the session
@@ -634,19 +660,34 @@ class LeakomaticClient:
         except Exception as err:
             return self._handle_error(f"Failed to {operation}: {err}", return_value=False, level="error")
 
-    async def async_change_mode(self, mode: str) -> bool:
+    async def async_change_mode(self, mode: str, device_id: Optional[str] = None) -> bool:
         """Change the mode of the Leakomatic device.
         
         Args:
             mode: The new mode to set. Must be one of: "home", "away", "pause".
+            device_id: Optional device ID to change mode for. If not provided, changes mode for all devices.
             
         Returns:
-            bool: True if the mode was changed successfully, False otherwise.
+            bool: True if the mode was changed successfully for all specified devices, False otherwise.
         """
         try:
             # Convert the string mode to a numeric value using the DeviceMode enum
             numeric_mode = DeviceMode.from_string(mode)
-            _LOGGER.debug("Changing mode to %s (numeric value: %d) for device %s", mode, numeric_mode, self._device_id)
+            
+            # If no device_id specified and we have multiple devices, change mode for all devices
+            if device_id is None and len(self._device_ids) > 1:
+                results = []
+                for dev_id in self._device_ids:
+                    result = await self.async_change_mode(mode, dev_id)
+                    results.append(result)
+                return all(results)
+            
+            # Use first device if none specified (backward compatibility)
+            device_id = device_id or self.device_id
+            if not device_id:
+                return self._handle_error("Cannot change mode - no device configured", return_value=False, level="warning")
+                
+            _LOGGER.debug("Changing mode to %s (numeric value: %d) for device %s", mode, numeric_mode, device_id)
             
             # Prepare the data for the request
             data = {
@@ -659,7 +700,8 @@ class LeakomaticClient:
             result = await self._async_make_request(
                 endpoint="change_mode.json",
                 data=data,
-                operation=f"change mode to {mode}"
+                operation=f"change mode to {mode}",
+                device_id=device_id
             )
             
             # Log the result
@@ -670,19 +712,36 @@ class LeakomaticClient:
         except ValueError as err:
             return self._handle_error(str(err), return_value=False, level="warning")
 
-    async def async_reset_alarms(self) -> bool:
+    async def async_reset_alarms(self, device_id: Optional[str] = None) -> bool:
         """Reset all alarms on the Leakomatic device.
         
+        Args:
+            device_id: Optional device ID to reset alarms for. If not provided, resets alarms for all devices.
+            
         Returns:
-            bool: True if the alarms were reset successfully, False otherwise.
+            bool: True if the alarms were reset successfully for all specified devices, False otherwise.
         """
+        # If no device_id specified and we have multiple devices, reset alarms for all devices
+        if device_id is None and len(self._device_ids) > 1:
+            results = []
+            for dev_id in self._device_ids:
+                result = await self.async_reset_alarms(dev_id)
+                results.append(result)
+            return all(results)
+            
+        # Use first device if none specified (backward compatibility)
+        device_id = device_id or self.device_id
+        if not device_id:
+            return self._handle_error("Cannot reset alarms - no device configured", return_value=False, level="warning")
+            
         # Prepare the data for the request - array with alarm_ids
         data = {"alarm_ids": [0]}
         
         return await self._async_make_request(
             endpoint="reset_alarms.json",
             data=data,
-            operation="reset alarms"
+            operation="reset alarms",
+            device_id=device_id
         )
 
     async def disconnect(self) -> None:

@@ -140,7 +140,7 @@ async def async_setup_entry(
     
     This function:
     1. Gets the device information from the config entry
-    2. Creates and adds the sensor entities
+    2. Creates and adds the sensor entities for each device
     
     Args:
         hass: The Home Assistant instance
@@ -149,46 +149,62 @@ async def async_setup_entry(
     """
     _LOGGER.debug("Setting up Leakomatic sensor for config entry: %s", config_entry.entry_id)
     
-    # Get the client and device ID from hass.data
+    # Get the client and device IDs from hass.data
     domain_data = hass.data.get(DOMAIN, {}).get(config_entry.entry_id, {})
     client = domain_data.get("client")
-    device_id = domain_data.get("device_id")
-    device_entry = domain_data.get("device_entry")
+    device_ids = domain_data.get("device_ids", [])
+    device_entries = domain_data.get("device_entries", {})
+    device_infos = domain_data.get("device_infos", {})
     
-    if not client or not device_id or not device_entry:
-        _LOGGER.error("Missing client, device ID, or device entry")
+    if not client or not device_ids or not device_entries or not device_infos:
+        _LOGGER.error("Missing client, device IDs, device entries, or device infos")
         return
     
-    # Get the device info from hass.data
-    device_info = domain_data.get("device_info")
-    if not device_info:
-        _LOGGER.error("Missing device info")
-        return
-    
-    # Get initial device data
+    # Get initial device data for all devices
     device_data = await client.async_get_device_data()
     if not device_data:
         _LOGGER.error("Missing device data")
         return
+        
+    # If we got data for a single device, convert it to a dict
+    if isinstance(device_data, dict) and "device_identifier" in device_data:
+        device_data = {device_ids[0]: device_data}
     
-    # Create sensors
-    sensors = [
-        QuickTestIndexSensor(device_info, device_id, device_data),
-        FlowDurationSensor(device_info, device_id, device_data),
-        SignalStrengthSensor(device_info, device_id, device_data),
-        LongestTightnessPeriodSensor(device_info, device_id, device_data),
-        FlowTestSensor(device_info, device_id, device_data),
-        QuickTestSensor(device_info, device_id, device_data),
-        TightnessTestSensor(device_info, device_id, device_data),
-    ]
+    # Create sensors for each device
+    all_sensors = []
+    for device_id in device_ids:
+        # Get data for this specific device
+        dev_data = device_data.get(device_id)
+        if not dev_data:
+            _LOGGER.warning("No data found for device %s", device_id)
+            continue
+            
+        # Get device info and entry for this device
+        device_info = device_infos.get(device_id)
+        device_entry = device_entries.get(device_id)
+        if not device_info or not device_entry:
+            _LOGGER.warning("Missing device info or entry for device %s", device_id)
+            continue
+        
+        # Create sensors for this device
+        device_sensors = [
+            QuickTestIndexSensor(device_info, device_id, dev_data),
+            FlowDurationSensor(device_info, device_id, dev_data),
+            SignalStrengthSensor(device_info, device_id, dev_data),
+            LongestTightnessPeriodSensor(device_info, device_id, dev_data),
+            FlowTestSensor(device_info, device_id, dev_data),
+            QuickTestSensor(device_info, device_id, dev_data),
+            TightnessTestSensor(device_info, device_id, dev_data),
+        ]
+        all_sensors.extend(device_sensors)
     
-    async_add_entities(sensors)
+    async_add_entities(all_sensors)
     
     # Register callback for WebSocket updates
     @callback
     def handle_ws_message(message: dict) -> None:
         """Handle WebSocket messages."""
-        message_registry.handle_message(message, sensors)
+        message_registry.handle_message(message, all_sensors)
 
     # Store the callback in hass.data for the WebSocket client to use
     if "ws_callbacks" not in domain_data:
