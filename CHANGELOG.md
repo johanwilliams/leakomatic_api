@@ -5,7 +5,27 @@ All notable changes to the Leakomatic Integration for Home Assistant will be doc
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] - 2024-03-19
+## [0.1.1] - 2025-05-15
+
+### Added
+- Support for multiple devices per account
+- Enhanced WebSocket message handling system
+- Last seen timestamp for online status monitoring
+- Improved error handling and logging
+- More detailed documentation
+
+### Changed
+- Improved WebSocket connection management
+- Enhanced multi-device support in services
+- Updated README with comprehensive feature documentation
+- Refined error messages and logging
+
+### Fixed
+- WebSocket reconnection handling
+- Device state updates reliability
+- Service call handling for multiple devices
+
+## [0.1.0] - 2025-05-14
 
 ### Added
 - Initial release of the Leakomatic Integration

@@ -18,21 +18,23 @@ Water damage is a common issue in properties that can lead to significant costs 
 
 ## Features
 
-- Real-time updates via WebSocket connection
-- Device mode monitoring and control (Home/Away/Pause)
-- Quick test index monitoring
-- Flow duration monitoring
-- Longest tightness period monitoring
-- Flow indicator monitoring
-- Online status monitoring
-- Signal strength monitoring
-- Valve state monitoring
-- Alarm state monitoring (Flow/Quick/Tightness tests)
-- Device information display (model, software version, location)
-- Automatic reconnection handling
+- Real-time updates via WebSocket connection with automatic reconnection handling
+- Comprehensive device monitoring:
+  - Device mode monitoring and control (Home/Away/Pause)
+  - Quick test index monitoring
+  - Flow duration monitoring
+  - Longest tightness period monitoring
+  - Flow indicator monitoring
+  - Online status monitoring with last seen timestamp
+  - Signal strength monitoring
+  - Valve state monitoring
+  - Alarm state monitoring (Flow/Quick/Tightness tests)
+  - Device information display (model, software version, location)
+- Advanced message handling system for reliable updates
 - Full localization support for all sensor names and states
 - Service to change device operating mode
 - Button to reset alarms
+- Support for multiple devices per account
 
 ## Requirements
 
@@ -134,6 +136,21 @@ The integration provides the following service:
       mode: away
     ```
 
+## Message Handling System
+
+The integration implements a robust message handling system that processes various types of WebSocket messages:
+
+- Device updates
+- Alarm triggers
+- Flow updates
+- Quick test updates
+- Tightness test updates
+- Status messages
+- Device offline notifications
+- Ping messages for connection monitoring
+
+Each message type is handled by specific handlers that update the relevant entities in real-time, ensuring accurate and timely state updates.
+
 ## Supported Languages
 
 This integration supports the following languages:
@@ -181,23 +198,25 @@ If you encounter any issues with the integration:
 
 1. Enable debug logging as described above
 2. Check the logs for detailed information
-3. Common issues:
+3. Common issues and solutions:
    - Authentication failures: Verify your email and password
-   - Connection issues: Check your network connection
-   - Missing updates: The WebSocket connection might be interrupted
-   - Sensor state issues: Check if the device is reachable and sending data
-   - Service call failures: Verify the entity ID and mode parameter
+   - Connection issues: Check your network connection and firewall settings
+   - Missing updates: Check WebSocket connection status in the logs
+   - Sensor state issues: Verify device connectivity and data flow
+   - Service call failures: Check entity IDs and mode parameters
+   - Multiple device support: Ensure proper device selection when using services
 
 ## Development Status
 
 This integration is currently in active development. Current version: 0.1.0
 
 Future enhancements planned:
-- Support for multiple devices
 - Enhanced error handling and recovery
 - More detailed alarm state reporting
 - Historical data analysis features
 - Additional sensor types for various device metrics
+- Improved WebSocket connection management
+- Enhanced multi-device support
 
 ## Contributing
 
