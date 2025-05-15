@@ -159,14 +159,11 @@ async def async_setup_entry(
         _LOGGER.error("Missing client, device ID, or device entry")
         return
     
-    # Create device info dictionary using the device entry's information
-    device_info = {
-        "identifiers": {(DOMAIN, device_id)},
-        "name": device_entry.name,
-        "manufacturer": device_entry.manufacturer,
-        "model": device_entry.model,
-        "sw_version": device_entry.sw_version,
-    }
+    # Get the device info from hass.data
+    device_info = domain_data.get("device_info")
+    if not device_info:
+        _LOGGER.error("Missing device info")
+        return
     
     # Get initial device data
     device_data = await client.async_get_device_data()

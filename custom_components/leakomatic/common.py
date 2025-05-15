@@ -38,61 +38,79 @@ class LeakomaticMessageHandler:
     """
     
     @staticmethod
+    def _update_matching_entities(
+        message: dict,
+        entities: list[T],
+        sensor_type: Type[T] | tuple[Type[T], ...] | None,
+        online_sensor_type: Type[T] | None,
+        update_data: dict[str, Any] | None = None,
+        update_last_seen: bool = True
+    ) -> None:
+        """Helper method to update entities that match the device identifier.
+        
+        Args:
+            message: The message containing the update
+            entities: List of entities to check
+            sensor_type: Type of sensor to update (can be a single type or tuple of types)
+            online_sensor_type: Type of online sensor to update
+            update_data: Data to pass to handle_update. If None, uses message data
+            update_last_seen: Whether to update last_seen for online status
+        """
+        data = message.get("message", {}).get("data", {})
+        message_device_identifier = data.get("device_id")
+        
+        for entity in entities:
+            entity_device_identifier = entity.device_info.get("serial_number")
+            
+            # Only update if device identifiers match
+            if message_device_identifier != entity_device_identifier:
+                continue
+                
+            if sensor_type is not None and isinstance(entity, sensor_type):
+                entity.handle_update(update_data or data)
+            if online_sensor_type is not None and isinstance(entity, online_sensor_type):
+                entity.handle_update({"is_online": True}, update_last_seen=update_last_seen)
+    
+    @staticmethod
     def handle_flow_update(message: dict, entities: list[T], flow_sensor_type: Type[T] | None, online_sensor_type: Type[T] | None) -> None:
         """Handle flow_updated messages."""
-        data = message.get("message", {}).get("data", {})
-        # Update all relevant sensors
-        for entity in entities:
-            if flow_sensor_type is not None and isinstance(entity, flow_sensor_type):
-                entity.handle_update(data)
-            if online_sensor_type is not None and isinstance(entity, online_sensor_type):
-                entity.handle_update({"is_online": True}, update_last_seen=True)
+        LeakomaticMessageHandler._update_matching_entities(
+            message, entities, flow_sensor_type, online_sensor_type
+        )
 
     @staticmethod
     def handle_device_update(message: dict, entities: list[T], flow_sensor_type: Type[T] | None, online_sensor_type: Type[T] | None) -> None:
         """Handle device_updated messages."""
-        data = message.get("message", {}).get("data", {})
-        # Update all relevant sensors
-        for entity in entities:
-            if flow_sensor_type is not None and isinstance(entity, flow_sensor_type):
-                entity.handle_update(data)
-            if online_sensor_type is not None and isinstance(entity, online_sensor_type):
-                entity.handle_update({"is_online": True}, update_last_seen=True)
+        LeakomaticMessageHandler._update_matching_entities(
+            message, entities, flow_sensor_type, online_sensor_type
+        )
 
     @staticmethod
     def handle_quick_test_update(message: dict, entities: list[T], quick_test_sensor_type: Type[T] | None, online_sensor_type: Type[T] | None) -> None:
         """Handle quick_test_updated messages."""
         data = message.get("message", {}).get("data", {})
         value = data.get("value")
-        # Update all relevant sensors
-        for entity in entities:
-            if quick_test_sensor_type is not None and isinstance(entity, quick_test_sensor_type):
-                entity.handle_update({"value": value})
-            if online_sensor_type is not None and isinstance(entity, online_sensor_type):
-                entity.handle_update({"is_online": True}, update_last_seen=True)
+        LeakomaticMessageHandler._update_matching_entities(
+            message, entities, quick_test_sensor_type, online_sensor_type,
+            update_data={"value": value}
+        )
 
     @staticmethod
     def handle_tightness_test_update(message: dict, entities: list[T], tightness_sensor_type: Type[T] | None, online_sensor_type: Type[T] | None) -> None:
         """Handle tightness_test_updated messages."""
         data = message.get("message", {}).get("data", {})
         value = data.get("value")
-        # Update all relevant sensors
-        for entity in entities:
-            if tightness_sensor_type is not None and isinstance(entity, tightness_sensor_type):
-                entity.handle_update({"value": value})
-            if online_sensor_type is not None and isinstance(entity, online_sensor_type):
-                entity.handle_update({"is_online": True}, update_last_seen=True)
+        LeakomaticMessageHandler._update_matching_entities(
+            message, entities, tightness_sensor_type, online_sensor_type,
+            update_data={"value": value}
+        )
 
     @staticmethod
     def handle_status_update(message: dict, entities: list[T], status_sensor_type: Type[T] | None, online_sensor_type: Type[T] | None) -> None:
         """Handle status_message messages."""
-        data = message.get("message", {}).get("data", {})
-        # Update all relevant sensors
-        for entity in entities:
-            if status_sensor_type is not None and isinstance(entity, status_sensor_type):
-                entity.handle_update(data)
-            if online_sensor_type is not None and isinstance(entity, online_sensor_type):
-                entity.handle_update({"is_online": True}, update_last_seen=True)
+        LeakomaticMessageHandler._update_matching_entities(
+            message, entities, status_sensor_type, online_sensor_type
+        )
 
     @staticmethod
     def handle_ping(message: dict, entities: list[T], online_sensor_type: Type[T] | None) -> None:
@@ -104,22 +122,18 @@ class LeakomaticMessageHandler:
     def handle_device_offline(message: dict, entities: list[T], online_sensor_type: Type[T] | None) -> None:
         """Handle device_offline messages."""
         _LOGGER.debug("Received device_offline message")
-        # Set all online status sensors to offline
-        for entity in entities:
-            if online_sensor_type is not None and isinstance(entity, online_sensor_type):
-                # Don't update last_seen for device_offline messages
-                entity.handle_update({"is_online": False}, update_last_seen=False)
+        LeakomaticMessageHandler._update_matching_entities(
+            message, entities, None, online_sensor_type,
+            update_data={"is_online": False},
+            update_last_seen=False
+        )
 
     @staticmethod
     def handle_alarm_triggered(message: dict, entities: list[T], alarm_sensor_types: tuple[Type[T], ...] | None, online_sensor_type: Type[T] | None) -> None:
         """Handle alarm_triggered messages."""
-        data = message.get("message", {}).get("data", {})
-        # Update all relevant sensors
-        for entity in entities:
-            if alarm_sensor_types is not None and isinstance(entity, alarm_sensor_types):
-                entity.handle_update(data)
-            if online_sensor_type is not None and isinstance(entity, online_sensor_type):
-                entity.handle_update({"is_online": True}, update_last_seen=True)
+        LeakomaticMessageHandler._update_matching_entities(
+            message, entities, alarm_sensor_types, online_sensor_type
+        )
 
     @staticmethod
     def handle_default(message: dict, entities: list[T]) -> None:

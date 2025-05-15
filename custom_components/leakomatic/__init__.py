@@ -130,8 +130,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         model_id=model_id
     )
     
-    # Store device entry in hass.data
+    # Store the device entry
     hass.data[DOMAIN][entry.entry_id]["device_entry"] = device_entry
+
+    # Create device info dictionary using the device entry's information
+    device_info = {
+        "identifiers": {(DOMAIN, device_id)},
+        "name": device_entry.name,
+        "manufacturer": device_entry.manufacturer,
+        "model": device_entry.model,
+        "sw_version": device_entry.sw_version,
+        "serial_number": device_identifier,  # Add the device identifier for easy access
+    }
+    
+    # Store the device info in hass.data
+    hass.data[DOMAIN][entry.entry_id]["device_info"] = device_info
     
     # Set up platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
