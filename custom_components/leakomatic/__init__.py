@@ -78,7 +78,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     device_identifier = None
     if device_data and "device_identifier" in device_data:
         device_identifier = device_data["device_identifier"]
-        hass.data[DOMAIN][entry.entry_id]["device_identifier"] = device_identifier
     else:
         _LOGGER.warning("%s: No device identifier found in device data", device_id)
         return False
@@ -118,10 +117,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     # Create device entry
     device_registry = async_get_device_registry(hass)
-    # Add both device_id and device_identifier as identifiers for clarity
     identifiers = {(DOMAIN, str(device_id))}
-    if device_identifier:
-        identifiers.add((DOMAIN, str(device_identifier)))
     device_entry = device_registry.async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers=identifiers,
