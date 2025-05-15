@@ -14,6 +14,7 @@ import ssl
 import asyncio
 import random
 from typing import Any, Optional, Callable, Dict
+from datetime import datetime, timedelta, timezone
 
 import aiohttp
 import websockets
@@ -61,6 +62,8 @@ class LeakomaticClient:
         self._cookies: Optional[aiohttp.CookieJar] = None
         self._ws_running = True
         self._ws_callbacks: list[Callable[[dict], None]] = []
+        self._device_data_cache = None
+        self._device_data_cache_time = None
 
     async def _create_session(self, headers: Optional[Dict[str, str]] = None) -> aiohttp.ClientSession:
         """Create a new session with the saved cookies and headers.
@@ -274,7 +277,14 @@ class LeakomaticClient:
             return False
 
     async def async_get_device_data(self) -> Optional[dict[str, Any]]:
-        """Get device data from the Leakomatic API."""
+        """Get device data from the Leakomatic API, with 15-minute cache."""
+        now = datetime.now(tz=timezone.utc)
+        if (
+            self._device_data_cache is not None and
+            self._device_data_cache_time is not None and
+            (now - self._device_data_cache_time) < timedelta(minutes=15)
+        ):
+            return self._device_data_cache
         if not self._device_id:
             return self._handle_error("Cannot fetch data - no device configured", return_value=None, level="warning")
             
@@ -303,6 +313,8 @@ class LeakomaticClient:
                     
                     # Parse the JSON response
                     device_data = await response.json()
+                    self._device_data_cache = device_data
+                    self._device_data_cache_time = now
                     return device_data
                 
         except Exception as err:

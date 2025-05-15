@@ -177,6 +177,9 @@ async def async_setup_entry(
     
     # Get initial device data
     device_data = await client.async_get_device_data()
+    if not device_data:
+        _LOGGER.error("Missing device data")
+        return
     
     # Create binary sensors
     binary_sensors = [
