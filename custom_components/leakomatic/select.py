@@ -19,7 +19,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import EntityCategory
 
 from .const import DOMAIN, MessageType, DeviceMode
-from .common import LeakomaticEntity, MessageHandlerRegistry
+from .common import LeakomaticEntity, MessageHandlerRegistry, log_with_entity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -180,10 +180,10 @@ class ModeSelect(LeakomaticSelect):
 
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""
-        _LOGGER.debug("%s: Changing mode to %s", self._device_id, option)
+        log_with_entity(_LOGGER, logging.DEBUG, self, "Changing mode to %s", option)
         success = await self._client.async_change_mode(option)
         if not success:
-            _LOGGER.error("%s: Failed to change mode to %s", self._device_id, option)
+            log_with_entity(_LOGGER, logging.ERROR, self, "Failed to change mode to %s", option)
 
     @callback
     def handle_update(self, data: dict[str, Any]) -> None:
@@ -191,6 +191,6 @@ class ModeSelect(LeakomaticSelect):
         mode = data.get("mode")
         if mode is not None:
             mode_str = "home" if mode == 0 else "away" if mode == 1 else "pause" if mode == 2 else str(mode)
-            _LOGGER.debug("%s: Mode changed to %s", self._device_id, mode_str)
+            log_with_entity(_LOGGER, logging.DEBUG, self, "Changing mode to %s", mode_str)
         self._device_data = data
         self.async_write_ha_state() 

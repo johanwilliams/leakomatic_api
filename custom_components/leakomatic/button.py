@@ -16,7 +16,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import EntityCategory
 
 from .const import DOMAIN
-from .common import LeakomaticEntity
+from .common import LeakomaticEntity, log_with_entity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -115,6 +115,6 @@ class ResetAlarmsButton(LeakomaticButton):
         """Handle the button press."""
         success = await self._client.async_reset_alarms()
         if success:
-            _LOGGER.info("%s: Successfully reset all alarms", self._device_id)
+            log_with_entity(_LOGGER, logging.INFO, self, "Successfully reset all alarms")
         else:
-            _LOGGER.error("%s: Failed to reset alarms", self._device_id) 
+            log_with_entity(_LOGGER, logging.ERROR, self, "Failed to reset alarms") 

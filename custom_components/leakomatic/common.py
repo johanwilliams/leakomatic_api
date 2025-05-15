@@ -14,6 +14,21 @@ _LOGGER = logging.getLogger(__name__)
 # Type variable for the entity type
 T = TypeVar('T')
 
+def log_with_entity(logger: logging.Logger, level: int, entity: Any, message: str, *args: Any) -> None:
+    """Log a message with device and entity names.
+    
+    Args:
+        logger: The logger instance to use
+        level: The logging level (e.g. logging.INFO, logging.WARNING)
+        entity: The entity instance that has device_info and name attributes
+        message: The message to log
+        *args: Additional arguments to format the message with
+    """
+    device_name = entity.device_info.get("name", "Unknown Device")
+    entity_name = getattr(entity, "name", "Unknown Entity")
+    formatted_message = f"{device_name} {entity_name} - {message}"
+    logger.log(level, formatted_message, *args)
+
 class LeakomaticMessageHandler:
     """Common message handler for Leakomatic entities.
     

@@ -88,8 +88,6 @@ class LeakomaticConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         errors=errors,
                     )
                 
-                _LOGGER.debug("Found device ID: %s", device_id)
-                
                 # Check if this email is already configured
                 existing_entries = self._async_current_entries()
                 for entry in existing_entries:

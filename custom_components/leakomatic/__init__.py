@@ -68,8 +68,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.error("No device ID found after authentication")
         return False
     
-    _LOGGER.debug("Found device ID: %s", device_id)
-    
     # Store the device ID
     hass.data[DOMAIN][entry.entry_id]["device_id"] = device_id
 
@@ -81,45 +79,42 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if device_data and "device_identifier" in device_data:
         device_identifier = device_data["device_identifier"]
         hass.data[DOMAIN][entry.entry_id]["device_identifier"] = device_identifier
-        _LOGGER.debug("%s: Found device identifier: %s", device_id, device_identifier)
     else:
         _LOGGER.warning("%s: No device identifier found in device data", device_id)
+        return False
     
     name = f"{DEFAULT_NAME} {device_id}"
     if device_data and "name" in device_data:
         name = device_data["name"]
-        _LOGGER.debug("%s: Found name: %s", device_id, name)
     else:
-        _LOGGER.warning("%s: Could not find name in device data, using default %s", device_id, name)
+        _LOGGER.warning("%s: Could not find name in device data, using %s", device_id, name)
     
     # If device data is available and contains sw_version, use it
     sw_version = "Unknown"
     if device_data and "sw_version" in device_data and "sw_release" in device_data:
         sw_version = f"{device_data['sw_release']}-{device_data['sw_version']}"
-        _LOGGER.debug("%s: Found softwareversion: %s", device_id, sw_version)
     else:
         _LOGGER.warning("%s: Could not find software version in device data", device_id)
 
     model = "Unknown"
     if device_data and "model_name" in device_data:
         model = device_data["model_name"]
-        _LOGGER.debug("%s: Found model: %s", device_id, model)
     else:
         _LOGGER.warning("%s: Could not find model in device data", device_id)
 
     location = None
     if device_data and "location" in device_data:
         location = device_data["location"]
-        _LOGGER.debug("%s: Found location: %s", device_id, location)
     else:
         _LOGGER.warning("%s: Could not find location in device data", device_id)
 
     model_id = None
     if device_data and "product_id" in device_data:
         model_id = device_data["product_id"]
-        _LOGGER.debug("%s: Found product id: %s", device_id, model_id)
     else:
         _LOGGER.warning("%s: Could not find product id in device data", device_id)
+
+    _LOGGER.debug("Creating device entry for device %s with name '%s' in suggested area '%s'. Model: %s, Product ID: %s, Software version: %s, Device identifier: %s", device_id, name, location, model, model_id, sw_version, device_identifier)
     
     # Create device entry
     device_registry = async_get_device_registry(hass)
@@ -149,8 +144,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     ws_token = await client.async_get_websocket_token()
     if not ws_token:
         _LOGGER.warning("Could not get websocket token, websocket functionality will not be available")
-    else:
-        _LOGGER.debug("Successfully retrieved websocket token")
 
     
     # Start websocket connection after platforms are set up
@@ -228,7 +221,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Register the service
     hass.services.async_register(DOMAIN, "change_mode", async_change_mode)
     
-    _LOGGER.info("%s: Leakomatic integration setup completed", device_id)
+    _LOGGER.info("Leakomatic integration setup completed")
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

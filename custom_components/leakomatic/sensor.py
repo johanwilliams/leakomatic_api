@@ -26,7 +26,7 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.typing import StateType
 
 from .const import DOMAIN, MessageType, TestState
-from .common import LeakomaticEntity, MessageHandlerRegistry, LeakomaticMessageHandler
+from .common import LeakomaticEntity, MessageHandlerRegistry, LeakomaticMessageHandler, log_with_entity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -234,10 +234,17 @@ class QuickTestIndexSensor(LeakomaticSensor):
             try:
                 return round(float(value), 2)  # Round to 2 decimal places
             except (ValueError, TypeError):
-                _LOGGER.warning("%s: Invalid quick test value: %s", self._device_id, value)
+                log_with_entity(_LOGGER, logging.WARNING, self, "Invalid value: %s", value)
                 return None
         
         return None
+
+    @callback
+    def handle_update(self, data: dict[str, Any]) -> None:
+        """Handle updated data from WebSocket."""
+        self._device_data = data
+        self.async_write_ha_state()
+        log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.native_value)
 
 
 class FlowDurationSensor(LeakomaticSensor):
@@ -287,7 +294,7 @@ class FlowDurationSensor(LeakomaticSensor):
                     self._last_known_duration = duration
                 return self._last_known_duration
             except (ValueError, TypeError):
-                _LOGGER.warning("%s: Invalid flow duration value: %s", self._device_id, value)
+                log_with_entity(_LOGGER, logging.WARNING, self, "Invalid value: %s", value)
                 return self._last_known_duration
         
         return self._last_known_duration
@@ -297,7 +304,7 @@ class FlowDurationSensor(LeakomaticSensor):
         """Handle updated data from WebSocket."""
         self._device_data = data
         self.async_write_ha_state()
-        _LOGGER.debug("%s: value updated: %s", self._device_id, self.native_value)
+        log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.native_value)
 
 
 class SignalStrengthSensor(LeakomaticSensor):
@@ -338,7 +345,7 @@ class SignalStrengthSensor(LeakomaticSensor):
             try:
                 return int(rssi)  # RSSI should be an integer
             except (ValueError, TypeError):
-                _LOGGER.warning("%s: Invalid RSSI value: %s", self._device_id, rssi)
+                log_with_entity(_LOGGER, logging.WARNING, self, "Invalid value: %s", rssi)
                 return None
         
         return None
@@ -348,7 +355,7 @@ class SignalStrengthSensor(LeakomaticSensor):
         """Handle updated data from WebSocket."""
         self._device_data = data
         self.async_write_ha_state()
-        _LOGGER.debug("%s: value updated: %s", self._device_id, self.native_value)
+        log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.native_value)
 
 
 class LongestTightnessPeriodSensor(LeakomaticSensor):
@@ -393,13 +400,20 @@ class LongestTightnessPeriodSensor(LeakomaticSensor):
                 # Convert to integer since we're dealing with seconds
                 return int(float(value))
             except (ValueError, TypeError):
-                _LOGGER.warning("%s: Invalid tightness period value: %s", self._device_id, value)
+                log_with_entity(_LOGGER, logging.WARNING, self, "Invalid value: %s", value)
                 return None
         
         return None
 
+    @callback
+    def handle_update(self, data: dict[str, Any]) -> None:
+        """Handle updated data from WebSocket."""
+        self._device_data = data
+        self.async_write_ha_state()
+        log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.native_value)
 
-class AlarmTestSensor(LeakomaticSensor):
+
+class AlarmTestSensor(LeakomaticEntity, SensorEntity):
     """Base class for Leakomatic alarm test sensors.
     
     This sensor monitors test status and changes state based on alarm levels:
@@ -435,7 +449,6 @@ class AlarmTestSensor(LeakomaticSensor):
             current_alarm = device_data["current_alarm"]
             if current_alarm and current_alarm.get("alarm_type") == int(self._alarm_type):
                 alarm_level = str(current_alarm.get("level", "0"))
-                _LOGGER.debug("%s: found current alarm with level %s", self._device_id, alarm_level)
                 if alarm_level == "1":
                     self._state = TestState.WARNING.value
                 elif alarm_level == "2":
@@ -443,7 +456,7 @@ class AlarmTestSensor(LeakomaticSensor):
                 elif alarm_level == "0":
                     self._state = TestState.CLEAR.value
                 else:
-                    _LOGGER.warning("%s: unknown alarm level received: %s", self._device_id, alarm_level)
+                    log_with_entity(_LOGGER, logging.WARNING, self, "Unknown alarm level received: %s", alarm_level)
 
     @property
     def native_value(self) -> StateType:
@@ -465,7 +478,7 @@ class AlarmTestSensor(LeakomaticSensor):
                 elif alarm_level == "0":
                     self._state = TestState.CLEAR.value
                 else:
-                    _LOGGER.warning("%s: unknown alarm level received: %s", self._device_id, alarm_level)
+                    log_with_entity(_LOGGER, logging.WARNING, self, "Unknown alarm level received: %s", alarm_level)
                 self._device_data = data
                 self.async_write_ha_state()
 
@@ -495,6 +508,13 @@ class FlowTestSensor(AlarmTestSensor):
             log_prefix="FlowTestSensor",
         )
         self._attr_translation_key = "flow_test"
+
+    @callback
+    def handle_update(self, data: dict[str, Any]) -> None:
+        """Handle updated data from WebSocket."""
+        self._device_data = data
+        self.async_write_ha_state()
+        log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.native_value)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -552,6 +572,13 @@ class QuickTestSensor(AlarmTestSensor):
         )
         self._attr_translation_key = "quick_test"
 
+    @callback
+    def handle_update(self, data: dict[str, Any]) -> None:
+        """Handle updated data from WebSocket."""
+        self._device_data = data
+        self.async_write_ha_state()
+        log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.native_value)
+
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return extra state attributes, including alarm delay and index limit if available."""
@@ -603,6 +630,13 @@ class TightnessTestSensor(AlarmTestSensor):
             log_prefix="TightnessTestSensor",
         )
         self._attr_translation_key = "tightness_test"
+
+    @callback
+    def handle_update(self, data: dict[str, Any]) -> None:
+        """Handle updated data from WebSocket."""
+        self._device_data = data
+        self.async_write_ha_state()
+        log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.native_value)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

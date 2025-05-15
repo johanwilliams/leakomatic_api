@@ -143,7 +143,7 @@ class LeakomaticClient:
     async def _async_get_startpage(self) -> Optional[str]:
         """Get the auth token from the start page."""
         try:
-            _LOGGER.debug("Requesting authentication token from Leakomatic")
+            _LOGGER.debug("Requesting authentication token from Leakomatic...")
             
             async with self._session.get(START_URL) as response:
                 if response.status != 200:
@@ -192,7 +192,7 @@ class LeakomaticClient:
     async def _async_login(self) -> bool:
         """Login to the Leakomatic API."""
         try:
-            _LOGGER.debug("Attempting login with provided credentials")
+            _LOGGER.debug("Attempting login with provided credentials...")
             
             # Prepare login data
             login_data = {
@@ -235,6 +235,25 @@ class LeakomaticClient:
                     self._error_code = ERROR_INVALID_CREDENTIALS
                     return False
                 
+                _LOGGER.debug("Login successful. Retrieving user ID...")
+
+                # Find the user ID - be careful with the href attribute
+                try:
+                    user_link = soup.find('a', href=lambda href: href and "/users/" in href)
+                    if user_link and hasattr(user_link, 'attrs') and 'href' in user_link.attrs:
+                        href = user_link.attrs['href']
+                        if href and "/users/" in href:
+                            user_id = href.split('/')[-1]
+                            self._user_id = user_id
+                            _LOGGER.debug("Found user ID: %s. Retrieving devices...", user_id)
+                        else:
+                            _LOGGER.debug("User ID not found in href attribute")
+                    else:
+                        _LOGGER.debug("User ID not found, but continuing with device ID: %s", device_id)
+                except Exception as user_id_err:
+                    _LOGGER.debug("Error extracting user ID: %s", user_id_err)
+                    _LOGGER.debug("Continuing with device ID: %s", device_id)
+
                 # Find all <tr> elements with an id attribute starting with 'device_'
                 device_elements = soup.find_all('tr', {'id': lambda x: x and x.startswith('device_')})
                 if not device_elements:
@@ -246,24 +265,8 @@ class LeakomaticClient:
                 device_id = device_elements[0]['id'].replace('device_', '')
                 self._device_id = device_id
                 
-                # Find the user ID - be careful with the href attribute
-                try:
-                    user_link = soup.find('a', href=lambda href: href and "/users/" in href)
-                    if user_link and hasattr(user_link, 'attrs') and 'href' in user_link.attrs:
-                        href = user_link.attrs['href']
-                        if href and "/users/" in href:
-                            user_id = href.split('/')[-1]
-                            self._user_id = user_id
-                            _LOGGER.debug("Found user ID: %s", user_id)
-                        else:
-                            _LOGGER.debug("User ID not found in href attribute")
-                    else:
-                        _LOGGER.debug("User ID not found, but continuing with device ID: %s", device_id)
-                except Exception as user_id_err:
-                    _LOGGER.debug("Error extracting user ID: %s", user_id_err)
-                    _LOGGER.debug("Continuing with device ID: %s", device_id)
                 
-                _LOGGER.debug("Found Leakomatic device: %s", device_id)
+                _LOGGER.debug("Found Leakomatic device with ID: %s", device_id)
                 return True
                 
         except Exception as err:
@@ -280,7 +283,7 @@ class LeakomaticClient:
             return None
             
         try:
-            _LOGGER.debug("Fetching data for device %s", self._device_id)
+            _LOGGER.debug("Fetching data for device with ID: %s", self._device_id)
             
             # Create a new session with the saved cookies
             async with await self._create_session() as session:
@@ -322,7 +325,7 @@ class LeakomaticClient:
             return None
             
         try:
-            _LOGGER.debug("Fetching websocket token")
+            _LOGGER.debug("Fetching websocket token...")
             
             # Create a new session with the saved cookies
             async with await self._create_session() as session:
@@ -383,7 +386,6 @@ class LeakomaticClient:
 
         # Construct the websocket URL
         ws_url = f"{WEBSOCKET_URL}?token={ws_token}"
-        _LOGGER.debug("Connecting to websocket server")
 
         # Reconnection parameters
         retry_count = 0
@@ -436,8 +438,8 @@ class LeakomaticClient:
                             else:
                                 # For all other message types, call all callbacks
                                 if msg_type:
-                                    device_identifier = parsed_response.get('message', {}).get('data', {}).get('device', 'unknown')
-                                    _LOGGER.debug("%s: Received message %s", device_identifier, msg_type)
+                                    device_identifier = parsed_response.get('message', {}).get('data', {}).get('device_id', 'unknown')
+                                    _LOGGER.debug("Device %s received message %s", device_identifier, msg_type)
                                     # Call all registered callbacks
                                     for callback in self._ws_callbacks:
                                         try:
