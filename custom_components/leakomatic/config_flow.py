@@ -101,7 +101,7 @@ class LeakomaticConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 # Authentication successful, create the config entry
                 _LOGGER.info("Successfully configured Leakomatic device: %s", device_id)
                 return self.async_create_entry(
-                    title=user_input["email"],
+                    title=f"Leakomatic Device {device_id}",
                     data=user_input,
                 )
             except aiohttp.ClientError:
