@@ -84,6 +84,30 @@ class TestState(Enum):
     WARNING = "warning"  # Test indicates potential issues
     ALARM = "alarm"  # Test indicates critical issues
 
+class AlarmType(Enum):
+    """Alarm types for Leakomatic devices.
+    
+    These types represent the different kinds of alarms that can be triggered:
+    - FLOW_TEST: Flow test alarm (type 0)
+    - QUICK_TEST: Quick test alarm (type 1)
+    - TIGHTNESS_TEST: Tightness test alarm (type 2)
+    """
+    FLOW_TEST = "0"  # Flow test alarm
+    QUICK_TEST = "1"  # Quick test alarm
+    TIGHTNESS_TEST = "2"  # Tightness test alarm
+
+class AlarmLevel(Enum):
+    """Alarm levels for Leakomatic devices.
+    
+    These levels represent the severity of an alarm:
+    - CLEAR: No alarm (level 0)
+    - WARNING: Warning threshold exceeded (level 1)
+    - ALARM: Alarm threshold exceeded (level 2)
+    """
+    CLEAR = "0"  # No alarm
+    WARNING = "1"  # Warning threshold exceeded
+    ALARM = "2"  # Alarm threshold exceeded
+
 # HTTP Headers
 DEFAULT_HEADERS = {
     "User-Agent": "Mozilla/5.0",

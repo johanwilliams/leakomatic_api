@@ -25,7 +25,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.typing import StateType
 
-from .const import DOMAIN, MessageType, TestState
+from .const import DOMAIN, MessageType, TestState, AlarmType, AlarmLevel
 from .common import LeakomaticEntity, MessageHandlerRegistry, LeakomaticMessageHandler, log_with_entity
 
 _LOGGER = logging.getLogger(__name__)
@@ -464,12 +464,12 @@ class AlarmTestSensor(LeakomaticEntity, SensorEntity):
         if device_data and "current_alarm" in device_data:
             current_alarm = device_data["current_alarm"]
             if current_alarm and current_alarm.get("alarm_type") == int(self._alarm_type):
-                alarm_level = str(current_alarm.get("level", "0"))
-                if alarm_level == "1":
+                alarm_level = str(current_alarm.get("level", AlarmLevel.CLEAR.value))
+                if alarm_level == AlarmLevel.WARNING.value:
                     self._state = TestState.WARNING.value
-                elif alarm_level == "2":
+                elif alarm_level == AlarmLevel.ALARM.value:
                     self._state = TestState.ALARM.value
-                elif alarm_level == "0":
+                elif alarm_level == AlarmLevel.CLEAR.value:
                     self._state = TestState.CLEAR.value
                 else:
                     log_with_entity(_LOGGER, logging.WARNING, self, "Unknown alarm level received: %s", alarm_level)
@@ -484,19 +484,23 @@ class AlarmTestSensor(LeakomaticEntity, SensorEntity):
         """Handle updated data from WebSocket."""
         # Check if this is an alarm message
         if data.get("operation") == "alarm_triggered":
+            
             # Verify this is the correct alarm type
             if data.get("alarm_type") == self._alarm_type:
                 alarm_level = data.get("alarm_level")
-                if alarm_level == "1":
+                
+                if alarm_level == AlarmLevel.WARNING.value:
                     self._state = TestState.WARNING.value
-                elif alarm_level == "2":
+                elif alarm_level == AlarmLevel.ALARM.value:
                     self._state = TestState.ALARM.value
-                elif alarm_level == "0":
+                elif alarm_level == AlarmLevel.CLEAR.value:
                     self._state = TestState.CLEAR.value
                 else:
                     log_with_entity(_LOGGER, logging.WARNING, self, "Unknown alarm level received: %s", alarm_level)
                 self._device_data = data
                 self.async_write_ha_state()
+                # Add state change log message
+                log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.native_value)
 
 
 class FlowTestSensor(AlarmTestSensor):
@@ -520,17 +524,10 @@ class FlowTestSensor(AlarmTestSensor):
             device_id=device_id,
             device_data=device_data,
             key="flow_test",
-            alarm_type="0",
+            alarm_type=AlarmType.FLOW_TEST.value,
             log_prefix="FlowTestSensor",
         )
         self._attr_translation_key = "flow_test"
-
-    @callback
-    def handle_update(self, data: dict[str, Any]) -> None:
-        """Handle updated data from WebSocket."""
-        self._device_data = data
-        self.async_write_ha_state()
-        log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.native_value)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -583,17 +580,10 @@ class QuickTestSensor(AlarmTestSensor):
             device_id=device_id,
             device_data=device_data,
             key="quick_test",
-            alarm_type="1",
+            alarm_type=AlarmType.QUICK_TEST.value,
             log_prefix="QuickTestSensor",
         )
         self._attr_translation_key = "quick_test"
-
-    @callback
-    def handle_update(self, data: dict[str, Any]) -> None:
-        """Handle updated data from WebSocket."""
-        self._device_data = data
-        self.async_write_ha_state()
-        log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.native_value)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -642,17 +632,10 @@ class TightnessTestSensor(AlarmTestSensor):
             device_id=device_id,
             device_data=device_data,
             key="tightness_test",
-            alarm_type="2",
+            alarm_type=AlarmType.TIGHTNESS_TEST.value,
             log_prefix="TightnessTestSensor",
         )
         self._attr_translation_key = "tightness_test"
-
-    @callback
-    def handle_update(self, data: dict[str, Any]) -> None:
-        """Handle updated data from WebSocket."""
-        self._device_data = data
-        self.async_write_ha_state()
-        log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.native_value)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
