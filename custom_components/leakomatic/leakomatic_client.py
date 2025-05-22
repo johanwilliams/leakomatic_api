@@ -473,7 +473,7 @@ class LeakomaticClient:
                             else:
                                 # For all other message types, call all callbacks
                                 if msg_type:
-                                    device_identifier = parsed_response.get('message', {}).get('data', {}).get('device_id', 'unknown')
+                                    device_identifier = parsed_response.get('message', {}).get('device', 'unknown')
                                     _LOGGER.debug("Device %s received message %s", device_identifier, msg_type)
                                     # Call all registered callbacks
                                     for callback in self._ws_callbacks:
@@ -617,8 +617,6 @@ class LeakomaticClient:
             return False
             
         try:
-            _LOGGER.debug("%s for device %s", operation.capitalize(), device_id)
-            
             # Create headers for JSON content
             headers = {
                 "Content-Type": "application/json;charset=UTF-8",
@@ -632,11 +630,9 @@ class LeakomaticClient:
                 # Construct the URL
                 url = f"{STATUS_URL}/{device_id}/{endpoint}"
                 
-                _LOGGER.debug("Requesting URL %s", url)
+                _LOGGER.debug("Making %s request to %s for device %s", operation, url, device_id)
                 
                 async with session.post(url, json=data) as response:
-                    _LOGGER.debug("Response status: %d", response.status)
-                    
                     # Get the response content
                     response_text = await response.text()
                     
@@ -687,15 +683,10 @@ class LeakomaticClient:
             if not device_id:
                 return self._handle_error("Cannot change mode - no device configured", return_value=False, level="warning")
                 
-            _LOGGER.debug("Changing mode to %s (numeric value: %d) for device %s", mode, numeric_mode, device_id)
-            
             # Prepare the data for the request
             data = {
                 "mode": numeric_mode
             }
-            
-            # Log the request data
-            _LOGGER.debug("Mode change request data: %s", data)
             
             result = await self._async_make_request(
                 endpoint="change_mode.json",
