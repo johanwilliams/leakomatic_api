@@ -132,10 +132,16 @@ def handle_analog_sensor_message(message: dict, sensors: list[LeakomaticSensor])
     connected = data.get("connected")
     value = data.get("value")
     
-    # Only update temperature sensor if sensor_type is 2 and connected is 1
+    # Update temperature sensor if sensor_type is 2 and connected is 1
     if sensor_type == 2 and connected == 1:
         LeakomaticMessageHandler._update_matching_entities(
             message, sensors, TemperatureSensor, None,
+            update_data={"value": value}
+        )
+    # Update pressure sensor if sensor_type is 1 and connected is 1
+    elif sensor_type == 1 and connected == 1:
+        LeakomaticMessageHandler._update_matching_entities(
+            message, sensors, PressureSensor, None,
             update_data={"value": value}
         )
 
@@ -220,6 +226,7 @@ async def async_setup_entry(
             TightnessTestSensor(device_info, device_id, dev_data),
             TotalVolumeSensor(device_info, device_id, dev_data),
             TemperatureSensor(device_info, device_id, dev_data),
+            PressureSensor(device_info, device_id, dev_data),
         ]
         all_sensors.extend(device_sensors)
     
@@ -777,14 +784,71 @@ class TemperatureSensor(LeakomaticSensor):
         if not self._device_data:
             return None
         
-        # Get the temperature value
+        # Get the temperature value - try both possible field names
         value = self._device_data.get("value")
+        if value is None:
+            value = self._device_data.get("last_temperature_value")
+        
         if value is not None:
             try:
                 # Round to 1 decimal place
                 return round(float(value), 1)
             except (ValueError, TypeError):
-                log_with_entity(_LOGGER, logging.WARNING, self, "Invalid value: %s", value)
+                return None
+        
+        return None
+
+    @callback
+    def handle_update(self, data: dict[str, Any]) -> None:
+        """Handle updated data from WebSocket."""
+        self._device_data = data
+        self.async_write_ha_state()
+        log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.native_value)
+
+
+class PressureSensor(LeakomaticSensor):
+    """Representation of a Leakomatic Pressure sensor.
+    
+    This sensor represents the pressure reading from the Leakomatic device.
+    It is updated through WebSocket updates with analog_sensor_message operation.
+    The pressure is measured in bar.
+    """
+
+    def __init__(
+        self,
+        device_info: dict[str, Any],
+        device_id: str,
+        device_data: dict[str, Any] | None,
+    ) -> None:
+        """Initialize the pressure sensor."""
+        super().__init__(
+            device_info=device_info,
+            device_id=device_id,
+            device_data=device_data,
+            key="pressure",
+            icon="mdi:gauge",
+            device_class=SensorDeviceClass.PRESSURE,
+            state_class=SensorStateClass.MEASUREMENT,
+            native_unit_of_measurement="bar"
+        )
+        self._attr_entity_registry_enabled_default = False
+
+    @property
+    def native_value(self) -> StateType:
+        """Return the state of the sensor."""
+        if not self._device_data:
+            return None
+        
+        # Get the pressure value - try both possible field names
+        value = self._device_data.get("value")
+        if value is None:
+            value = self._device_data.get("last_pressure_value")
+        
+        if value is not None:
+            try:
+                # Round to 1 decimal place
+                return round(float(value), 1)
+            except (ValueError, TypeError):
                 return None
         
         return None

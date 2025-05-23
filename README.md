@@ -71,6 +71,12 @@ The integration provides the following entities:
   - Rounds values to 1 decimal place
   - Helps monitor ambient temperature conditions
 
+- **Pressure**: Shows the current water pressure reading from the device
+  - Measured in bar
+  - Updates in real-time through analog sensor messages
+  - Rounds values to 1 decimal place
+  - Helps monitor water pressure conditions
+
 - **Longest Tightness Period**: Shows the longest period of no water flow
   - Measured in seconds
   - Updates in real-time through WebSocket events

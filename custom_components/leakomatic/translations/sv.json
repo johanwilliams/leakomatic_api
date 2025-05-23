@@ -60,6 +60,9 @@
             "temperature": {
                 "name": "Temperatur"
             },
+            "pressure": {
+                "name": "Tryck"
+            },
             "flow_test": {
                 "name": "Flödestest",
                 "state": {
