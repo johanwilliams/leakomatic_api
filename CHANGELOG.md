@@ -5,6 +5,28 @@ All notable changes to the Leakomatic Integration for Home Assistant will be doc
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2025-05-16
+
+### Added
+- Temperature sensor support with real-time updates
+- Pressure sensor support with real-time updates
+- Enhanced analog sensor message handling
+- Improved last seen timestamp handling for online status
+- More detailed logging for sensor updates
+
+### Changed
+- Refined message handling system for better reliability
+- Enhanced error handling for timestamp parsing
+- Improved sensor value type conversion and validation
+
+### Removed
+- `change_mode` service as this functionality is now handled through the mode select entity
+
+### Fixed
+- Timestamp parsing issues in online status sensor
+- Sensor value conversion for tightness period
+- Analog sensor message handling for temperature and pressure
+
 ## [0.1.1] - 2025-05-15
 
 ### Added
