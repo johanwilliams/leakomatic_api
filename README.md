@@ -81,7 +81,7 @@ The integration provides the following entities:
   - Helps track total water consumption
   - Updates on flow events and water meter calibration
 
-  - **Signal Strength**: Shows the WiFi signal strength (RSSI) of the device
+- **Signal Strength**: Shows the WiFi signal strength (RSSI) of the device
   - Measured in dBm
   - Updates in real-time through WebSocket events
   - Helps monitor device connectivity quality
