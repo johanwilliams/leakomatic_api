@@ -57,6 +57,9 @@
             "signal_strength": {
                 "name": "Signal Strength"
             },
+            "temperature": {
+                "name": "Temperature"
+            },
             "flow_test": {
                 "name": "Flow Test",
                 "state": {

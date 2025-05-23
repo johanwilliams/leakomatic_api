@@ -125,6 +125,20 @@ def handle_water_meter_calibration(message: dict, sensors: list[LeakomaticSensor
         if isinstance(sensor, TotalVolumeSensor):
             sensor.handle_update(message.get("data", {}))
 
+def handle_analog_sensor_message(message: dict, sensors: list[LeakomaticSensor]) -> None:
+    """Handle analog_sensor_message messages."""
+    data = message.get("message", {}).get("data", {})
+    sensor_type = data.get("sensor_type")
+    connected = data.get("connected")
+    value = data.get("value")
+    
+    # Only update temperature sensor if sensor_type is 2 and connected is 1
+    if sensor_type == 2 and connected == 1:
+        LeakomaticMessageHandler._update_matching_entities(
+            message, sensors, TemperatureSensor, None,
+            update_data={"value": value}
+        )
+
 def handle_default(message: dict, sensors: list[LeakomaticSensor]) -> None:
     """Handle any other message type."""
     LeakomaticMessageHandler.handle_default(message, sensors)
@@ -137,6 +151,7 @@ message_registry.register(MessageType.TIGHTNESS_TEST_UPDATED.value, handle_tight
 message_registry.register(MessageType.STATUS_MESSAGE.value, handle_status_update)
 message_registry.register(MessageType.ALARM_TRIGGERED.value, handle_alarm_triggered)
 message_registry.register(MessageType.WATER_METER_CALIBRATION_UPDATED.value, handle_water_meter_calibration)
+message_registry.register(MessageType.ANALOG_SENSOR_MESSAGE.value, handle_analog_sensor_message)
 message_registry.register_default(handle_default)
 
 async def async_setup_entry(
@@ -204,6 +219,7 @@ async def async_setup_entry(
             QuickTestSensor(device_info, device_id, dev_data),
             TightnessTestSensor(device_info, device_id, dev_data),
             TotalVolumeSensor(device_info, device_id, dev_data),
+            TemperatureSensor(device_info, device_id, dev_data),
         ]
         all_sensors.extend(device_sensors)
     
@@ -726,3 +742,56 @@ class TotalVolumeSensor(LeakomaticSensor):
                 self.async_write_ha_state()
             except (ValueError, TypeError) as e:
                 log_with_entity(self, "Error updating total volume: %s", e)
+
+
+class TemperatureSensor(LeakomaticSensor):
+    """Representation of a Leakomatic Temperature sensor.
+    
+    This sensor represents the temperature reading from the Leakomatic device.
+    It is updated through WebSocket updates with analog_sensor_message operation.
+    The temperature is measured in Celsius (°C).
+    """
+
+    def __init__(
+        self,
+        device_info: dict[str, Any],
+        device_id: str,
+        device_data: dict[str, Any] | None,
+    ) -> None:
+        """Initialize the temperature sensor."""
+        super().__init__(
+            device_info=device_info,
+            device_id=device_id,
+            device_data=device_data,
+            key="temperature",
+            icon="mdi:thermometer",
+            device_class=SensorDeviceClass.TEMPERATURE,
+            state_class=SensorStateClass.MEASUREMENT,
+            native_unit_of_measurement="°C"
+        )
+        self._attr_entity_registry_enabled_default = False
+
+    @property
+    def native_value(self) -> StateType:
+        """Return the state of the sensor."""
+        if not self._device_data:
+            return None
+        
+        # Get the temperature value
+        value = self._device_data.get("value")
+        if value is not None:
+            try:
+                # Round to 1 decimal place
+                return round(float(value), 1)
+            except (ValueError, TypeError):
+                log_with_entity(_LOGGER, logging.WARNING, self, "Invalid value: %s", value)
+                return None
+        
+        return None
+
+    @callback
+    def handle_update(self, data: dict[str, Any]) -> None:
+        """Handle updated data from WebSocket."""
+        self._device_data = data
+        self.async_write_ha_state()
+        log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.native_value)

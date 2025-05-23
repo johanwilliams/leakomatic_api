@@ -65,6 +65,12 @@ The integration provides the following entities:
   - Updates in real-time through WebSocket events
   - Helps monitor device connectivity quality
 
+- **Temperature**: Shows the current temperature reading from the device
+  - Measured in Celsius (°C)
+  - Updates in real-time through analog sensor messages
+  - Rounds values to 1 decimal place
+  - Helps monitor ambient temperature conditions
+
 - **Longest Tightness Period**: Shows the longest period of no water flow
   - Measured in seconds
   - Updates in real-time through WebSocket events
