@@ -26,6 +26,9 @@
     "title": "Leakomatic",
     "entity": {
         "sensor": {
+            "total_volume": {
+                "name": "Total volym"
+            },
             "quick_test_index": {
                 "name": "Snabbtestindex",
                 "state": {

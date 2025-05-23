@@ -6,6 +6,7 @@ It provides sensors for:
 - Alarm conditions
 - Quick test index
 - Flow duration
+- Total volume
 
 The sensors are updated through real-time WebSocket updates.
 """
@@ -87,7 +88,7 @@ def handle_flow_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
     LeakomaticMessageHandler.handle_flow_update(
         message, 
         sensors, 
-        FlowDurationSensor,
+        (FlowDurationSensor, TotalVolumeSensor),
         None   # No online sensor
     )
 
@@ -118,6 +119,12 @@ def handle_alarm_triggered(message: dict, sensors: list[LeakomaticSensor]) -> No
         None   # No online sensor
     )
 
+def handle_water_meter_calibration(message: dict, sensors: list[LeakomaticSensor]) -> None:
+    """Handle water_meter_calibration_updated messages."""
+    for sensor in sensors:
+        if isinstance(sensor, TotalVolumeSensor):
+            sensor.handle_update(message.get("data", {}))
+
 def handle_default(message: dict, sensors: list[LeakomaticSensor]) -> None:
     """Handle any other message type."""
     LeakomaticMessageHandler.handle_default(message, sensors)
@@ -129,6 +136,7 @@ message_registry.register(MessageType.FLOW_UPDATED.value, handle_flow_update)
 message_registry.register(MessageType.TIGHTNESS_TEST_UPDATED.value, handle_tightness_test_update)
 message_registry.register(MessageType.STATUS_MESSAGE.value, handle_status_update)
 message_registry.register(MessageType.ALARM_TRIGGERED.value, handle_alarm_triggered)
+message_registry.register(MessageType.WATER_METER_CALIBRATION_UPDATED.value, handle_water_meter_calibration)
 message_registry.register_default(handle_default)
 
 async def async_setup_entry(
@@ -195,6 +203,7 @@ async def async_setup_entry(
             FlowTestSensor(device_info, device_id, dev_data),
             QuickTestSensor(device_info, device_id, dev_data),
             TightnessTestSensor(device_info, device_id, dev_data),
+            TotalVolumeSensor(device_info, device_id, dev_data),
         ]
         all_sensors.extend(device_sensors)
     
@@ -665,3 +674,55 @@ class TightnessTestSensor(AlarmTestSensor):
         if alarm_delay is not None:
             attrs["alarm_delay"] = alarm_delay
         return attrs
+
+
+class TotalVolumeSensor(LeakomaticSensor):
+    """Representation of a Leakomatic Total Volume sensor.
+    
+    This sensor represents the total water volume (water meter value) of the Leakomatic device.
+    It is updated through WebSocket updates and device data.
+    """
+
+    def __init__(
+        self,
+        device_info: dict[str, Any],
+        device_id: str,
+        device_data: dict[str, Any] | None,
+    ) -> None:
+        """Initialize the total volume sensor."""
+        super().__init__(
+            device_info=device_info,
+            device_id=device_id,
+            device_data=device_data,
+            key="total_volume",
+            icon="mdi:counter",
+            device_class=SensorDeviceClass.VOLUME,
+            state_class=SensorStateClass.TOTAL_INCREASING,
+            native_unit_of_measurement="m³",
+        )
+        self._attr_entity_registry_enabled_default = False
+
+    @property
+    def native_value(self) -> StateType:
+        """Return the state of the sensor."""
+        if not self._device_data:
+            return None
+        
+        value = self._device_data.get("total_flow_volume")
+        if value is not None:
+            try:
+                return float(value) / 1000  # Convert to m³
+            except (ValueError, TypeError):
+                return None
+        return None
+
+    @callback
+    def handle_update(self, data: dict[str, Any]) -> None:
+        """Handle updates from WebSocket messages."""
+        if "total_flow_volume" in data:
+            try:
+                value = float(data["total_flow_volume"]) / 1000  # Convert to m³
+                self._device_data["total_flow_volume"] = value * 1000  # Store in original format
+                self.async_write_ha_state()
+            except (ValueError, TypeError) as e:
+                log_with_entity(self, "Error updating total volume: %s", e)

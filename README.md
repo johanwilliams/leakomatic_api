@@ -24,6 +24,7 @@ Water damage is a common issue in properties that can lead to significant costs 
   - Quick test index monitoring
   - Flow duration monitoring
   - Longest tightness period monitoring
+  - Total volume monitoring
   - Flow indicator monitoring
   - Online status monitoring with last seen timestamp
   - Signal strength monitoring
@@ -68,6 +69,13 @@ The integration provides the following entities:
   - Measured in seconds
   - Updates in real-time through WebSocket events
   - Helps monitor system tightness and potential leaks
+
+- **Total Volume**: Shows the total water volume (water meter value)
+  - Measured in cubic meters (m³)
+  - Updates in real-time through WebSocket events
+  - Disabled by default (can be enabled in entity settings)
+  - Helps track total water consumption
+  - Updates on flow events and water meter calibration
 
 ### Binary Sensors
 
