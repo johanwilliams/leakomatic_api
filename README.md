@@ -33,7 +33,6 @@ Water damage is a common issue in properties that can lead to significant costs 
   - Device information display (model, software version, location)
 - Advanced message handling system for reliable updates
 - Full localization support for all sensor names and states
-- Service to change device operating mode
 - Button to reset alarms
 - Support for multiple devices per account
 
@@ -139,23 +138,6 @@ The integration provides the following entities:
   - Updates in real-time through WebSocket alarm events
   - Helps detect and prevent water leaks
 
-## Services
-
-The integration provides the following service:
-
-- **leakomatic.change_mode**: Change the operating mode of your Leakomatic device
-  - Parameters:
-    - `entity_id`: The entity ID of the Leakomatic device
-    - `mode`: The new mode to set (home, away, or pause)
-  - Example usage in automations or scripts:
-    ```yaml
-    service: leakomatic.change_mode
-    target:
-      entity_id: sensor.leakomatic_mode
-    data:
-      mode: away
-    ```
-
 ## Message Handling System
 
 The integration implements a robust message handling system that processes various types of WebSocket messages:
@@ -197,7 +179,6 @@ The integration will automatically:
 - Connect to your Leakomatic device
 - Set up real-time monitoring via WebSocket
 - Create all necessary entities
-- Register the change_mode service
 
 ## Debug Logging
 

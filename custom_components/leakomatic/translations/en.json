@@ -124,17 +124,5 @@
                 "name": "Reset alarms"
             }
         }
-    },
-    "services": {
-        "change_mode": {
-            "name": "Change Mode",
-            "description": "Change the operating mode of a Leakomatic device.",
-            "fields": {
-                "mode": {
-                    "name": "Mode",
-                    "description": "The new mode to set for the device."
-                }
-            }
-        }
     }
 } 

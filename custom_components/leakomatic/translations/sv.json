@@ -124,17 +124,5 @@
                 "name": "Återställ larm"
             }
         }
-    },
-    "services": {
-        "change_mode": {
-            "name": "Ändra läge",
-            "description": "Ändra driftsläget för en Leakomatic-enhet.",
-            "fields": {
-                "mode": {
-                    "name": "Läge",
-                    "description": "Det nya läget att ställa in för enheten."
-                }
-            }
-        }
     }
 } 
