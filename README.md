@@ -33,7 +33,7 @@ Water damage is a common issue in properties that can lead to significant costs 
   - Device information display (model, software version, location)
 - Advanced message handling system for reliable updates
 - Full localization support for all sensor names and states
-- Button to reset alarms
+- Button to reset warnings or alarms
 - Support for multiple devices per account
 
 ## Requirements
@@ -59,34 +59,32 @@ The integration provides the following entities:
   - Updates when a flow event completes
   - Helps track water usage patterns
 
-- **Signal Strength**: Shows the WiFi signal strength (RSSI) of the device
-  - Measured in dBm
-  - Updates in real-time through WebSocket events
-  - Helps monitor device connectivity quality
-
-- **Temperature**: Shows the current temperature reading from the device
-  - Measured in Celsius (°C)
-  - Updates in real-time through analog sensor messages
-  - Rounds values to 1 decimal place
-  - Helps monitor ambient temperature conditions
-
-- **Pressure**: Shows the current water pressure reading from the device
-  - Measured in bar
-  - Updates in real-time through analog sensor messages
-  - Rounds values to 1 decimal place
-  - Helps monitor water pressure conditions
-
 - **Longest Tightness Period**: Shows the longest period of no water flow
   - Measured in seconds
   - Updates in real-time through WebSocket events
   - Helps monitor system tightness and potential leaks
 
-- **Total Volume**: Shows the total water volume (water meter value)
+- **Temperature**: Shows the current temperature reading from the device if available
+  - Measured in Celsius (°C)
+  - Updates in real-time through analog sensor messages
+  - Helps monitor ambient temperature conditions
+
+- **Pressure**: Shows the current water pressure reading from the device if available
+  - Measured in bar
+  - Updates in real-time through analog sensor messages
+  - Helps monitor water pressure conditions
+
+- **Total Volume**: Shows the total water volume (water meter value) if available
   - Measured in cubic meters (m³)
   - Updates in real-time through WebSocket events
   - Disabled by default (can be enabled in entity settings)
   - Helps track total water consumption
   - Updates on flow events and water meter calibration
+
+  - **Signal Strength**: Shows the WiFi signal strength (RSSI) of the device
+  - Measured in dBm
+  - Updates in real-time through WebSocket events
+  - Helps monitor device connectivity quality
 
 ### Binary Sensors
 
@@ -98,8 +96,6 @@ The integration provides the following entities:
 - **Online Status**: Shows if the device is currently online
   - States: On (online), Off (offline), Unknown (initial state)
   - Updates in real-time through WebSocket events
-  - Automatically sets to "On" when receiving any activity message from the device
-  - Automatically sets to "Off" when receiving a device update with is_online=False
   - Includes a last_seen attribute showing the timestamp of the last received message
   - Useful for monitoring device connectivity and troubleshooting connection issues
 
@@ -117,39 +113,40 @@ The integration provides the following entities:
 
 ### Buttons
 
-- **Reset Alarms**: Allows resetting all active alarms on the device
+- **Reset Alarms**: Allows resetting all active warnings or alarms on the device
   - Located in the device configuration section
   - Useful for clearing alarm states after resolving issues
 
 ### Alarm Test Sensors
 
 - **Flow Test**: Monitors flow alarms and provides alarm state information
-  - States: Clear (0), Warning (1), Alarm (2)
+  - States: Clear, Warning, Alarm
   - Updates in real-time through WebSocket alarm events
-  - Provides early warning of potential water flow issues
+  - Detects if water flows longer than predefined time limits based on home or away mode, helping prevent major water damage
 
 - **Quick Test**: Monitors quick test alarms
-  - States: Clear (0), Warning (1), Alarm (2)
+  - States: Clear, Warning, Alarm
   - Updates in real-time through WebSocket alarm events
-  - Helps detect and prevent water leaks
+  - Calculates a real-time index from pulse activity over the past hour to detect sudden drip leaks or changes in water usage trends
 
 - **Tightness Test**: Monitors tightness test alarms
-  - States: Clear (0), Warning (1), Alarm (2)
+  - States: Clear, Warning, Alarm
   - Updates in real-time through WebSocket alarm events
-  - Helps detect and prevent water leaks
+  - Analyzes pulse activity over a 24-hour period to identify hidden leaks by ensuring at least one period with no water flow occurs
 
 ## Message Handling System
 
 The integration implements a robust message handling system that processes various types of WebSocket messages:
 
-- Device updates
-- Alarm triggers
-- Flow updates
-- Quick test updates
-- Tightness test updates
-- Status messages
-- Device offline notifications
-- Ping messages for connection monitoring
+- Device updates (mode changes, valve state)
+- Alarm triggers (flow, quick test, tightness test)
+- Flow indicator updates
+- Quick test index calculations
+- Tightness test period monitoring
+- Temperature sensor readings
+- Pressure sensor readings
+- Online status updates with timestamps
+- Connection health monitoring
 
 Each message type is handled by specific handlers that update the relevant entities in real-time, ensuring accurate and timely state updates.
 
@@ -209,15 +206,13 @@ If you encounter any issues with the integration:
 
 ## Development Status
 
-This integration is currently in active development. Current version: 0.1.0
+This integration is currently in active development. Current version: 0.1.2
 
 Future enhancements planned:
-- Enhanced error handling and recovery
-- More detailed alarm state reporting
 - Historical data analysis features
-- Additional sensor types for various device metrics
-- Improved WebSocket connection management
-- Enhanced multi-device support
+- Additional alarm state details and configuration options
+- More detailed device diagnostics and health monitoring
+- Enhanced error reporting and user notifications
 
 ## Contributing
 
