@@ -695,9 +695,6 @@ class LeakomaticClient:
                 device_id=device_id
             )
             
-            # Log the result
-            _LOGGER.debug("Mode change result: %s", result)
-            
             return result
                 
         except ValueError as err:

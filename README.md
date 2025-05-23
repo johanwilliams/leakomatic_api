@@ -85,7 +85,6 @@ The integration provides the following entities:
   - Measured in dBm
   - Updates in real-time through WebSocket events
   - Helps monitor device connectivity quality
-
 ### Binary Sensors
 
 - **Flow Indicator**: Shows if water is currently flowing
