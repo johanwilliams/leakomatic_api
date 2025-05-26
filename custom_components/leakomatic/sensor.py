@@ -771,7 +771,7 @@ class TemperatureSensor(LeakomaticSensor):
             device_id=device_id,
             device_data=device_data,
             key="temperature",
-            icon="mdi:thermometer",
+            icon="mdi:thermometer-water",
             device_class=SensorDeviceClass.TEMPERATURE,
             state_class=SensorStateClass.MEASUREMENT,
             native_unit_of_measurement="°C"
