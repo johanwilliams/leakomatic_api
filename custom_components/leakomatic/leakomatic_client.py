@@ -24,8 +24,9 @@ import json
 
 from .const import (
     LOGGER_NAME, START_URL, LOGIN_URL, STATUS_URL, WEBSOCKET_URL,
-    MessageType, DEFAULT_HEADERS, WEBSOCKET_HEADERS, MAX_RETRIES, INITIAL_RETRY_DELAY,
-    MAX_RETRY_DELAY, RETRY_BACKOFF_FACTOR,
+    MessageType, DEFAULT_HEADERS, WEBSOCKET_HEADERS, MAX_QUICK_RETRIES, INITIAL_RETRY_DELAY,
+    MAX_RETRY_DELAY, RETRY_BACKOFF_FACTOR, MEDIUM_RETRY_INTERVAL, MAX_MEDIUM_RETRIES,
+    LONG_RETRY_INTERVAL, HEALTH_CHECK_INTERVAL,
     ERROR_AUTH_TOKEN_MISSING, ERROR_INVALID_CREDENTIALS, ERROR_XSRF_TOKEN_MISSING, ERROR_NO_DEVICES_FOUND,
     XSRF_TOKEN_HEADER, DeviceMode, XSRF_TOKEN_PATTERN
 )
@@ -64,6 +65,12 @@ class LeakomaticClient:
         self._ws_callbacks: list[Callable[[dict], None]] = []
         self._device_data_cache: dict[str, Any] = {}
         self._device_data_cache_time: dict[str, datetime] = {}
+        
+        # New attributes for persistent reconnection
+        self._ws_connected = False
+        self._last_ws_message: Optional[datetime] = None
+        self._ws_token_expiry: Optional[datetime] = None
+        self._reconnection_phase = 1  # 1=quick, 2=medium, 3=long
 
     async def _create_session(self, headers: Optional[Dict[str, str]] = None) -> aiohttp.ClientSession:
         """Create a new session with the saved cookies and headers.
@@ -402,7 +409,7 @@ class LeakomaticClient:
             return self._handle_error(f"Failed to fetch websocket token: {err}", return_value=None, level="error")
 
     async def connect_to_websocket(self, ws_token: str, message_callback: Callable[[dict], None]) -> None:
-        """Connect to the websocket server and listen for messages.
+        """Connect to the websocket server and listen for messages with persistent reconnection.
         
         Args:
             ws_token: The WebSocket token for authentication
@@ -419,112 +426,13 @@ class LeakomaticClient:
         if not self._user_id:
             return self._handle_error("Cannot connect to websocket - no user ID available", return_value=None, level="error")
 
-        # Construct the websocket URL
-        ws_url = f"{WEBSOCKET_URL}?token={ws_token}"
-
-        # Reconnection parameters
-        retry_count = 0
-        retry_delay = INITIAL_RETRY_DELAY
-
-        while self._ws_running and retry_count < MAX_RETRIES:
-            try:
-                _LOGGER.debug("Attempting WebSocket connection (attempt %d/%d)", retry_count + 1, MAX_RETRIES)
-                
-                # Use a timeout for the connection to prevent blocking
-                async with websockets.connect(
-                    ws_url,
-                    subprotocols=['actioncable-v1-json'],
-                    additional_headers=WEBSOCKET_HEADERS,
-                    ssl=ssl_context,
-                    ping_interval=20,  # Send ping every 20 seconds
-                    ping_timeout=10,   # Wait 10 seconds for pong response
-                    close_timeout=5    # Wait 5 seconds for close response
-                ) as websocket:
-                    _LOGGER.debug("Connected to websocket server")
-                    # Reset retry delay on successful connection
-                    retry_delay = INITIAL_RETRY_DELAY
-
-                    # Send subscription message
-                    msg_subscribe = {
-                        "command": "subscribe",
-                        "identifier": f"{{\"channel\":\"BroadcastChannel\",\"user_id\":{self._user_id}}}"
-                    }
-                    await websocket.send(json.dumps(msg_subscribe))
-                    _LOGGER.debug("Sent subscription message")
-
-                    # Listen for messages
-                    while self._ws_running:
-                        try:
-                            # Use a timeout for receiving messages to prevent blocking
-                            response = await asyncio.wait_for(websocket.recv(), timeout=30)
-                            parsed_response = json.loads(response)
-
-                            # Extract message type
-                            msg_type = self._extract_message_type(parsed_response)
-
-                            # Handle different message types
-                            if msg_type == MessageType.WELCOME.value:
-                                _LOGGER.debug("Received welcome message")
-                            elif msg_type == MessageType.PING.value:
-                                # Skip logging for ping messages
-                                pass
-                            elif msg_type == MessageType.CONFIRM_SUBSCRIPTION.value:
-                                _LOGGER.debug("Subscription confirmed")
-                            else:
-                                # For all other message types, call all callbacks
-                                if msg_type:
-                                    device_identifier = parsed_response.get('message', {}).get('device', 'unknown')
-                                    _LOGGER.debug("Device %s received message %s", device_identifier, msg_type)
-                                    # Call all registered callbacks
-                                    for callback in self._ws_callbacks:
-                                        try:
-                                            callback(parsed_response)
-                                        except Exception as e:
-                                            _LOGGER.error("Error in WebSocket callback: %s", str(e))
-                                else:
-                                    _LOGGER.warning("Unknown message type in response")
-
-                        except asyncio.TimeoutError:
-                            # This is expected and not an error - just continue the loop
-                            continue
-                        except websockets.ConnectionClosed:
-                            _LOGGER.warning("Websocket connection closed, attempting to reconnect")
-                            break  # Break out of the inner loop to attempt reconnection
-                        except Exception as err:
-                            _LOGGER.error("Error processing websocket message: %s", err)
-                            # Continue the loop to try to receive more messages
-                            continue
-
-            except Exception as err:
-                retry_count += 1
-                if retry_count < MAX_RETRIES:
-                    # Calculate next retry delay with exponential backoff and jitter
-                    retry_delay = min(
-                        retry_delay * RETRY_BACKOFF_FACTOR,
-                        MAX_RETRY_DELAY
-                    )
-                    # Add jitter (±20%)
-                    jitter = retry_delay * 0.2
-                    actual_delay = retry_delay + random.uniform(-jitter, jitter)
-                    
-                    _LOGGER.info(
-                        "WebSocket connection failed (attempt %d/%d). Retrying in %.1f seconds. Error: %s",
-                        retry_count,
-                        MAX_RETRIES,
-                        actual_delay,
-                        str(err)
-                    )
-                    await asyncio.sleep(actual_delay)
-                else:
-                    return self._handle_error(
-                        f"Maximum reconnection attempts reached ({MAX_RETRIES}). Giving up.",
-                        return_value=None,
-                        level="error"
-                    )
+        # Start the persistent connection loop
+        await self._persistent_websocket_connection(ws_token)
 
     async def stop_websocket(self) -> None:
         """Stop the websocket connection."""
         self._ws_running = False
+        self._ws_connected = False
         _LOGGER.debug("Websocket connection stopped")
 
     async def _ensure_authenticated(self) -> bool:
@@ -735,7 +643,204 @@ class LeakomaticClient:
     async def disconnect(self) -> None:
         """Disconnect from the WebSocket server."""
         self._ws_running = False
+        self._ws_connected = False
         self._ws_callbacks.clear()
-        if self._ws:
-            await self._ws.close()
-            self._ws = None 
+
+    async def _persistent_websocket_connection(self, initial_ws_token: str) -> None:
+        """Maintain a persistent WebSocket connection with multi-phase retry strategy."""
+        ws_token = initial_ws_token
+        quick_retry_count = 0
+        medium_retry_count = 0
+        retry_delay = INITIAL_RETRY_DELAY
+
+        while self._ws_running:
+            try:
+                _LOGGER.debug("Attempting WebSocket connection (Phase %d)", self._reconnection_phase)
+                
+                # Refresh token if needed (every 24 hours or after long disconnection)
+                if self._should_refresh_token():
+                    _LOGGER.debug("Refreshing WebSocket token")
+                    new_token = await self.async_get_websocket_token()
+                    if new_token:
+                        ws_token = new_token
+                        self._ws_token_expiry = datetime.now(tz=timezone.utc) + timedelta(hours=24)
+                    else:
+                        _LOGGER.warning("Failed to refresh WebSocket token, using existing token")
+
+                # Attempt connection
+                success = await self._attempt_websocket_connection(ws_token)
+                
+                if success:
+                    # Reset all retry counters on successful connection
+                    quick_retry_count = 0
+                    medium_retry_count = 0
+                    retry_delay = INITIAL_RETRY_DELAY
+                    self._reconnection_phase = 1
+                    self._ws_connected = True
+                    _LOGGER.info("WebSocket connection established successfully")
+                    
+                    # Start health check task
+                    health_check_task = asyncio.create_task(self._health_check_loop())
+                    
+                    # Wait for connection to close
+                    await self._wait_for_connection_close()
+                    
+                    # Cancel health check
+                    health_check_task.cancel()
+                    self._ws_connected = False
+                    _LOGGER.warning("WebSocket connection closed, starting reconnection")
+                    
+                else:
+                    # Handle reconnection based on current phase
+                    if self._reconnection_phase == 1:
+                        # Phase 1: Quick retries
+                        quick_retry_count += 1
+                        if quick_retry_count >= MAX_QUICK_RETRIES:
+                            _LOGGER.info("Phase 1 retries exhausted, moving to Phase 2")
+                            self._reconnection_phase = 2
+                            medium_retry_count = 0
+                        else:
+                            # Calculate next retry delay with exponential backoff and jitter
+                            retry_delay = min(retry_delay * RETRY_BACKOFF_FACTOR, MAX_RETRY_DELAY)
+                            jitter = retry_delay * 0.2
+                            actual_delay = retry_delay + random.uniform(-jitter, jitter)
+                            
+                            _LOGGER.info(
+                                "WebSocket connection failed (Phase 1, attempt %d/%d). Retrying in %.1f seconds.",
+                                quick_retry_count, MAX_QUICK_RETRIES, actual_delay
+                            )
+                            await asyncio.sleep(actual_delay)
+                            
+                    elif self._reconnection_phase == 2:
+                        # Phase 2: Medium-term retries
+                        medium_retry_count += 1
+                        if medium_retry_count >= MAX_MEDIUM_RETRIES:
+                            _LOGGER.info("Phase 2 retries exhausted, moving to Phase 3")
+                            self._reconnection_phase = 3
+                        else:
+                            _LOGGER.info(
+                                "WebSocket connection failed (Phase 2, attempt %d/%d). Retrying in %d hours.",
+                                medium_retry_count, MAX_MEDIUM_RETRIES, MEDIUM_RETRY_INTERVAL // 3600
+                            )
+                            await asyncio.sleep(MEDIUM_RETRY_INTERVAL)
+                            
+                    else:
+                        # Phase 3: Long-term retries (indefinite)
+                        _LOGGER.info(
+                            "WebSocket connection failed (Phase 3). Retrying in %d hours.",
+                            LONG_RETRY_INTERVAL // 3600
+                        )
+                        await asyncio.sleep(LONG_RETRY_INTERVAL)
+
+            except Exception as err:
+                _LOGGER.error("Unexpected error in WebSocket connection loop: %s", err)
+                await asyncio.sleep(60)  # Wait 1 minute before retrying
+
+    async def _attempt_websocket_connection(self, ws_token: str) -> bool:
+        """Attempt to establish a WebSocket connection.
+        
+        Returns:
+            bool: True if connection was successful and maintained, False otherwise
+        """
+        try:
+            # Construct the websocket URL
+            ws_url = f"{WEBSOCKET_URL}?token={ws_token}"
+            
+            # Use a timeout for the connection to prevent blocking
+            async with websockets.connect(
+                ws_url,
+                subprotocols=['actioncable-v1-json'],
+                additional_headers=WEBSOCKET_HEADERS,
+                ssl=ssl_context,
+                ping_interval=20,  # Send ping every 20 seconds
+                ping_timeout=10,   # Wait 10 seconds for pong response
+                close_timeout=5    # Wait 5 seconds for close response
+            ) as websocket:
+                _LOGGER.debug("Connected to websocket server")
+
+                # Send subscription message
+                msg_subscribe = {
+                    "command": "subscribe",
+                    "identifier": f"{{\"channel\":\"BroadcastChannel\",\"user_id\":{self._user_id}}}"
+                }
+                await websocket.send(json.dumps(msg_subscribe))
+                _LOGGER.debug("Sent subscription message")
+
+                # Listen for messages
+                while self._ws_running:
+                    try:
+                        # Use a timeout for receiving messages to prevent blocking
+                        response = await asyncio.wait_for(websocket.recv(), timeout=30)
+                        parsed_response = json.loads(response)
+                        
+                        # Update last message timestamp
+                        self._last_ws_message = datetime.now(tz=timezone.utc)
+
+                        # Extract message type
+                        msg_type = self._extract_message_type(parsed_response)
+
+                        # Handle different message types
+                        if msg_type == MessageType.WELCOME.value:
+                            _LOGGER.debug("Received welcome message")
+                        elif msg_type == MessageType.PING.value:
+                            # Skip logging for ping messages
+                            pass
+                        elif msg_type == MessageType.CONFIRM_SUBSCRIPTION.value:
+                            _LOGGER.debug("Subscription confirmed")
+                        else:
+                            # For all other message types, call all callbacks
+                            if msg_type:
+                                device_identifier = parsed_response.get('message', {}).get('device', 'unknown')
+                                _LOGGER.debug("Device %s received message %s", device_identifier, msg_type)
+                                # Call all registered callbacks
+                                for callback in self._ws_callbacks:
+                                    try:
+                                        callback(parsed_response)
+                                    except Exception as e:
+                                        _LOGGER.error("Error in WebSocket callback: %s", str(e))
+                            else:
+                                _LOGGER.warning("Unknown message type in response")
+
+                    except asyncio.TimeoutError:
+                        # This is expected and not an error - just continue the loop
+                        continue
+                    except websockets.ConnectionClosed:
+                        _LOGGER.warning("Websocket connection closed")
+                        return False
+                    except Exception as err:
+                        _LOGGER.error("Error processing websocket message: %s", err)
+                        # Continue the loop to try to receive more messages
+                        continue
+
+        except Exception as err:
+            _LOGGER.debug("WebSocket connection attempt failed: %s", err)
+            return False
+
+    async def _wait_for_connection_close(self) -> None:
+        """Wait for the WebSocket connection to close naturally."""
+        # This method can be used to wait for connection close events
+        # For now, we'll just wait indefinitely since the connection loop handles everything
+        while self._ws_connected and self._ws_running:
+            await asyncio.sleep(1)
+
+    async def _health_check_loop(self) -> None:
+        """Periodic health check to detect stuck connections."""
+        while self._ws_connected and self._ws_running:
+            await asyncio.sleep(HEALTH_CHECK_INTERVAL)
+            
+            # Check if we've received any messages recently
+            if self._last_ws_message:
+                time_since_last_message = datetime.now(tz=timezone.utc) - self._last_ws_message
+                if time_since_last_message > timedelta(minutes=10):
+                    _LOGGER.warning("No WebSocket messages received for %d minutes, connection may be stuck", 
+                                   time_since_last_message.seconds // 60)
+                    # Force reconnection by breaking out of the connection loop
+                    self._ws_connected = False
+
+    def _should_refresh_token(self) -> bool:
+        """Check if the WebSocket token should be refreshed."""
+        if not self._ws_token_expiry:
+            return True
+        
+        # Refresh if token expires within the next hour
+        return datetime.now(tz=timezone.utc) + timedelta(hours=1) >= self._ws_token_expiry 

@@ -126,11 +126,21 @@ WEBSOCKET_HEADERS = {
     "User-Agent": "Mozilla/5.0"
 }
 
-# Reconnection Parameters
-MAX_RETRIES = 10  # Increased from 5 to 10
+# Reconnection Parameters - Multi-Phase Strategy
+MAX_QUICK_RETRIES = 10  # Phase 1: Quick retries
 INITIAL_RETRY_DELAY = 5  # Start with 5 seconds
 MAX_RETRY_DELAY = 3600  # Maximum delay of 1 hour
 RETRY_BACKOFF_FACTOR = 2  # Exponential backoff factor
+
+# Phase 2: Medium-term retries (every 6 hours for 24 hours)
+MEDIUM_RETRY_INTERVAL = 21600  # 6 hours in seconds
+MAX_MEDIUM_RETRIES = 4  # 4 attempts = 24 hours
+
+# Phase 3: Long-term retries (every 12 hours indefinitely)
+LONG_RETRY_INTERVAL = 43200  # 12 hours in seconds
+
+# Health check interval
+HEALTH_CHECK_INTERVAL = 300  # 5 minutes
 
 # Error Codes
 ERROR_AUTH_TOKEN_MISSING = "auth_token_missing"
