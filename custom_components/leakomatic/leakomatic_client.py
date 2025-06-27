@@ -45,15 +45,17 @@ class LeakomaticClient:
     authentication, data retrieval, and WebSocket connections for real-time updates.
     """
 
-    def __init__(self, email: str, password: str) -> None:
+    def __init__(self, email: str, password: str, hass=None) -> None:
         """Initialize the client.
         
         Args:
             email: The email address for authentication
             password: The password for authentication
+            hass: Optional Home Assistant instance for scheduling callbacks
         """
         self._email = email
         self._password = password
+        self._hass = hass
         self._auth_token: Optional[str] = None
         self._device_ids: list[str] = []
         self._user_id: Optional[str] = None
@@ -67,10 +69,11 @@ class LeakomaticClient:
         self._device_data_cache_time: dict[str, datetime] = {}
         
         # New attributes for persistent reconnection
-        self._ws_connected = False
+        self._ws_connected = True
         self._last_ws_message: Optional[datetime] = None
         self._ws_token_expiry: Optional[datetime] = None
         self._reconnection_phase = 1  # 1=quick, 2=medium, 3=long
+        self._connectivity_callbacks: list[Callable[[bool, int], None]] = []
 
     async def _create_session(self, headers: Optional[Dict[str, str]] = None) -> aiohttp.ClientSession:
         """Create a new session with the saved cookies and headers.
@@ -154,6 +157,50 @@ class LeakomaticClient:
     def device_id(self) -> Optional[str]:
         """Get the first device ID for backward compatibility."""
         return self._device_ids[0] if self._device_ids else None
+
+    def register_connectivity_callback(self, callback: Callable[[bool, int], None]) -> None:
+        """Register a callback for WebSocket connectivity status changes.
+        
+        Args:
+            callback: Function to call when connectivity status changes.
+                     Takes two parameters: (connected: bool, phase: int)
+        """
+        _LOGGER.debug("Registering connectivity callback")
+        self._connectivity_callbacks.append(callback)
+        _LOGGER.debug("Total connectivity callbacks: %d", len(self._connectivity_callbacks))
+        # Immediately notify the new callback of the current state
+        try:
+            if self._hass:
+                self._hass.async_add_job(callback, self._ws_connected, self._reconnection_phase)
+                _LOGGER.debug("Immediately scheduled connectivity callback on main thread")
+            else:
+                callback(self._ws_connected, self._reconnection_phase)
+                _LOGGER.debug("Immediately called connectivity callback directly")
+        except Exception as e:
+            _LOGGER.error("Error in immediate connectivity callback: %s", str(e))
+
+    def _notify_connectivity_callbacks(self, connected: bool, phase: int) -> None:
+        """Notify all registered connectivity callbacks of status changes.
+        
+        Args:
+            connected: Whether the WebSocket is currently connected
+            phase: The current reconnection phase (1, 2, or 3)
+        """
+        _LOGGER.debug("Notifying %d connectivity callbacks: connected=%s, phase=%d", 
+                     len(self._connectivity_callbacks), connected, phase)
+        
+        for callback in self._connectivity_callbacks:
+            try:
+                if self._hass:
+                    # Schedule the callback on the main thread with 0 delay
+                    self._hass.async_add_job(callback, connected, phase)
+                    _LOGGER.debug("Scheduled connectivity callback on main thread")
+                else:
+                    # Direct call if no hass instance available
+                    callback(connected, phase)
+                    _LOGGER.debug("Called connectivity callback directly")
+            except Exception as e:
+                _LOGGER.error("Error in connectivity callback: %s", str(e))
 
     async def _async_get_startpage(self) -> Optional[str]:
         """Get the auth token from the start page."""
@@ -431,8 +478,14 @@ class LeakomaticClient:
 
     async def stop_websocket(self) -> None:
         """Stop the websocket connection."""
+        was_connected = self._ws_connected
         self._ws_running = False
         self._ws_connected = False
+        
+        # Notify connectivity callbacks if we were connected
+        if was_connected:
+            self._notify_connectivity_callbacks(False, self._reconnection_phase)
+            
         _LOGGER.debug("Websocket connection stopped")
 
     async def _ensure_authenticated(self) -> bool:
@@ -642,9 +695,14 @@ class LeakomaticClient:
 
     async def disconnect(self) -> None:
         """Disconnect from the WebSocket server."""
+        was_connected = self._ws_connected
         self._ws_running = False
         self._ws_connected = False
         self._ws_callbacks.clear()
+        
+        # Notify connectivity callbacks if we were connected
+        if was_connected:
+            self._notify_connectivity_callbacks(False, self._reconnection_phase)
 
     async def _persistent_websocket_connection(self, initial_ws_token: str) -> None:
         """Maintain a persistent WebSocket connection with multi-phase retry strategy."""
@@ -679,6 +737,9 @@ class LeakomaticClient:
                     self._ws_connected = True
                     _LOGGER.info("WebSocket connection established successfully")
                     
+                    # Notify connectivity callbacks
+                    self._notify_connectivity_callbacks(True, self._reconnection_phase)
+                    
                     # Start health check task
                     health_check_task = asyncio.create_task(self._health_check_loop())
                     
@@ -690,6 +751,9 @@ class LeakomaticClient:
                     self._ws_connected = False
                     _LOGGER.warning("WebSocket connection closed, starting reconnection")
                     
+                    # Notify connectivity callbacks
+                    self._notify_connectivity_callbacks(False, self._reconnection_phase)
+                    
                 else:
                     # Handle reconnection based on current phase
                     if self._reconnection_phase == 1:
@@ -699,6 +763,8 @@ class LeakomaticClient:
                             _LOGGER.info("Phase 1 retries exhausted, moving to Phase 2")
                             self._reconnection_phase = 2
                             medium_retry_count = 0
+                            # Notify connectivity callbacks of phase change
+                            self._notify_connectivity_callbacks(False, self._reconnection_phase)
                         else:
                             # Calculate next retry delay with exponential backoff and jitter
                             retry_delay = min(retry_delay * RETRY_BACKOFF_FACTOR, MAX_RETRY_DELAY)
@@ -717,6 +783,8 @@ class LeakomaticClient:
                         if medium_retry_count >= MAX_MEDIUM_RETRIES:
                             _LOGGER.info("Phase 2 retries exhausted, moving to Phase 3")
                             self._reconnection_phase = 3
+                            # Notify connectivity callbacks of phase change
+                            self._notify_connectivity_callbacks(False, self._reconnection_phase)
                         else:
                             _LOGGER.info(
                                 "WebSocket connection failed (Phase 2, attempt %d/%d). Retrying in %d hours.",

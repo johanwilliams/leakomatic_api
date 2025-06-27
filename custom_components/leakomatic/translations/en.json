@@ -107,6 +107,13 @@
                     "on": "Open",
                     "off": "Closed"
                 }
+            },
+            "websocket_connectivity": {
+                "name": "WebSocket Connectivity",
+                "state": {
+                    "on": "Connected",
+                    "off": "Disconnected"
+                }
             }
         },
         "select": {
