@@ -1,0 +1,4 @@
+[33m0ee4f8f[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m Update temperature sensor icon in Leakomatic integration to use 'mdi:thermometer-water'
+[33m3860038[m Remove redundant debug logging for mode change result in LeakomaticClient
+[33m593c48c[m Update README to reflect recent changes in Leakomatic integration
+[33m2491b7f[m Update README to reflect recent changes in Leakomatic integration
