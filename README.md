@@ -18,7 +18,13 @@ Water damage is a common issue in properties that can lead to significant costs 
 
 ## Features
 
-- Real-time updates via WebSocket connection with automatic reconnection handling
+- Real-time updates via WebSocket connection with persistent reconnection handling
+- Multi-phase retry strategy for robust connectivity:
+  - Phase 1: Quick retries (10 attempts with exponential backoff)
+  - Phase 2: Medium-term retries (every 6 hours for 24 hours)
+  - Phase 3: Long-term retries (every 12 hours indefinitely)
+- Automatic WebSocket token refresh every 24 hours
+- Health monitoring to detect and recover from stuck connections
 - Comprehensive device monitoring:
   - Device mode monitoring and control (Home/Away/Pause)
   - Quick test index monitoring
@@ -31,6 +37,7 @@ Water damage is a common issue in properties that can lead to significant costs 
   - Valve state monitoring
   - Alarm state monitoring (Flow/Quick/Tightness tests)
   - Device information display (model, software version, location)
+  - WebSocket connectivity status monitoring
 - Advanced message handling system for reliable updates
 - Full localization support for all sensor names and states
 - Button to reset warnings or alarms
@@ -103,6 +110,14 @@ The integration provides the following entities:
   - Updates in real-time through WebSocket events
   - Helps monitor valve operation and status
 
+- **WebSocket Connectivity**: Shows the status of the WebSocket connection to the Leakomatic API
+  - States: On (connected), Off (disconnected)
+  - Category: Diagnostic
+  - Updates in real-time when connection status changes
+  - Includes reconnection phase information in state attributes
+  - Useful for monitoring integration connectivity and troubleshooting connection issues
+  - Shows current retry phase during reconnection attempts
+
 ### Select Entities
 
 - **Mode**: Allows changing the operating mode of your Leakomatic device
@@ -148,6 +163,33 @@ The integration implements a robust message handling system that processes vario
 - Connection health monitoring
 
 Each message type is handled by specific handlers that update the relevant entities in real-time, ensuring accurate and timely state updates.
+
+## Persistent Reconnection Strategy
+
+The integration implements a robust multi-phase reconnection strategy to ensure reliable connectivity:
+
+### Phase 1: Quick Retries
+- 10 attempts with exponential backoff (5 seconds to 1 hour)
+- Includes jitter (±20%) to prevent thundering herd
+- Used for temporary network issues or brief service interruptions
+
+### Phase 2: Medium-term Retries
+- 4 attempts every 6 hours (24 hours total)
+- Used for longer network outages or service issues
+- Provides balance between responsiveness and resource usage
+
+### Phase 3: Long-term Retries
+- Indefinite retries every 12 hours
+- Ensures the integration never gives up permanently
+- Maintains connectivity even during extended outages
+
+### Additional Features
+- **Token Refresh**: Automatically refreshes WebSocket tokens every 24 hours
+- **Health Monitoring**: Detects stuck connections (no messages for 10+ minutes) and forces reconnection
+- **Graceful Degradation**: Integration continues working with polling even when WebSocket is down
+- **Resource Efficient**: Long retry intervals prevent excessive CPU/network usage
+
+This strategy eliminates the need for manual integration reloads while maintaining robust connectivity to the Leakomatic API.
 
 ## Supported Languages
 
@@ -195,23 +237,33 @@ If you encounter any issues with the integration:
 
 1. Enable debug logging as described above
 2. Check the logs for detailed information
-3. Common issues and solutions:
+3. Monitor the WebSocket Connectivity binary sensor for connection status
+4. Common issues and solutions:
    - Authentication failures: Verify your email and password
    - Connection issues: Check your network connection and firewall settings
-   - Missing updates: Check WebSocket connection status in the logs
+   - Missing updates: Check WebSocket connection status in the logs and the WebSocket Connectivity sensor
    - Sensor state issues: Verify device connectivity and data flow
    - Service call failures: Check entity IDs and mode parameters
    - Multiple device support: Ensure proper device selection when using services
+   - Persistent disconnections: The integration will automatically retry with a multi-phase strategy
+   - Stuck connections: Health monitoring will detect and recover from stuck connections automatically
 
 ## Development Status
 
-This integration is currently in active development. Current version: 0.1.2
+This integration is currently in active development. Current version: 0.1.3
+
+Recent improvements:
+- Implemented persistent WebSocket reconnection with multi-phase retry strategy
+- Added WebSocket connectivity binary sensor for real-time connection monitoring
+- Enhanced error handling and recovery mechanisms
+- Improved token management with automatic refresh
 
 Future enhancements planned:
 - Historical data analysis features
 - Additional alarm state details and configuration options
 - More detailed device diagnostics and health monitoring
 - Enhanced error reporting and user notifications
+- Advanced connectivity analytics and reporting
 
 ## Contributing
 

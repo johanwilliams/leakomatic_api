@@ -46,7 +46,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.debug("Setting up Leakomatic integration with config entry: %s", entry.entry_id)
     
     # Initialize the client
-    client = LeakomaticClient(entry.data["email"], entry.data["password"])
+    client = LeakomaticClient(entry.data["email"], entry.data["password"], hass)
     
     # Store the client in hass.data
     hass.data.setdefault(DOMAIN, {})

@@ -201,6 +201,7 @@ async def async_setup_entry(
             FlowIndicatorBinarySensor(device_info, device_id, dev_data),
             OnlineStatusBinarySensor(device_info, device_id, dev_data),
             ValveBinarySensor(device_info, device_id, dev_data),
+            WebSocketConnectivityBinarySensor(device_info, device_id, dev_data),
         ]
         all_binary_sensors.extend(device_binary_sensors)
     
@@ -216,6 +217,17 @@ async def async_setup_entry(
     if "ws_callbacks" not in domain_data:
         domain_data["ws_callbacks"] = []
     domain_data["ws_callbacks"].append(handle_ws_message)
+
+    # Register connectivity callbacks for WebSocket connectivity sensors
+    websocket_sensors = [sensor for sensor in all_binary_sensors if isinstance(sensor, WebSocketConnectivityBinarySensor)]
+    if websocket_sensors:
+        @callback
+        def handle_connectivity_update(connected: bool, phase: int) -> None:
+            """Handle WebSocket connectivity status updates."""
+            for sensor in websocket_sensors:
+                sensor.update_connectivity_status(connected, phase)
+        
+        client.register_connectivity_callback(handle_connectivity_update)
 
 
 class FlowIndicatorBinarySensor(LeakomaticBinarySensor):
@@ -439,4 +451,74 @@ class ValveBinarySensor(LeakomaticBinarySensor):
         """Handle updated data from WebSocket."""
         self._device_data = data
         self.async_write_ha_state()
-        log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.is_on) 
+        log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.is_on)
+
+class WebSocketConnectivityBinarySensor(LeakomaticBinarySensor):
+    """Representation of a Leakomatic WebSocket Connectivity binary sensor.
+    
+    This sensor indicates whether the WebSocket connection to the Leakomatic API
+    is currently active (True) or disconnected (False).
+    
+    The sensor is updated through direct calls from the client when the WebSocket
+    connection status changes.
+    
+    This is a diagnostic sensor that helps users understand the connection status
+    without having to check logs.
+    """
+
+    def __init__(
+        self,
+        device_info: dict[str, Any],
+        device_id: str,
+        device_data: dict[str, Any] | None,
+    ) -> None:
+        """Initialize the WebSocket connectivity binary sensor."""
+        super().__init__(
+            device_info=device_info,
+            device_id=device_id,
+            device_data=device_data,
+            key="websocket_connectivity",
+            icon="mdi:webhook",
+            device_class=BinarySensorDeviceClass.CONNECTIVITY,
+        )
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
+        self._attr_name = "WebSocket Connectivity"
+        self._websocket_connected = False
+        self._reconnection_phase = 1
+        self._last_connection_change: datetime | None = None
+
+    @property
+    def is_on(self) -> bool:
+        """Return true if WebSocket is connected."""
+        return self._websocket_connected
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the state attributes."""
+        # Get base attributes from parent class
+        attrs = super().extra_state_attributes or {}
+        
+        # Add our custom attributes
+        attrs["reconnection_phase"] = self._reconnection_phase
+        if self._last_connection_change:
+            attrs["last_connection_change"] = self._last_connection_change.isoformat()
+        
+        return attrs
+
+    @callback
+    def update_connectivity_status(self, connected: bool, phase: int = 1) -> None:
+        """Update the WebSocket connectivity status.
+        
+        Args:
+            connected: Whether the WebSocket is currently connected
+            phase: The current reconnection phase (1, 2, or 3)
+        """
+        if self._websocket_connected != connected or self._reconnection_phase != phase:
+            self._websocket_connected = connected
+            self._reconnection_phase = phase
+            self._last_connection_change = datetime.now(timezone.utc).replace(microsecond=0)
+            self.async_write_ha_state()
+            
+            status_text = "connected" if connected else "disconnected"
+            log_with_entity(_LOGGER, logging.INFO, self, 
+                           "WebSocket %s (Phase %d)", status_text, phase) 

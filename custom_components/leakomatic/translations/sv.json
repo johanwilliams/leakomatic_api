@@ -107,6 +107,13 @@
                     "on": "Öppen",
                     "off": "Stängd"
                 }
+            },
+            "websocket_connectivity": {
+                "name": "WebSocket-anslutning",
+                "state": {
+                    "on": "Ansluten",
+                    "off": "Frånkopplad"
+                }
             }
         },
         "select": {
