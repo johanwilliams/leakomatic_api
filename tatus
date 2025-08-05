@@ -1,0 +1,11 @@
+* [33m4a20ac9[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m, [m[1;33mtag: v0.1.3[m[33m)[m Release v0.1.3: Update temperature sensor icon and remove redundant debug logging
+[31m|[m * [33m309c30f[m[33m ([m[1;31morigin/main[m[33m)[m Enhance Leakomatic integration with WebSocket connectivity monitoring and persistent reconnection strategy
+[31m|[m * [33mffab753[m Implement multi-phase reconnection strategy for WebSocket in Leakomatic integration
+[31m|[m[31m/[m  
+* [33m0ee4f8f[m Update temperature sensor icon in Leakomatic integration to use 'mdi:thermometer-water'
+* [33m3860038[m Remove redundant debug logging for mode change result in LeakomaticClient
+* [33m593c48c[m Update README to reflect recent changes in Leakomatic integration
+* [33m2491b7f[m Update README to reflect recent changes in Leakomatic integration
+* [33m096bef3[m[33m ([m[1;33mtag: v0.1.2[m[33m)[m Update CHANGELOG for version 0.1.2 to reflect recent enhancements and fixes
+* [33m55cafdc[m Update CHANGELOG for version 0.1.2 with new features and improvements
+* [33md3147ea[m Remove change_mode service and related documentation from Leakomatic integration
