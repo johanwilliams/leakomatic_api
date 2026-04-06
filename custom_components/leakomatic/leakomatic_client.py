@@ -171,7 +171,7 @@ class LeakomaticClient:
         # Immediately notify the new callback of the current state
         try:
             if self._hass:
-                self._hass.async_add_job(callback, self._ws_connected, self._reconnection_phase)
+                self._hass.add_job(callback, self._ws_connected, self._reconnection_phase)
                 _LOGGER.debug("Immediately scheduled connectivity callback on main thread")
             else:
                 callback(self._ws_connected, self._reconnection_phase)
@@ -192,8 +192,8 @@ class LeakomaticClient:
         for callback in self._connectivity_callbacks:
             try:
                 if self._hass:
-                    # Schedule the callback on the main thread with 0 delay
-                    self._hass.async_add_job(callback, connected, phase)
+                    # Schedule the callback on the event loop (sync add_job API; async_add_job is deprecated)
+                    self._hass.add_job(callback, connected, phase)
                     _LOGGER.debug("Scheduled connectivity callback on main thread")
                 else:
                     # Direct call if no hass instance available
