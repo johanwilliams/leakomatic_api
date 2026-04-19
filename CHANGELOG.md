@@ -5,6 +5,11 @@ All notable changes to the Leakomatic Integration for Home Assistant will be doc
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] - 2026-04-19
+
+### Fixed
+- Restored `services.yaml` with a valid definition for the `change_mode` service so Home Assistant Core 2026.4+ no longer logs `NoneType: None` when loading an empty or missing integration service schema.
+
 ## [0.1.3] - 2025-01-16
 
 ### Changed

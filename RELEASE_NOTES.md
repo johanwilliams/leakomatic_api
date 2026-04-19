@@ -1,36 +1,19 @@
-# Release Notes - Version 0.1.3
+# Release Notes - Version 0.1.5
 
-## 🔄 Changes
+## Fixed
 
-### UI Improvements
-- Updated temperature sensor icon to use 'mdi:thermometer-water' for better visual representation
-  - This provides a more intuitive icon that clearly indicates water temperature monitoring
-  - The new icon better represents the sensor's purpose in a water monitoring system
+- **Home Assistant Core 2026.4+ services loader**  
+  Newer Home Assistant versions strictly validate `services.yaml`. An empty file (or YAML that parses to `null`) caused a `NoneType: None` error in the core log on startup. This release adds a proper `services.yaml` that documents the `leakomatic.change_mode` service (aligned with the select-based mode control and the service still registered by the integration).
 
-### Code Quality
-- Removed redundant debug logging for mode change results in LeakomaticClient
-  - This reduces log noise while maintaining essential debugging information
-  - Improves overall performance and log readability
+## Installation
 
-### Documentation
-- Updated README documentation to reflect recent changes and improvements
-  - Ensures documentation stays current with the latest features and functionality
+1. Update the integration through HACS or copy the updated `custom_components/leakomatic` files manually.
+2. Restart Home Assistant.
 
-## 🚀 Installation
+## Migration notes
 
-To install this version:
-1. Update the integration through HACS or manually update the files
-2. Restart Home Assistant
-3. The updated temperature sensor icon will be automatically applied
+No breaking changes. After upgrade, the core log should no longer show the services.yaml load error for this integration.
 
-## 📝 Migration Notes
+## Previous highlights
 
-This is a minor update with no breaking changes. No migration steps are required.
-
-## 🔧 Previous Version Features
-
-This version builds upon the features introduced in version 0.1.2:
-- Temperature and pressure sensor support
-- Enhanced online status tracking
-- Improved message handling system
-- Comprehensive device monitoring capabilities 
+See the [changelog](CHANGELOG.md) for earlier versions. Version 0.1.4 addressed Home Assistant scheduling API compatibility; 0.1.3 included UI and logging refinements.

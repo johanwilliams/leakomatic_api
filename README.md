@@ -250,7 +250,7 @@ If you encounter any issues with the integration:
 
 ## Development Status
 
-This integration is currently in active development. Current version: 0.1.3
+This integration is currently in active development. Current version: 0.1.5
 
 Recent improvements:
 - Implemented persistent WebSocket reconnection with multi-phase retry strategy
