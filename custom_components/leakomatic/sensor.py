@@ -519,7 +519,7 @@ class AlarmTestSensor(LeakomaticEntity, SensorEntity):
             
             # Verify this is the correct alarm type
             if data.get("alarm_type") == self._alarm_type:
-                alarm_level = data.get("alarm_level")
+                alarm_level = str(data.get("alarm_level", ""))
                 
                 if alarm_level == AlarmLevel.WARNING.value:
                     self._state = TestState.WARNING.value
