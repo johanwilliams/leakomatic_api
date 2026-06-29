@@ -26,7 +26,7 @@ from .const import (
     LOGGER_NAME, START_URL, LOGIN_URL, STATUS_URL, WEBSOCKET_URL,
     MessageType, DEFAULT_HEADERS, WEBSOCKET_HEADERS, MAX_QUICK_RETRIES, INITIAL_RETRY_DELAY,
     MAX_RETRY_DELAY, RETRY_BACKOFF_FACTOR, MEDIUM_RETRY_INTERVAL, MAX_MEDIUM_RETRIES,
-    LONG_RETRY_INTERVAL, HEALTH_CHECK_INTERVAL,
+    LONG_RETRY_INTERVAL, STALE_CONNECTION_TIMEOUT,
     ERROR_AUTH_TOKEN_MISSING, ERROR_INVALID_CREDENTIALS, ERROR_XSRF_TOKEN_MISSING, ERROR_NO_DEVICES_FOUND,
     XSRF_TOKEN_HEADER, DeviceMode, XSRF_TOKEN_PATTERN
 )
@@ -725,35 +725,27 @@ class LeakomaticClient:
                     else:
                         _LOGGER.warning("Failed to refresh WebSocket token, using existing token")
 
-                # Attempt connection
-                success = await self._attempt_websocket_connection(ws_token)
-                
-                if success:
-                    # Reset all retry counters on successful connection
+                # Attempt connection. _attempt_websocket_connection blocks while
+                # the socket is alive and returns True if a live connection
+                # existed and then dropped/stalled, False if it could never be
+                # established. Connection-established bookkeeping (phase reset,
+                # connectivity callback) happens inside that method once the
+                # subscribe succeeds.
+                had_connection = await self._attempt_websocket_connection(ws_token)
+
+                if had_connection:
+                    # A real connection was lost (not a connection failure):
+                    # reset all backoff state and reconnect promptly.
                     quick_retry_count = 0
                     medium_retry_count = 0
                     retry_delay = INITIAL_RETRY_DELAY
                     self._reconnection_phase = 1
-                    self._ws_connected = True
-                    _LOGGER.info("WebSocket connection established successfully")
-                    
-                    # Notify connectivity callbacks
-                    self._notify_connectivity_callbacks(True, self._reconnection_phase)
-                    
-                    # Start health check task
-                    health_check_task = asyncio.create_task(self._health_check_loop())
-                    
-                    # Wait for connection to close
-                    await self._wait_for_connection_close()
-                    
-                    # Cancel health check
-                    health_check_task.cancel()
                     self._ws_connected = False
                     _LOGGER.warning("WebSocket connection closed, starting reconnection")
-                    
-                    # Notify connectivity callbacks
                     self._notify_connectivity_callbacks(False, self._reconnection_phase)
-                    
+                    # Small pause to avoid a tight flap loop on rapid drops.
+                    await asyncio.sleep(INITIAL_RETRY_DELAY)
+
                 else:
                     # Handle reconnection based on current phase
                     if self._reconnection_phase == 1:
@@ -805,15 +797,18 @@ class LeakomaticClient:
                 await asyncio.sleep(60)  # Wait 1 minute before retrying
 
     async def _attempt_websocket_connection(self, ws_token: str) -> bool:
-        """Attempt to establish a WebSocket connection.
-        
+        """Establish and hold a WebSocket connection until it drops.
+
         Returns:
-            bool: True if connection was successful and maintained, False otherwise
+            bool: True if a connection was established and later dropped or went
+                  stale (caller should reset its backoff), False if a connection
+                  could never be established (caller should apply phased backoff).
         """
+        connected = False
         try:
             # Construct the websocket URL
             ws_url = f"{WEBSOCKET_URL}?token={ws_token}"
-            
+
             # Use a timeout for the connection to prevent blocking
             async with websockets.connect(
                 ws_url,
@@ -833,6 +828,16 @@ class LeakomaticClient:
                 }
                 await websocket.send(json.dumps(msg_subscribe))
                 _LOGGER.debug("Sent subscription message")
+
+                # The connection is established here. Record it and reset the
+                # backoff state so a later drop is treated as a successful
+                # reconnection rather than a connection failure.
+                connected = True
+                self._ws_connected = True
+                self._last_ws_message = datetime.now(tz=timezone.utc)
+                self._reconnection_phase = 1
+                self._notify_connectivity_callbacks(True, self._reconnection_phase)
+                _LOGGER.info("WebSocket connection established successfully")
 
                 # Listen for messages
                 while self._ws_running:
@@ -870,40 +875,32 @@ class LeakomaticClient:
                                 _LOGGER.warning("Unknown message type in response")
 
                     except asyncio.TimeoutError:
-                        # This is expected and not an error - just continue the loop
+                        # No message (not even an ActionCable ping) within the
+                        # window. If the socket has been silent for too long it
+                        # is stale/stuck - break out to force a reconnect.
+                        if self._last_ws_message and (
+                            datetime.now(tz=timezone.utc) - self._last_ws_message
+                            > timedelta(seconds=STALE_CONNECTION_TIMEOUT)
+                        ):
+                            _LOGGER.warning(
+                                "No WebSocket messages for %ds, connection stale - reconnecting",
+                                STALE_CONNECTION_TIMEOUT,
+                            )
+                            return connected
+                        # Otherwise this is just a quiet period - keep waiting.
                         continue
                     except websockets.ConnectionClosed:
                         _LOGGER.warning("Websocket connection closed")
-                        return False
+                        return connected
                     except Exception as err:
                         _LOGGER.error("Error processing websocket message: %s", err)
                         # Continue the loop to try to receive more messages
                         continue
 
+            return connected
         except Exception as err:
             _LOGGER.debug("WebSocket connection attempt failed: %s", err)
-            return False
-
-    async def _wait_for_connection_close(self) -> None:
-        """Wait for the WebSocket connection to close naturally."""
-        # This method can be used to wait for connection close events
-        # For now, we'll just wait indefinitely since the connection loop handles everything
-        while self._ws_connected and self._ws_running:
-            await asyncio.sleep(1)
-
-    async def _health_check_loop(self) -> None:
-        """Periodic health check to detect stuck connections."""
-        while self._ws_connected and self._ws_running:
-            await asyncio.sleep(HEALTH_CHECK_INTERVAL)
-            
-            # Check if we've received any messages recently
-            if self._last_ws_message:
-                time_since_last_message = datetime.now(tz=timezone.utc) - self._last_ws_message
-                if time_since_last_message > timedelta(minutes=10):
-                    _LOGGER.warning("No WebSocket messages received for %d minutes, connection may be stuck", 
-                                   time_since_last_message.seconds // 60)
-                    # Force reconnection by breaking out of the connection loop
-                    self._ws_connected = False
+            return connected
 
     def _should_refresh_token(self) -> bool:
         """Check if the WebSocket token should be refreshed."""
