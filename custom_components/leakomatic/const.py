@@ -142,6 +142,10 @@ LONG_RETRY_INTERVAL = 43200  # 12 hours in seconds
 # Health check interval
 HEALTH_CHECK_INTERVAL = 300  # 5 minutes
 
+# Stale connection detection: ActionCable pings ~every 3s, so this much total
+# silence on an otherwise-open socket means the connection is dead.
+STALE_CONNECTION_TIMEOUT = 120  # seconds of total silence -> reconnect
+
 # Error Codes
 ERROR_AUTH_TOKEN_MISSING = "auth_token_missing"
 ERROR_INVALID_CREDENTIALS = "invalid_credentials"
