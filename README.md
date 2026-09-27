@@ -247,10 +247,13 @@ If you encounter any issues with the integration:
    - Multiple device support: Ensure proper device selection when using services
    - Persistent disconnections: The integration will automatically retry with a multi-phase strategy
    - Stuck connections: Health monitoring will detect and recover from stuck connections automatically
+5. Reading the log:
+   - The Leakomatic server closes the websocket on a schedule (typically once per night). The integration reconnects within seconds; this is logged at debug/info level and needs no action.
+   - A warning such as `WebSocket reconnection failed 10 times, retrying every 6 hours (phase 2)` means the integration could not reconnect and has switched to longer retry intervals. Check your network connection and the Leakomatic service.
 
 ## Development Status
 
-This integration is currently in active development. Current version: 0.1.5
+This integration is currently in active development. See the [changelog](CHANGELOG.md) for the current version and what has changed.
 
 Recent improvements:
 - Implemented persistent WebSocket reconnection with multi-phase retry strategy

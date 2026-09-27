@@ -1,9 +1,16 @@
-# Release Notes - Version 0.1.5
+# Release Notes - Version 0.1.6
+
+Bug-fix release.
 
 ## Fixed
 
-- **Home Assistant Core 2026.4+ services loader**  
-  Newer Home Assistant versions strictly validate `services.yaml`. An empty file (or YAML that parses to `null`) caused a `NoneType: None` error in the core log on startup. This release adds a proper `services.yaml` that documents the `leakomatic.change_mode` service (aligned with the select-based mode control and the service still registered by the integration).
+- **CLEAR alarm level logged as unknown**  
+  A valid CLEAR alarm level (`0`) arriving over the websocket was compared with the wrong type and logged as `Unknown alarm level received: 0` instead of clearing the alarm sensor. It is now handled correctly.
+
+- **Websocket reconnection and stale connections**  
+  Successful reconnections are now recognised, so a normal reconnect (for example after the server's scheduled disconnect) no longer pushes the retry strategy towards hour-long or indefinite waits. A connection that stays silent for 120 seconds is treated as dead and reconnected.
+
+Thanks to @skallan for both fixes.
 
 ## Installation
 
@@ -12,8 +19,8 @@
 
 ## Migration notes
 
-No breaking changes. After upgrade, the core log should no longer show the services.yaml load error for this integration.
+No breaking changes.
 
-## Previous highlights
+## Upcoming
 
-See the [changelog](CHANGELOG.md) for earlier versions. Version 0.1.4 addressed Home Assistant scheduling API compatibility; 0.1.3 included UI and logging refinements.
+Changes merged after 0.1.6 are listed under *Unreleased* in the [changelog](CHANGELOG.md).
