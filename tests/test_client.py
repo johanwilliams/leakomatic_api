@@ -1,6 +1,7 @@
 """Tests for LeakomaticClient that do not need Home Assistant running."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from http.cookies import SimpleCookie
@@ -60,6 +61,34 @@ async def test_login_without_user_link(caplog: pytest.LogCaptureFixture) -> None
     assert client.device_ids == ["1001"]
     assert client._user_id is None
     assert "Could not find the user ID after login" in caplog.text
+
+
+async def test_stop_websocket_forgets_callbacks() -> None:
+    """HA-262: after stop, no message or connectivity callback is delivered anywhere."""
+    client = LeakomaticClient("user@example.com", "secret")
+    client._ws_callbacks.append(lambda message: None)
+    client.register_connectivity_callback(lambda connected, phase: None)
+
+    await client.stop_websocket()
+
+    assert client._ws_callbacks == []
+    assert client._connectivity_callbacks == []
+    assert client._ws_running is False
+
+
+async def test_cancel_interrupts_long_retry_sleep() -> None:
+    """HA-262: cancelling the loop while it waits 12 hours (phase 3) stops it at once."""
+    client = _client_for_reconnect_tests()
+    client._reconnection_phase = 3
+
+    with patch.object(client, "_attempt_websocket_connection", AsyncMock(return_value=False)):
+        task = asyncio.create_task(client._persistent_websocket_connection("ws-token"))
+        await asyncio.sleep(0.05)  # let it reach the 12-hour sleep
+        assert not task.done()
+
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(task, timeout=1)
 
 
 def _client_for_reconnect_tests() -> LeakomaticClient:

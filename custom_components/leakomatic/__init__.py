@@ -177,10 +177,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: LeakomaticConfigEntry) -
 
     # Start websocket connection after platforms are set up
     if ws_token:
-        # Create a background task for the websocket connection
-        hass.async_create_background_task(
+        # Tie the websocket task to the config entry: Home Assistant cancels it
+        # when the entry is unloaded, also while it sleeps between retries.
+        entry.async_create_background_task(
+            hass,
             client.connect_to_websocket(ws_token, dispatch_ws_message),
-            "Leakomatic WebSocket Connection"
+            "Leakomatic WebSocket Connection",
         )
         _LOGGER.debug("Started websocket connection task")
     

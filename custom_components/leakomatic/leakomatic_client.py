@@ -482,15 +482,23 @@ class LeakomaticClient:
         await self._persistent_websocket_connection(ws_token)
 
     async def stop_websocket(self) -> None:
-        """Stop the websocket connection."""
+        """Stop the websocket connection and forget all callbacks.
+
+        The connection loop checks the running flag between messages; the
+        integration also cancels the task itself when the entry unloads.
+        Clearing the callbacks makes sure nothing is delivered to entities
+        that are being removed.
+        """
         was_connected = self._ws_connected
         self._ws_running = False
         self._ws_connected = False
-        
+
         # Notify connectivity callbacks if we were connected
         if was_connected:
             self._notify_connectivity_callbacks(False, self._reconnection_phase)
-            
+
+        self._ws_callbacks.clear()
+        self._connectivity_callbacks.clear()
         _LOGGER.debug("Websocket connection stopped")
 
     async def _ensure_authenticated(self) -> bool:
@@ -697,17 +705,6 @@ class LeakomaticClient:
             operation="reset alarms",
             device_id=device_id
         )
-
-    async def disconnect(self) -> None:
-        """Disconnect from the WebSocket server."""
-        was_connected = self._ws_connected
-        self._ws_running = False
-        self._ws_connected = False
-        self._ws_callbacks.clear()
-        
-        # Notify connectivity callbacks if we were connected
-        if was_connected:
-            self._notify_connectivity_callbacks(False, self._reconnection_phase)
 
     async def _persistent_websocket_connection(self, initial_ws_token: str) -> None:
         """Maintain a persistent WebSocket connection with multi-phase retry strategy."""
