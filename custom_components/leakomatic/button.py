@@ -10,13 +10,12 @@ import logging
 from typing import Any
 
 from homeassistant.components.button import ButtonEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import EntityCategory
 
-from .const import DOMAIN
 from .common import LeakomaticEntity, log_with_entity
+from .models import LeakomaticConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -47,7 +46,7 @@ class LeakomaticButton(LeakomaticEntity, ButtonEntity):
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: LeakomaticConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Leakomatic button.
@@ -63,27 +62,12 @@ async def async_setup_entry(
     """
     _LOGGER.debug("Setting up Leakomatic buttons for config entry: %s", config_entry.entry_id)
     
-    # Get the device IDs and device entries from hass.data
-    domain_data = hass.data.get(DOMAIN, {}).get(config_entry.entry_id, {})
-    device_ids = domain_data.get("device_ids", [])
-    device_entries = domain_data.get("device_entries", {})
-    device_infos = domain_data.get("device_infos", {})
-    client = domain_data.get("client")
-    
-    if not device_ids or not device_entries or not device_infos or not client:
-        _LOGGER.error("Missing device IDs, device entries, device infos, or client")
-        return
-    
+    data = config_entry.runtime_data
+    client = data.client
+
     # Create buttons for each device
     all_buttons = []
-    for device_id in device_ids:
-        # Get device info and entry for this device
-        device_info = device_infos.get(device_id)
-        device_entry = device_entries.get(device_id)
-        if not device_info or not device_entry:
-            _LOGGER.warning("Missing device info or entry for device %s", device_id)
-            continue
-        
+    for device_id, device_info in data.device_infos.items():
         # Create buttons for this device
         device_buttons = [
             ResetAlarmsButton(device_info, device_id, client),

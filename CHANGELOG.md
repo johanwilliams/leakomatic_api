@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Login: if the user ID cannot be found on the page after login, the integration no longer fails with a misleading "invalid credentials" error. It logs a clear warning that real-time updates will not be available.
 
 ### Changed
+- Minimum Home Assistant version is now documented as 2024.8.0 (in the README and `hacs.json`). The integration already required it (device registry `model_id`); the previously stated 2023.x versions were wrong.
+- Internal: runtime data is stored in the config entry (`entry.runtime_data`) instead of `hass.data`, and each platform's websocket listener is removed when the integration is unloaded or reloaded.
 - Logging: the server's scheduled websocket disconnect (typically nightly) and the reconnection that follows are logged at debug/info level instead of warning. A warning is now logged when the quick reconnection attempts fail and the longer retry intervals start (phase 2 and phase 3), which is when something is actually wrong. A failed token refresh during reconnection no longer logs both an error and a warning.
 
 ### Added
