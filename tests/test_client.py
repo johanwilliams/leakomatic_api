@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from http.cookies import SimpleCookie
 from unittest.mock import AsyncMock, patch
 
+import aiohttp
 import pytest
 
 from custom_components.leakomatic.const import MAX_QUICK_RETRIES
@@ -93,7 +94,9 @@ async def test_cancel_interrupts_long_retry_sleep() -> None:
 
 def _client_for_reconnect_tests() -> LeakomaticClient:
     client = LeakomaticClient("user@example.com", "secret")
-    # A token that does not need refreshing, so the loop never goes to the network
+    # Logged in, with a token that does not need refreshing, so the loop
+    # never goes to the network
+    client._user_id = "1"
     client._ws_token_expiry = datetime.now(tz=timezone.utc) + timedelta(days=1)
     return client
 
@@ -141,3 +144,130 @@ async def test_giving_up_on_quick_retries_is_a_warning(caplog: pytest.LogCapture
     warnings = _warnings(caplog)
     assert len(warnings) == 1
     assert "phase 2" in warnings[0].getMessage()
+
+
+# --- HA-199: login errors are classified so setup can retry or ask for a new password
+
+START_PAGE = '<html><head><meta name="csrf-token" content="csrf"></head></html>'
+LOGIN_OK = '<html><body><a href="/users/1">me</a><table><tr id="device_1001"></tr></table></body></html>'
+LOGIN_REJECTED = '<html><body><div class="alert-danger">Invalid Email or password.</div></body></html>'
+
+
+class FakeHttpSession:
+    """Stand-in for aiohttp.ClientSession: get() is the start page, post() the login."""
+
+    def __init__(self, start: FakeResponse | Exception, login: FakeResponse | Exception) -> None:
+        self._start = start
+        self._login = login
+
+    def _respond(self, response: FakeResponse | Exception) -> FakeResponse:
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    def get(self, *args, **kwargs) -> FakeResponse:
+        return self._respond(self._start)
+
+    def post(self, *args, **kwargs) -> FakeResponse:
+        return self._respond(self._login)
+
+    async def close(self) -> None:
+        return None
+
+
+async def _authenticate(start: FakeResponse | Exception, login: FakeResponse | Exception) -> LeakomaticClient:
+    client = LeakomaticClient("user@example.com", "secret")
+    session = FakeHttpSession(start, login)
+    with patch("custom_components.leakomatic.leakomatic_client.aiohttp.ClientSession", return_value=session):
+        client.auth_result = await client.async_authenticate()
+    return client
+
+
+async def test_authenticate_ok() -> None:
+    client = await _authenticate(FakeResponse(START_PAGE), FakeResponse(LOGIN_OK))
+    assert client.auth_result is True
+    assert client.error_code is None
+    assert client._user_id == "1"
+
+
+@pytest.mark.parametrize(
+    ("start", "login", "expected"),
+    [
+        (FakeResponse(START_PAGE), FakeResponse(LOGIN_REJECTED), "invalid_credentials"),
+        (FakeResponse(START_PAGE), FakeResponse("", status=401), "invalid_credentials"),
+        (FakeResponse(START_PAGE), FakeResponse("", status=422), "invalid_credentials"),
+        (FakeResponse(START_PAGE), FakeResponse("", status=500), "cannot_connect"),
+        (FakeResponse(START_PAGE), FakeResponse("", status=503), "cannot_connect"),
+        (FakeResponse("", status=502), FakeResponse(LOGIN_OK), "cannot_connect"),
+        (aiohttp.ClientConnectionError("DNS failure"), FakeResponse(LOGIN_OK), "cannot_connect"),
+        (FakeResponse(START_PAGE), asyncio.TimeoutError(), "cannot_connect"),
+        (FakeResponse("<html>maintenance</html>"), FakeResponse(LOGIN_OK), "auth_token_missing"),
+    ],
+)
+async def test_authenticate_error_codes(start, login, expected: str) -> None:
+    """Only a rejected login means invalid credentials; network and server errors do not."""
+    client = await _authenticate(start, login)
+    assert client.auth_result is False
+    assert client.error_code == expected
+
+
+# --- HA-269: the websocket loop logs in and gets its token itself
+
+
+async def _run_until_first_attempt(client: LeakomaticClient, **patches) -> list[str]:
+    """Run the loop until the first real connection attempt; return the tokens it used."""
+    tokens: list[str] = []
+
+    async def attempt(ws_token: str) -> bool:
+        tokens.append(ws_token)
+        client._ws_running = False
+        return True
+
+    with (
+        patch.object(client, "_attempt_websocket_connection", side_effect=attempt),
+        patch("custom_components.leakomatic.leakomatic_client.asyncio.sleep", AsyncMock()),
+        patch.multiple(client, **patches),
+    ):
+        await client._persistent_websocket_connection()
+    return tokens
+
+
+async def test_loop_fetches_its_own_token() -> None:
+    client = LeakomaticClient("user@example.com", "secret")
+    client._user_id = "1"
+    get_token = AsyncMock(return_value="fresh-token")
+
+    tokens = await _run_until_first_attempt(client, async_get_websocket_token=get_token)
+
+    assert tokens == ["fresh-token"]
+    assert client._ws_token_expiry is not None
+
+
+async def test_loop_retries_when_token_fetch_fails() -> None:
+    """A failed token fetch (e.g. DNS down at startup) is retried, not the end of the websocket."""
+    client = LeakomaticClient("user@example.com", "secret")
+    client._user_id = "1"
+    get_token = AsyncMock(side_effect=[None, None, "fresh-token"])
+
+    tokens = await _run_until_first_attempt(client, async_get_websocket_token=get_token)
+
+    assert tokens == ["fresh-token"]
+    assert get_token.await_count == 3
+
+
+async def test_loop_logs_in_when_user_id_is_missing() -> None:
+    client = LeakomaticClient("user@example.com", "secret")
+
+    async def login() -> bool:
+        client._user_id = "1"
+        return True
+
+    authenticate = AsyncMock(side_effect=login)
+    get_token = AsyncMock(return_value="fresh-token")
+
+    tokens = await _run_until_first_attempt(
+        client, async_authenticate=authenticate, async_get_websocket_token=get_token
+    )
+
+    authenticate.assert_awaited_once()
+    assert tokens == ["fresh-token"]

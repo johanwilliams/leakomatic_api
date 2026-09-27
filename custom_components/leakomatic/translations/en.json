@@ -8,6 +8,13 @@
                     "email": "Email",
                     "password": "Password"
                 }
+            },
+            "reauth_confirm": {
+                "title": "Log in to Leakomatic again",
+                "description": "Leakomatic rejected the password for {email}. Enter the current password.",
+                "data": {
+                    "password": "Password"
+                }
             }
         },
         "error": {
@@ -20,7 +27,8 @@
             "no_devices_found": "No Leakomatic devices found in your account"
         },
         "abort": {
-            "already_configured": "Device is already configured"
+            "already_configured": "Device is already configured",
+            "reauth_successful": "The password has been updated"
         }
     },
     "title": "Leakomatic",

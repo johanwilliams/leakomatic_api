@@ -91,7 +91,7 @@ class MockLeakomatic:
             return next(iter(self.devices.values()))
         return dict(self.devices)
 
-    async def _connect(self, ws_token: str, callback: Callable[[dict], None]) -> None:
+    async def _connect(self, callback: Callable[[dict], None]) -> None:
         # Like the real client, keep running until the task is cancelled.
         self.ws_callback = callback
         try:

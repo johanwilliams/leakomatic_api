@@ -239,8 +239,8 @@ If you encounter any issues with the integration:
 2. Check the logs for detailed information
 3. Monitor the WebSocket Connectivity binary sensor for connection status
 4. Common issues and solutions:
-   - Authentication failures: Verify your email and password
-   - Connection issues: Check your network connection and firewall settings
+   - Authentication failures: If Leakomatic rejects the stored password (for example after you changed it), Home Assistant shows a notification asking you to re-authenticate. Enter the current password there; the integration reloads by itself.
+   - Connection issues: If Leakomatic cannot be reached when Home Assistant starts, the integration shows "Retrying setup" under Settings → Devices & services and keeps trying by itself. Check your network connection and firewall settings if it does not recover.
    - Missing updates: Check WebSocket connection status in the logs and the WebSocket Connectivity sensor
    - Sensor state issues: Verify device connectivity and data flow
    - Service call failures: Check entity IDs and mode parameters

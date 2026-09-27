@@ -151,6 +151,11 @@ ERROR_AUTH_TOKEN_MISSING = "auth_token_missing"
 ERROR_INVALID_CREDENTIALS = "invalid_credentials"
 ERROR_XSRF_TOKEN_MISSING = "xsrf_token_missing"
 ERROR_NO_DEVICES_FOUND = "no_devices_found"
+ERROR_CANNOT_CONNECT = "cannot_connect"
+
+# HTTP status codes from the login form that mean the credentials were rejected.
+# Anything else that is not 200 is treated as a temporary problem.
+LOGIN_REJECTED_STATUSES = (401, 403, 422)
 
 # Regex Patterns
 XSRF_TOKEN_PATTERN = r'XSRF-TOKEN=([^;]+)'

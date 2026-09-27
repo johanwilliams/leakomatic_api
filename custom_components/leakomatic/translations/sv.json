@@ -8,6 +8,13 @@
                     "email": "E-post",
                     "password": "Lösenord"
                 }
+            },
+            "reauth_confirm": {
+                "title": "Logga in på Leakomatic igen",
+                "description": "Leakomatic godkände inte lösenordet för {email}. Ange det nuvarande lösenordet.",
+                "data": {
+                    "password": "Lösenord"
+                }
             }
         },
         "error": {
@@ -20,7 +27,8 @@
             "no_devices_found": "Inga Leakomatic-enheter hittades i ditt konto"
         },
         "abort": {
-            "already_configured": "Enheten är redan konfigurerad"
+            "already_configured": "Enheten är redan konfigurerad",
+            "reauth_successful": "Lösenordet har uppdaterats"
         }
     },
     "title": "Leakomatic",

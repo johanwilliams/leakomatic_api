@@ -66,3 +66,53 @@ async def test_already_configured(hass: HomeAssistant) -> None:
 
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
+
+
+async def test_cannot_connect(hass: HomeAssistant) -> None:
+    """A network or server error is reported as such, not as a wrong password."""
+    result = await _start(hass)
+    with patch(
+        "custom_components.leakomatic.config_flow.LeakomaticClient",
+        return_value=_client(auth_ok=False, error_code="cannot_connect"),
+    ):
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
+
+    assert result["errors"] == {"base": "cannot_connect"}
+
+
+async def test_reauth_updates_password(hass: HomeAssistant) -> None:
+    """HA-199: a new, valid password is stored and the entry reloaded."""
+    entry = MockConfigEntry(domain=DOMAIN, data={"email": EMAIL, "password": "old"})
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reauth_flow(hass)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reauth_confirm"
+
+    with (
+        patch("custom_components.leakomatic.config_flow.LeakomaticClient", return_value=_client()) as client_cls,
+        patch("custom_components.leakomatic.async_setup_entry", return_value=True),
+    ):
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], {"password": "new"})
+        await hass.async_block_till_done()
+
+    client_cls.assert_called_once_with(EMAIL, "new")
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert entry.data["password"] == "new"
+
+
+async def test_reauth_wrong_password(hass: HomeAssistant) -> None:
+    entry = MockConfigEntry(domain=DOMAIN, data={"email": EMAIL, "password": "old"})
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reauth_flow(hass)
+    with patch(
+        "custom_components.leakomatic.config_flow.LeakomaticClient",
+        return_value=_client(auth_ok=False, error_code="invalid_credentials"),
+    ):
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], {"password": "still-wrong"})
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_credentials"}
+    assert entry.data["password"] == "old"
