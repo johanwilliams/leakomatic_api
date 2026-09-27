@@ -56,8 +56,12 @@ class LeakomaticMessageHandler:
             update_data: Data to pass to handle_update. If None, uses message data
             update_last_seen: Whether to update last_seen for online status
         """
-        data = message.get("message", {}).get("data", {})
-        message_device_identifier = data.get("device_id")
+        body = message.get("message", {})
+        data = body.get("data", {})
+        # The device's serial number is in message["message"]["device"] for all
+        # message types. data["device_id"] holds it for most types, but not
+        # for device_updated, so it is only a fallback.
+        message_device_identifier = body.get("device") or data.get("device_id")
         
         for entity in entities:
             # Entities that are disabled in the entity registry are never added

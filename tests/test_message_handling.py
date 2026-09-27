@@ -7,7 +7,7 @@ import pytest
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from .conftest import MockLeakomatic, make_device_data, ws_message
+from .conftest import MockLeakomatic, device_updated_message, make_device_data, ws_message
 
 
 def _errors(caplog: pytest.LogCaptureFixture) -> list[logging.LogRecord]:
@@ -19,6 +19,26 @@ async def test_mode_follows_device_updated(hass: HomeAssistant, setup_integratio
     setup_integration.send(ws_message("device_updated", "SERIAL-A", mode=2))
 
     assert hass.states.get("select.leakomatic_mode").state == "pause"
+
+
+async def test_mode_follows_device_updated_without_serial_in_data(
+    hass: HomeAssistant, setup_integration: MockLeakomatic
+) -> None:
+    """Regression from the first HA-195 fix, seen live: device_updated has the serial only in message["device"]."""
+    setup_integration.send(device_updated_message("SERIAL-A", 1001, mode=2))
+
+    assert hass.states.get("select.leakomatic_mode").state == "pause"
+
+
+async def test_device_updated_does_not_drive_flow_indicator(
+    hass: HomeAssistant, setup_integration: MockLeakomatic
+) -> None:
+    """device_updated can carry a stale flow_mode of 1; only flow_updated drives the flow indicator."""
+    setup_integration.send(device_updated_message("SERIAL-A", 1001, mode=0, flow_mode=1))
+    assert hass.states.get("binary_sensor.leakomatic_flow_indicator").state == "off"
+
+    setup_integration.send(ws_message("flow_updated", "SERIAL-A", flow_mode=1))
+    assert hass.states.get("binary_sensor.leakomatic_flow_indicator").state == "on"
 
 
 async def test_unhandled_message_type_is_not_an_error(

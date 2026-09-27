@@ -66,11 +66,15 @@ def handle_flow_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> 
     )
 
 def handle_device_update(message: dict, sensors: list[LeakomaticBinarySensor]) -> None:
-    """Handle device_updated messages."""
+    """Handle device_updated messages.
+
+    Only marks the device as online. The flow indicator is driven by
+    flow_updated alone: device data can carry a stale flow_mode of 1.
+    """
     LeakomaticMessageHandler.handle_device_update(
-        message, 
-        sensors, 
-        FlowIndicatorBinarySensor, 
+        message,
+        sensors,
+        None,
         OnlineStatusBinarySensor
     )
 

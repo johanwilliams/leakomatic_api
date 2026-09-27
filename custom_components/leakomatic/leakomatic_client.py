@@ -932,6 +932,7 @@ class LeakomaticClient:
                             if msg_type:
                                 device_identifier = parsed_response.get('message', {}).get('device', 'unknown')
                                 _LOGGER.debug("Device %s received message %s", device_identifier, msg_type)
+                                _LOGGER.debug("Message payload: %s", parsed_response)
                                 # Call all registered callbacks
                                 for callback in self._ws_callbacks:
                                     try:
