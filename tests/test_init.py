@@ -1,6 +1,7 @@
 """Tests for setting up and unloading the Leakomatic integration."""
 from __future__ import annotations
 
+import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -72,3 +73,61 @@ async def test_reload_twice(
 
     setup_integration.send(ws_message("device_updated", "SERIAL-A", mode=1))
     assert hass.states.get("select.leakomatic_mode").state == "away"
+
+
+# --- HA-199: setup failures are retried, or start reauthentication
+
+
+async def _setup(hass: HomeAssistant, config_entry: MockConfigEntry) -> None:
+    config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_rejected_credentials_start_reauth(
+    hass: HomeAssistant, config_entry: MockConfigEntry, mock_leakomatic: MockLeakomatic
+) -> None:
+    mock_leakomatic.client.async_authenticate.return_value = False
+    mock_leakomatic.client.error_code = "invalid_credentials"
+
+    await _setup(hass, config_entry)
+
+    assert config_entry.state is ConfigEntryState.SETUP_ERROR
+    flows = hass.config_entries.flow.async_progress()
+    assert [flow["context"]["source"] for flow in flows] == ["reauth"]
+
+
+@pytest.mark.parametrize("error_code", ["cannot_connect", "auth_token_missing", "xsrf_token_missing", None])
+async def test_login_problem_is_retried(
+    hass: HomeAssistant, config_entry: MockConfigEntry, mock_leakomatic: MockLeakomatic, error_code: str | None
+) -> None:
+    """Anything but rejected credentials is treated as temporary."""
+    mock_leakomatic.client.async_authenticate.return_value = False
+    mock_leakomatic.client.error_code = error_code
+
+    await _setup(hass, config_entry)
+
+    assert config_entry.state is ConfigEntryState.SETUP_RETRY
+    assert not hass.config_entries.flow.async_progress()
+
+
+async def test_missing_device_data_is_retried(
+    hass: HomeAssistant, config_entry: MockConfigEntry, mock_leakomatic: MockLeakomatic
+) -> None:
+    mock_leakomatic.client.async_get_device_data.side_effect = None
+    mock_leakomatic.client.async_get_device_data.return_value = None
+
+    await _setup(hass, config_entry)
+
+    assert config_entry.state is ConfigEntryState.SETUP_RETRY
+
+
+# --- HA-269: the websocket loop does not depend on a token fetched during setup
+
+
+async def test_setup_starts_websocket_without_fetching_a_token(
+    hass: HomeAssistant, config_entry: MockConfigEntry, setup_integration: MockLeakomatic
+) -> None:
+    """The loop gets its own token, so a failed fetch at startup cannot leave it unstarted."""
+    setup_integration.client.connect_to_websocket.assert_awaited_once()
+    setup_integration.client.async_get_websocket_token.assert_not_awaited()

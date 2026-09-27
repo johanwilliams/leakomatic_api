@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- If Leakomatic could not be reached when Home Assistant started (network, DNS or server problems), the integration failed and stayed failed until it was reloaded by hand. Home Assistant now retries the setup automatically until Leakomatic can be reached.
+- If the websocket token could not be fetched at startup, real-time updates never started and all entities stayed at their startup values until Home Assistant was restarted. The reconnection loop now logs in and fetches the token itself, and keeps retrying with the normal backoff.
+- Network and server errors during login were reported as "Invalid email or password". They are now reported as "Could not connect to Leakomatic", and only a login that Leakomatic actually rejects counts as wrong credentials.
 - Websocket message types without a handler (for example `configuration_added`) no longer log `Error in WebSocket callback: name 'self' is not defined`. They are now logged at debug level.
 - An error while handling a websocket message in one entity platform no longer stops the same message from reaching the other platforms.
 - Mode select: only updated by messages for its own device. Previously a mode change on one device could change the select of another device on the same account.
@@ -22,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Logging: the server's scheduled websocket disconnect (typically nightly) and the reconnection that follows are logged at debug/info level instead of warning. A warning is now logged when the quick reconnection attempts fail and the longer retry intervals start (phase 2 and phase 3), which is when something is actually wrong. A failed token refresh during reconnection no longer logs both an error and a warning.
 
 ### Added
+- Reauthentication: if Leakomatic rejects the stored password (for example after you change it), Home Assistant asks for the new password instead of just failing.
 - Test suite based on `pytest-homeassistant-custom-component`, run on every pull request by a GitHub Actions workflow.
 
 ## [0.1.6] - 2026-07-01

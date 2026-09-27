@@ -7,6 +7,7 @@ process through the Home Assistant UI.
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import Any
 
 import voluptuous as vol
@@ -121,4 +122,32 @@ class LeakomaticConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 }
             ),
             errors=errors,
-        ) 
+        )
+
+    async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> FlowResult:
+        """Start reauthentication when Leakomatic has rejected the stored password."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Ask for a new password and check it before updating the entry."""
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            client = LeakomaticClient(entry.data["email"], user_input["password"])
+            if await client.async_authenticate():
+                return self.async_update_reload_and_abort(
+                    entry,
+                    data={**entry.data, "password": user_input["password"]},
+                    reason="reauth_successful",
+                )
+            errors["base"] = client.error_code or "unknown"
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema({vol.Required("password"): str}),
+            description_placeholders={"email": entry.data["email"]},
+            errors=errors,
+        )

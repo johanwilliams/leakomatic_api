@@ -28,6 +28,7 @@ from .const import (
     MAX_RETRY_DELAY, RETRY_BACKOFF_FACTOR, MEDIUM_RETRY_INTERVAL, MAX_MEDIUM_RETRIES,
     LONG_RETRY_INTERVAL, STALE_CONNECTION_TIMEOUT,
     ERROR_AUTH_TOKEN_MISSING, ERROR_INVALID_CREDENTIALS, ERROR_XSRF_TOKEN_MISSING, ERROR_NO_DEVICES_FOUND,
+    ERROR_CANNOT_CONNECT, LOGIN_REJECTED_STATUSES,
     XSRF_TOKEN_HEADER, DeviceMode, XSRF_TOKEN_PATTERN
 )
 
@@ -111,29 +112,40 @@ class LeakomaticClient:
             _LOGGER.warning("No new XSRF token found in response")
 
     async def async_authenticate(self) -> bool:
-        """Authenticate with the Leakomatic API."""
+        """Authenticate with the Leakomatic API.
+
+        On failure, error_code tells why: ERROR_INVALID_CREDENTIALS only when
+        the server rejected the email or password, ERROR_CANNOT_CONNECT for
+        network and server errors. The failures are logged at debug level;
+        the caller decides what to report (Home Assistant retries setup itself).
+        """
+        self._error_code = None
         try:
             _LOGGER.debug("Initiating authentication process with Leakomatic")
-            
+
             # Create a new session
             self._session = aiohttp.ClientSession()
-            
+
             # Get the auth token from the start page
             self._auth_token = await self._async_get_startpage()
             if not self._auth_token:
-                _LOGGER.warning("Authentication failed - could not establish connection with Leakomatic")
-                self._error_code = ERROR_AUTH_TOKEN_MISSING
+                self._error_code = self._error_code or ERROR_AUTH_TOKEN_MISSING
+                _LOGGER.debug("Authentication failed at the start page (%s)", self._error_code)
                 return False
-            
+
             # Login with the auth token
             login_success = await self._async_login()
             if not login_success:
-                _LOGGER.warning("Authentication failed - invalid credentials or connection error")
+                _LOGGER.debug("Authentication failed at login (%s)", self._error_code)
                 return False
-            
+
             _LOGGER.debug("Authentication successful with Leakomatic API")
             return True
-            
+
+        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+            _LOGGER.debug("Authentication failed, cannot connect: %s", err)
+            self._error_code = ERROR_CANNOT_CONNECT
+            return False
         except Exception as err:
             _LOGGER.error("Authentication error: %s", err)
             return False
@@ -209,7 +221,8 @@ class LeakomaticClient:
             
             async with self._session.get(START_URL) as response:
                 if response.status != 200:
-                    _LOGGER.warning("Connection failed - server returned %s", response.status)
+                    _LOGGER.debug("Connection failed - server returned %s", response.status)
+                    self._error_code = ERROR_CANNOT_CONNECT
                     return None
                 
                 # Save the cookies from the start page
@@ -226,7 +239,11 @@ class LeakomaticClient:
                 
                 _LOGGER.debug("Authentication token successfully retrieved")
                 return auth_token['content']
-                
+
+        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+            _LOGGER.debug("Connection error: %s", err)
+            self._error_code = ERROR_CANNOT_CONNECT
+            return None
         except Exception as err:
             _LOGGER.error("Connection error: %s", err)
             return None
@@ -270,8 +287,12 @@ class LeakomaticClient:
             
             async with self._session.post(LOGIN_URL, data=login_data, headers=headers) as response:
                 if response.status != 200:
-                    _LOGGER.warning("Login failed - server returned %s", response.status)
-                    self._error_code = ERROR_INVALID_CREDENTIALS
+                    _LOGGER.debug("Login failed - server returned %s", response.status)
+                    self._error_code = (
+                        ERROR_INVALID_CREDENTIALS
+                        if response.status in LOGIN_REJECTED_STATUSES
+                        else ERROR_CANNOT_CONNECT
+                    )
                     return False
                 
                 # Get the XSRF token using the new method
@@ -333,6 +354,10 @@ class LeakomaticClient:
                 _LOGGER.debug("Found %d Leakomatic devices with IDs: %s", len(self._device_ids), self._device_ids)
                 return True
                 
+        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+            _LOGGER.debug("Login failed, cannot connect: %s", err)
+            self._error_code = ERROR_CANNOT_CONNECT
+            return False
         except Exception as err:
             _LOGGER.error("Login error: %s", err)
             return False
@@ -387,7 +412,7 @@ class LeakomaticClient:
                         return self._handle_error(
                             f"Failed to fetch device data - server returned {response.status}",
                             return_value=None,
-                            level="warning"
+                            level="debug"
                         )
                     
                     # Update cookies and XSRF token from the response
@@ -400,7 +425,7 @@ class LeakomaticClient:
                     return device_data
                 
         except Exception as err:
-            return self._handle_error(f"Failed to fetch device data: {err}", return_value=None, level="error")
+            return self._handle_error(f"Failed to fetch device data: {err}", return_value=None, level="debug")
 
     async def async_close(self) -> None:
         """Close the client session."""
@@ -412,7 +437,7 @@ class LeakomaticClient:
     async def async_get_websocket_token(self) -> Optional[str]:
         """Get the websocket token from the device page."""
         if not self.device_ids:
-            return self._handle_error("Cannot fetch websocket token - no devices configured", return_value=None, level="warning")
+            return self._handle_error("Cannot fetch websocket token - no devices configured", return_value=None, level="debug")
             
         # Ensure we're authenticated
         if not await self._ensure_authenticated():
@@ -431,7 +456,7 @@ class LeakomaticClient:
                         return self._handle_error(
                             f"Failed to fetch websocket token - server returned {response.status}",
                             return_value=None,
-                            level="warning"
+                            level="debug"
                         )
                     
                     # Update cookies and XSRF token from the response
@@ -450,7 +475,7 @@ class LeakomaticClient:
                         return self._handle_error(
                             "Websocket token not found in the response",
                             return_value=None,
-                            level="warning"
+                            level="debug"
                         )
                     
                     ws_token = match.group(1)
@@ -458,28 +483,20 @@ class LeakomaticClient:
                     return ws_token
                 
         except Exception as err:
-            return self._handle_error(f"Failed to fetch websocket token: {err}", return_value=None, level="warning")
+            return self._handle_error(f"Failed to fetch websocket token: {err}", return_value=None, level="debug")
 
-    async def connect_to_websocket(self, ws_token: str, message_callback: Callable[[dict], None]) -> None:
+    async def connect_to_websocket(self, message_callback: Callable[[dict], None]) -> None:
         """Connect to the websocket server and listen for messages with persistent reconnection.
-        
+
+        Runs until stopped or cancelled. Logging in and getting a websocket
+        token are part of every connection attempt, so a failure there is
+        retried with the same backoff as a failed connection.
+
         Args:
-            ws_token: The WebSocket token for authentication
             message_callback: Callback function to handle messages
         """
-        # Store the callback
         self._ws_callbacks.append(message_callback)
-        
-        # Ensure we're authenticated
-        if not await self._ensure_authenticated():
-            _LOGGER.error("Failed to authenticate before WebSocket connection")
-            return
-
-        if not self._user_id:
-            return self._handle_error("Cannot connect to websocket - no user ID available", return_value=None, level="error")
-
-        # Start the persistent connection loop
-        await self._persistent_websocket_connection(ws_token)
+        await self._persistent_websocket_connection()
 
     async def stop_websocket(self) -> None:
         """Stop the websocket connection and forget all callbacks.
@@ -550,7 +567,7 @@ class LeakomaticClient:
             error_msg: The error message to log.
             error_code: Optional error code to set.
             return_value: The value to return on error.
-            level: The log level to use ("error" or "warning").
+            level: The log level to use ("error", "warning" or "debug").
         
         Returns:
             The specified return value.
@@ -561,6 +578,8 @@ class LeakomaticClient:
         # Log the error without the component name (Home Assistant adds this automatically)
         if level == "error":
             _LOGGER.error(error_msg)
+        elif level == "debug":
+            _LOGGER.debug(error_msg)
         else:
             _LOGGER.warning(error_msg)
         
@@ -706,7 +725,35 @@ class LeakomaticClient:
             device_id=device_id
         )
 
-    async def _persistent_websocket_connection(self, initial_ws_token: str) -> None:
+    async def _async_prepare_websocket(self, ws_token: str | None) -> str | None:
+        """Make sure there is a user ID and a websocket token before connecting.
+
+        Args:
+            ws_token: The token from the previous attempt, if any.
+
+        Returns:
+            The token to connect with, or None if this attempt cannot connect
+            (the caller then backs off and tries again).
+        """
+        if not self._user_id:
+            _LOGGER.debug("No user ID, logging in before connecting to the websocket")
+            if not await self.async_authenticate() or not self._user_id:
+                return None
+
+        if ws_token is None or self._should_refresh_token():
+            _LOGGER.debug("Fetching WebSocket token")
+            new_token = await self.async_get_websocket_token()
+            if new_token:
+                self._ws_token_expiry = datetime.now(tz=timezone.utc) + timedelta(hours=24)
+                return new_token
+            if ws_token is None:
+                _LOGGER.debug("Could not get a WebSocket token")
+                return None
+            _LOGGER.debug("Failed to refresh WebSocket token, using existing token")
+
+        return ws_token
+
+    async def _persistent_websocket_connection(self, initial_ws_token: str | None = None) -> None:
         """Maintain a persistent WebSocket connection with multi-phase retry strategy."""
         ws_token = initial_ws_token
         quick_retry_count = 0
@@ -716,16 +763,10 @@ class LeakomaticClient:
         while self._ws_running:
             try:
                 _LOGGER.debug("Attempting WebSocket connection (Phase %d)", self._reconnection_phase)
-                
-                # Refresh token if needed (every 24 hours or after long disconnection)
-                if self._should_refresh_token():
-                    _LOGGER.debug("Refreshing WebSocket token")
-                    new_token = await self.async_get_websocket_token()
-                    if new_token:
-                        ws_token = new_token
-                        self._ws_token_expiry = datetime.now(tz=timezone.utc) + timedelta(hours=24)
-                    else:
-                        _LOGGER.debug("Failed to refresh WebSocket token, using existing token")
+
+                # Log in and get or refresh the token (every 24 hours) first.
+                # Without them this attempt counts as a failed connection.
+                ws_token = await self._async_prepare_websocket(ws_token)
 
                 # Attempt connection. _attempt_websocket_connection blocks while
                 # the socket is alive and returns True if a live connection
@@ -733,7 +774,11 @@ class LeakomaticClient:
                 # established. Connection-established bookkeeping (phase reset,
                 # connectivity callback) happens inside that method once the
                 # subscribe succeeds.
-                had_connection = await self._attempt_websocket_connection(ws_token)
+                had_connection = (
+                    await self._attempt_websocket_connection(ws_token)
+                    if ws_token is not None
+                    else False
+                )
 
                 if had_connection:
                     # A real connection was lost (not a connection failure):

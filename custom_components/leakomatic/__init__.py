@@ -12,10 +12,11 @@ from typing import Any
 
 from homeassistant.const import ATTR_ENTITY_ID, Platform
 from homeassistant.core import HomeAssistant, callback, ServiceCall
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.device_registry import DeviceInfo, async_get as async_get_device_registry
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 
-from .const import DOMAIN, LOGGER_NAME, DEFAULT_NAME, DeviceMode
+from .const import DOMAIN, LOGGER_NAME, DEFAULT_NAME, ERROR_INVALID_CREDENTIALS, DeviceMode
 from .leakomatic_client import LeakomaticClient
 from .models import LeakomaticConfigEntry, LeakomaticData
 
@@ -37,32 +38,38 @@ async def async_setup_entry(hass: HomeAssistant, entry: LeakomaticConfigEntry) -
     Args:
         hass: The Home Assistant instance
         entry: The config entry to set up
-        
+
     Returns:
-        bool: True if setup was successful, False otherwise
+        bool: True if setup was successful
+
+    Raises:
+        ConfigEntryAuthFailed: The email or password was rejected; starts reauthentication.
+        ConfigEntryNotReady: Leakomatic could not be reached or gave no usable data;
+            Home Assistant retries the setup by itself.
     """
     _LOGGER.debug("Setting up Leakomatic integration with config entry: %s", entry.entry_id)
-    
+
     # Initialize the client
     client = LeakomaticClient(entry.data["email"], entry.data["password"], hass)
 
-    # Authenticate to get the device IDs
-    auth_success = await client.async_authenticate()
-    if not auth_success:
-        _LOGGER.error("Failed to authenticate with Leakomatic API")
-        return False
-    
+    # Authenticate to get the device IDs. Only rejected credentials start a
+    # reauthentication; everything else is treated as temporary and retried.
+    if not await client.async_authenticate():
+        if client.error_code == ERROR_INVALID_CREDENTIALS:
+            raise ConfigEntryAuthFailed("Leakomatic rejected the email or password")
+        raise ConfigEntryNotReady(
+            f"Could not log in to Leakomatic ({client.error_code or 'unknown error'})"
+        )
+
     # Get the device IDs
     device_ids = client.device_ids
     if not device_ids:
-        _LOGGER.error("No device IDs found after authentication")
-        return False
+        raise ConfigEntryNotReady("No Leakomatic devices found in the account")
     
     # Fetch initial device data for all devices
     device_data = await client.async_get_device_data()
     if not device_data:
-        _LOGGER.error("Failed to fetch device data")
-        return False
+        raise ConfigEntryNotReady("Could not fetch device data from Leakomatic")
 
     # Create device entries for each device
     device_registry = async_get_device_registry(hass)
@@ -148,6 +155,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: LeakomaticConfigEntry) -
         )
         initial_device_data[device_id] = dev_data
 
+    if not device_infos:
+        raise ConfigEntryNotReady("The device data from Leakomatic did not describe any usable device")
+
     entry.runtime_data = LeakomaticData(
         client=client,
         device_infos=device_infos,
@@ -156,11 +166,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: LeakomaticConfigEntry) -
 
     # Set up platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
-    # Get the websocket token
-    ws_token = await client.async_get_websocket_token()
-    if not ws_token:
-        _LOGGER.warning("Could not get websocket token, websocket functionality will not be available")
 
     @callback
     def dispatch_ws_message(message: dict) -> None:
@@ -175,16 +180,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: LeakomaticConfigEntry) -
             except Exception:  # pylint: disable=broad-except
                 _LOGGER.exception("Error handling websocket message")
 
-    # Start websocket connection after platforms are set up
-    if ws_token:
-        # Tie the websocket task to the config entry: Home Assistant cancels it
-        # when the entry is unloaded, also while it sleeps between retries.
-        entry.async_create_background_task(
-            hass,
-            client.connect_to_websocket(ws_token, dispatch_ws_message),
-            "Leakomatic WebSocket Connection",
-        )
-        _LOGGER.debug("Started websocket connection task")
+    # Start the websocket connection after the platforms are set up. The loop
+    # gets its own token and retries until it connects, so it is always started.
+    # Tie it to the config entry: Home Assistant cancels it when the entry is
+    # unloaded, also while it sleeps between retries.
+    entry.async_create_background_task(
+        hass,
+        client.connect_to_websocket(dispatch_ws_message),
+        "Leakomatic WebSocket Connection",
+    )
+    _LOGGER.debug("Started websocket connection task")
     
     # Register the change_mode service
     async def async_change_mode(call: ServiceCall) -> None:
