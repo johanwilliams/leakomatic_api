@@ -171,17 +171,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if not ws_token:
         _LOGGER.warning("Could not get websocket token, websocket functionality will not be available")
 
+    @callback
+    def dispatch_ws_message(message: dict) -> None:
+        """Pass a websocket message to every platform's callback.
+
+        Each platform is called separately so that an error in one platform
+        does not stop the message from reaching the others.
+        """
+        domain_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
+        for platform_callback in domain_data.get("ws_callbacks", []):
+            try:
+                platform_callback(message)
+            except Exception:  # pylint: disable=broad-except
+                _LOGGER.exception("Error handling websocket message")
+
     # Start websocket connection after platforms are set up
     if ws_token:
         # Create a background task for the websocket connection
         hass.async_create_background_task(
-            client.connect_to_websocket(
-                ws_token,
-                lambda msg: [
-                    callback(msg) for callback in 
-                    hass.data[DOMAIN][entry.entry_id].get("ws_callbacks", [])
-                ]
-            ),
+            client.connect_to_websocket(ws_token, dispatch_ws_message),
             "Leakomatic WebSocket Connection"
         )
         _LOGGER.debug("Started websocket connection task")

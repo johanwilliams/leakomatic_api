@@ -311,10 +311,15 @@ class LeakomaticClient:
                         else:
                             _LOGGER.debug("User ID not found in href attribute")
                     else:
-                        _LOGGER.debug("User ID not found, but continuing with device ID: %s", device_id)
+                        _LOGGER.debug("User ID link not found on the page after login")
                 except Exception as user_id_err:
                     _LOGGER.debug("Error extracting user ID: %s", user_id_err)
-                    _LOGGER.debug("Continuing with device ID: %s", device_id)
+
+                if not self._user_id:
+                    _LOGGER.warning(
+                        "Could not find the user ID after login; real-time updates via "
+                        "websocket will not be available"
+                    )
 
                 # Find all <tr> elements with an id attribute starting with 'device_'
                 device_elements = soup.find_all('tr', {'id': lambda x: x and x.startswith('device_')})
@@ -453,7 +458,7 @@ class LeakomaticClient:
                     return ws_token
                 
         except Exception as err:
-            return self._handle_error(f"Failed to fetch websocket token: {err}", return_value=None, level="error")
+            return self._handle_error(f"Failed to fetch websocket token: {err}", return_value=None, level="warning")
 
     async def connect_to_websocket(self, ws_token: str, message_callback: Callable[[dict], None]) -> None:
         """Connect to the websocket server and listen for messages with persistent reconnection.
@@ -723,7 +728,7 @@ class LeakomaticClient:
                         ws_token = new_token
                         self._ws_token_expiry = datetime.now(tz=timezone.utc) + timedelta(hours=24)
                     else:
-                        _LOGGER.warning("Failed to refresh WebSocket token, using existing token")
+                        _LOGGER.debug("Failed to refresh WebSocket token, using existing token")
 
                 # Attempt connection. _attempt_websocket_connection blocks while
                 # the socket is alive and returns True if a live connection
@@ -741,7 +746,7 @@ class LeakomaticClient:
                     retry_delay = INITIAL_RETRY_DELAY
                     self._reconnection_phase = 1
                     self._ws_connected = False
-                    _LOGGER.warning("WebSocket connection closed, starting reconnection")
+                    _LOGGER.info("WebSocket connection closed, reconnecting")
                     self._notify_connectivity_callbacks(False, self._reconnection_phase)
                     # Small pause to avoid a tight flap loop on rapid drops.
                     await asyncio.sleep(INITIAL_RETRY_DELAY)
@@ -752,7 +757,7 @@ class LeakomaticClient:
                         # Phase 1: Quick retries
                         quick_retry_count += 1
                         if quick_retry_count >= MAX_QUICK_RETRIES:
-                            _LOGGER.info("Phase 1 retries exhausted, moving to Phase 2")
+                            _LOGGER.warning("WebSocket reconnection failed %d times, retrying every %d hours (phase 2)", MAX_QUICK_RETRIES, MEDIUM_RETRY_INTERVAL // 3600)
                             self._reconnection_phase = 2
                             medium_retry_count = 0
                             # Notify connectivity callbacks of phase change
@@ -773,7 +778,7 @@ class LeakomaticClient:
                         # Phase 2: Medium-term retries
                         medium_retry_count += 1
                         if medium_retry_count >= MAX_MEDIUM_RETRIES:
-                            _LOGGER.info("Phase 2 retries exhausted, moving to Phase 3")
+                            _LOGGER.warning("WebSocket reconnection still failing, retrying every %d hours (phase 3)", LONG_RETRY_INTERVAL // 3600)
                             self._reconnection_phase = 3
                             # Notify connectivity callbacks of phase change
                             self._notify_connectivity_callbacks(False, self._reconnection_phase)
@@ -890,7 +895,7 @@ class LeakomaticClient:
                         # Otherwise this is just a quiet period - keep waiting.
                         continue
                     except websockets.ConnectionClosed:
-                        _LOGGER.warning("Websocket connection closed")
+                        _LOGGER.debug("Websocket connection closed by server")
                         return connected
                     except Exception as err:
                         _LOGGER.error("Error processing websocket message: %s", err)

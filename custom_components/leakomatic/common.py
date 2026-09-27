@@ -38,7 +38,7 @@ class LeakomaticMessageHandler:
     """
     
     @staticmethod
-    def _update_matching_entities(
+    def update_matching_entities(
         message: dict,
         entities: list[T],
         sensor_type: Type[T] | tuple[Type[T], ...] | None,
@@ -60,6 +60,11 @@ class LeakomaticMessageHandler:
         message_device_identifier = data.get("device_id")
         
         for entity in entities:
+            # Entities that are disabled in the entity registry are never added
+            # to Home Assistant (hass is None), and writing their state raises.
+            if getattr(entity, "hass", None) is None:
+                continue
+
             entity_device_identifier = entity.device_info.get("serial_number")
             
             # Only update if device identifiers match
@@ -74,14 +79,14 @@ class LeakomaticMessageHandler:
     @staticmethod
     def handle_flow_update(message: dict, entities: list[T], flow_sensor_type: Type[T] | None, online_sensor_type: Type[T] | None) -> None:
         """Handle flow_updated messages."""
-        LeakomaticMessageHandler._update_matching_entities(
+        LeakomaticMessageHandler.update_matching_entities(
             message, entities, flow_sensor_type, online_sensor_type
         )
 
     @staticmethod
     def handle_device_update(message: dict, entities: list[T], flow_sensor_type: Type[T] | None, online_sensor_type: Type[T] | None) -> None:
         """Handle device_updated messages."""
-        LeakomaticMessageHandler._update_matching_entities(
+        LeakomaticMessageHandler.update_matching_entities(
             message, entities, flow_sensor_type, online_sensor_type
         )
 
@@ -90,7 +95,7 @@ class LeakomaticMessageHandler:
         """Handle quick_test_updated messages."""
         data = message.get("message", {}).get("data", {})
         value = data.get("value")
-        LeakomaticMessageHandler._update_matching_entities(
+        LeakomaticMessageHandler.update_matching_entities(
             message, entities, quick_test_sensor_type, online_sensor_type,
             update_data={"value": value}
         )
@@ -100,7 +105,7 @@ class LeakomaticMessageHandler:
         """Handle tightness_test_updated messages."""
         data = message.get("message", {}).get("data", {})
         value = data.get("value")
-        LeakomaticMessageHandler._update_matching_entities(
+        LeakomaticMessageHandler.update_matching_entities(
             message, entities, tightness_sensor_type, online_sensor_type,
             update_data={"value": value}
         )
@@ -108,7 +113,7 @@ class LeakomaticMessageHandler:
     @staticmethod
     def handle_status_update(message: dict, entities: list[T], status_sensor_type: Type[T] | None, online_sensor_type: Type[T] | None) -> None:
         """Handle status_message messages."""
-        LeakomaticMessageHandler._update_matching_entities(
+        LeakomaticMessageHandler.update_matching_entities(
             message, entities, status_sensor_type, online_sensor_type
         )
 
@@ -122,7 +127,7 @@ class LeakomaticMessageHandler:
     def handle_device_offline(message: dict, entities: list[T], online_sensor_type: Type[T] | None) -> None:
         """Handle device_offline messages."""
         _LOGGER.debug("Received device_offline message")
-        LeakomaticMessageHandler._update_matching_entities(
+        LeakomaticMessageHandler.update_matching_entities(
             message, entities, None, online_sensor_type,
             update_data={"is_online": False},
             update_last_seen=False
@@ -131,7 +136,7 @@ class LeakomaticMessageHandler:
     @staticmethod
     def handle_alarm_triggered(message: dict, entities: list[T], alarm_sensor_types: tuple[Type[T], ...] | None, online_sensor_type: Type[T] | None) -> None:
         """Handle alarm_triggered messages."""
-        LeakomaticMessageHandler._update_matching_entities(
+        LeakomaticMessageHandler.update_matching_entities(
             message, entities, alarm_sensor_types, online_sensor_type
         )
 
@@ -139,7 +144,7 @@ class LeakomaticMessageHandler:
     def handle_default(message: dict, entities: list[T]) -> None:
         """Handle any other message type."""
         msg_type = message.get("type", message.get('message', {}).get('operation', 'unknown'))
-        _LOGGER.debug("%s: Received unhandled message type: %s", self._device_id, msg_type)
+        _LOGGER.debug("Received unhandled message type: %s", msg_type)
 
 class MessageHandlerRegistry(Generic[T]):
     """Registry for WebSocket message handlers."""
@@ -148,12 +153,10 @@ class MessageHandlerRegistry(Generic[T]):
         """Initialize the registry."""
         self._handlers: Dict[str, Callable[[dict, list[T]], None]] = {}
         self._default_handler: Optional[Callable[[dict, list[T]], None]] = None
-        self._registered_types: set[str] = set()  # Track which message types we care about
-    
+
     def register(self, message_type: str, handler: Callable[[dict, list[T]], None]) -> None:
         """Register a handler for a specific message type."""
         self._handlers[message_type] = handler
-        self._registered_types.add(message_type)  # Add to set of types we care about
     
     def register_default(self, handler: Callable[[dict, list[T]], None]) -> None:
         """Register a default handler for unhandled message types."""
@@ -178,9 +181,6 @@ class MessageHandlerRegistry(Generic[T]):
         
         if handler is not None:
             handler(message, entities)
-        elif msg_type in self._registered_types:
-            # Only log a warning if this is a message type we care about
-            _LOGGER.warning("%s: No handler found for message type: %s", self._device_id, msg_type)
 
 class LeakomaticEntity:
     """Base class for all Leakomatic entities.

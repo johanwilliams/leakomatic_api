@@ -121,9 +121,7 @@ def handle_alarm_triggered(message: dict, sensors: list[LeakomaticSensor]) -> No
 
 def handle_water_meter_calibration(message: dict, sensors: list[LeakomaticSensor]) -> None:
     """Handle water_meter_calibration_updated messages."""
-    for sensor in sensors:
-        if isinstance(sensor, TotalVolumeSensor):
-            sensor.handle_update(message.get("data", {}))
+    LeakomaticMessageHandler.update_matching_entities(message, sensors, TotalVolumeSensor, None)
 
 def handle_analog_sensor_message(message: dict, sensors: list[LeakomaticSensor]) -> None:
     """Handle analog_sensor_message messages."""
@@ -134,13 +132,13 @@ def handle_analog_sensor_message(message: dict, sensors: list[LeakomaticSensor])
     
     # Update temperature sensor if sensor_type is 2 and connected is 1
     if sensor_type == 2 and connected == 1:
-        LeakomaticMessageHandler._update_matching_entities(
+        LeakomaticMessageHandler.update_matching_entities(
             message, sensors, TemperatureSensor, None,
             update_data={"value": value}
         )
     # Update pressure sensor if sensor_type is 1 and connected is 1
     elif sensor_type == 1 and connected == 1:
-        LeakomaticMessageHandler._update_matching_entities(
+        LeakomaticMessageHandler.update_matching_entities(
             message, sensors, PressureSensor, None,
             update_data={"value": value}
         )
@@ -744,11 +742,14 @@ class TotalVolumeSensor(LeakomaticSensor):
         """Handle updates from WebSocket messages."""
         if "total_flow_volume" in data:
             try:
-                value = float(data["total_flow_volume"]) / 1000  # Convert to m³
-                self._device_data["total_flow_volume"] = value * 1000  # Store in original format
-                self.async_write_ha_state()
+                raw_value = float(data["total_flow_volume"])
             except (ValueError, TypeError) as e:
-                log_with_entity(self, "Error updating total volume: %s", e)
+                log_with_entity(_LOGGER, logging.WARNING, self, "Error updating total volume: %s", e)
+                return
+            # Replace the dict instead of mutating it: the initial device data is
+            # shared with the other entities. native_value converts to m³.
+            self._device_data = {**self._device_data, "total_flow_volume": raw_value}
+            self.async_write_ha_state()
 
 
 class TemperatureSensor(LeakomaticSensor):

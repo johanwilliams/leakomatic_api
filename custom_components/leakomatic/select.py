@@ -19,7 +19,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import EntityCategory
 
 from .const import DOMAIN, MessageType, DeviceMode
-from .common import LeakomaticEntity, MessageHandlerRegistry, log_with_entity
+from .common import LeakomaticEntity, LeakomaticMessageHandler, MessageHandlerRegistry, log_with_entity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -57,11 +57,7 @@ message_registry = MessageHandlerRegistry[LeakomaticSelect]()
 # Define message handlers
 def handle_device_update(message: dict, sensors: list[LeakomaticSelect]) -> None:
     """Handle device_updated messages."""
-    data = message.get("message", {}).get("data", {})
-    # Update all relevant sensors
-    for sensor in sensors:
-        if isinstance(sensor, ModeSelect):
-            sensor.handle_update(data)
+    LeakomaticMessageHandler.update_matching_entities(message, sensors, ModeSelect, None)
 
 # Register all handlers
 message_registry.register(MessageType.DEVICE_UPDATED.value, handle_device_update)

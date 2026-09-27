@@ -247,10 +247,13 @@ If you encounter any issues with the integration:
    - Multiple device support: Ensure proper device selection when using services
    - Persistent disconnections: The integration will automatically retry with a multi-phase strategy
    - Stuck connections: Health monitoring will detect and recover from stuck connections automatically
+5. Reading the log:
+   - The Leakomatic server closes the websocket on a schedule (typically once per night). The integration reconnects within seconds; this is logged at debug/info level and needs no action.
+   - A warning such as `WebSocket reconnection failed 10 times, retrying every 6 hours (phase 2)` means the integration could not reconnect and has switched to longer retry intervals. Check your network connection and the Leakomatic service.
 
 ## Development Status
 
-This integration is currently in active development. Current version: 0.1.5
+This integration is currently in active development. See the [changelog](CHANGELOG.md) for the current version and what has changed.
 
 Recent improvements:
 - Implemented persistent WebSocket reconnection with multi-phase retry strategy
@@ -268,6 +271,17 @@ Future enhancements planned:
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+
+### Running the tests
+
+The tests use [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component) and run automatically on every pull request. To run them locally you need Python 3.14 on Linux or macOS (Home Assistant does not run on Windows; use WSL or a container there):
+
+```bash
+pip install -r requirements_test.txt
+python -m pytest
+```
+
+Test data must be invented: do not add payloads from a real account, since they contain serial numbers, user IDs and locations.
 
 ## License
 

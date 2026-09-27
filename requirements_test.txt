@@ -1,0 +1,5 @@
+# Test dependencies. pytest-homeassistant-custom-component pins the matching
+# Home Assistant version (0.13.367 -> Home Assistant 2026.9.4).
+pytest-homeassistant-custom-component==0.13.367
+beautifulsoup4>=4.9.3
+websockets>=15.0.1
