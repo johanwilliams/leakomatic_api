@@ -272,6 +272,17 @@ Future enhancements planned:
 
 Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
 
+### Running the tests
+
+The tests use [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component) and run automatically on every pull request. To run them locally you need Python 3.14 on Linux or macOS (Home Assistant does not run on Windows; use WSL or a container there):
+
+```bash
+pip install -r requirements_test.txt
+python -m pytest
+```
+
+Test data must be invented: do not add payloads from a real account, since they contain serial numbers, user IDs and locations.
+
 ## License
 
 This project is licensed under the terms of the license included in the repository. 

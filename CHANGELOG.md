@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Logging: the server's scheduled websocket disconnect (typically nightly) and the reconnection that follows are logged at debug/info level instead of warning. A warning is now logged when the quick reconnection attempts fail and the longer retry intervals start (phase 2 and phase 3), which is when something is actually wrong. A failed token refresh during reconnection no longer logs both an error and a warning.
 
+### Added
+- Test suite based on `pytest-homeassistant-custom-component`, run on every pull request by a GitHub Actions workflow.
+
 ## [0.1.6] - 2026-07-01
 
 ### Fixed
