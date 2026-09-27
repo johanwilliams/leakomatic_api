@@ -5,6 +5,7 @@ account into the tests: they contain serial numbers, user IDs and locations.
 """
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
@@ -68,6 +69,7 @@ class MockLeakomatic:
         self.devices = devices
         self.client = MagicMock()
         self.ws_callback: Callable[[dict], None] | None = None
+        self.ws_task_cancelled = False
 
         client = self.client
         client.device_ids = list(devices)
@@ -90,7 +92,13 @@ class MockLeakomatic:
         return dict(self.devices)
 
     async def _connect(self, ws_token: str, callback: Callable[[dict], None]) -> None:
+        # Like the real client, keep running until the task is cancelled.
         self.ws_callback = callback
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            self.ws_task_cancelled = True
+            raise
 
     def send(self, message: dict[str, Any]) -> None:
         """Deliver a websocket message the way the client would."""

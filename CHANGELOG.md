@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Mode select: only updated by messages for its own device. Previously a mode change on one device could change the select of another device on the same account.
 - Total volume sensor: water meter calibration messages now update the sensor (they were read from the wrong place in the message), and an invalid value is logged instead of raising a second error.
 - Entities that are disabled in the entity registry are no longer updated by websocket messages, which could raise an error.
+- Unloading or reloading the integration now stops the websocket connection immediately. Previously the old connection loop was only told to stop and could keep running: up to 30 seconds while connected, or until its next retry (up to 12 hours) while waiting to reconnect.
 - Login: if the user ID cannot be found on the page after login, the integration no longer fails with a misleading "invalid credentials" error. It logs a clear warning that real-time updates will not be available.
 
 ### Changed

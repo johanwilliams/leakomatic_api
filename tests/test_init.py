@@ -32,6 +32,18 @@ async def test_unload(
     setup_integration.client.stop_websocket.assert_awaited_once()
 
 
+async def test_unload_cancels_websocket_task(
+    hass: HomeAssistant, config_entry: MockConfigEntry, setup_integration: MockLeakomatic
+) -> None:
+    """HA-262: the websocket task is cancelled when the entry unloads, not left running."""
+    assert not setup_integration.ws_task_cancelled
+
+    assert await hass.config_entries.async_unload(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert setup_integration.ws_task_cancelled
+
+
 async def test_unload_removes_websocket_listeners(
     hass: HomeAssistant, config_entry: MockConfigEntry, setup_integration: MockLeakomatic
 ) -> None:
