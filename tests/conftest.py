@@ -58,7 +58,15 @@ def ws_message(operation: str, serial: str, **data: Any) -> dict[str, Any]:
     """Return a websocket message in the ActionCable format the server uses."""
     return {
         "identifier": '{"channel":"BroadcastChannel","user_id":1}',
-        "message": {"operation": operation, "data": {"device_id": serial, **data}},
+        "message": {"operation": operation, "device": serial, "data": {"device_id": serial, **data}},
+    }
+
+
+def device_updated_message(serial: str, device_id: int, **data: Any) -> dict[str, Any]:
+    """A device_updated message as seen live: the serial is only in message["device"]."""
+    return {
+        "identifier": '{"channel":"BroadcastChannel","user_id":1}',
+        "message": {"operation": "device_updated", "device": serial, "data": {"id": device_id, **data}},
     }
 
 
