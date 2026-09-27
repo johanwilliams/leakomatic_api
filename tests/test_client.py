@@ -5,10 +5,11 @@ import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from http.cookies import SimpleCookie
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 import pytest
+import yarl
 
 from custom_components.leakomatic.const import MAX_QUICK_RETRIES
 from custom_components.leakomatic.leakomatic_client import LeakomaticClient
@@ -271,3 +272,137 @@ async def test_loop_logs_in_when_user_id_is_missing() -> None:
 
     authenticate.assert_awaited_once()
     assert tokens == ["fresh-token"]
+
+
+# --- HA-261: an expired session is renewed once, and never reported as success
+
+
+class FakeHttpResponse:
+    """Response with the attributes the session helper looks at."""
+
+    def __init__(self, status: int = 200, path: str = "/devices/1001.json",
+                 content_type: str = "application/json", body: object = None) -> None:
+        self.status = status
+        self.url = yarl.URL("https://cloud.example.com" + path)
+        self.content_type = content_type
+        self.cookies: SimpleCookie = SimpleCookie()
+        self._body = body
+
+    async def json(self) -> object:
+        return self._body
+
+    async def text(self) -> str:
+        return str(self._body)
+
+    async def __aenter__(self) -> "FakeHttpResponse":
+        return self
+
+    async def __aexit__(self, *exc) -> None:
+        return None
+
+
+class ScriptedSession:
+    """Session whose request() returns the next scripted response."""
+
+    def __init__(self, responses: list[FakeHttpResponse]) -> None:
+        self._responses = responses
+
+    def request(self, *args, **kwargs) -> FakeHttpResponse:
+        return self._responses.pop(0)
+
+    def get(self, *args, **kwargs) -> FakeHttpResponse:
+        return self._responses.pop(0)
+
+    def post(self, *args, **kwargs) -> FakeHttpResponse:
+        return self._responses.pop(0)
+
+    async def close(self) -> None:
+        return None
+
+    async def __aenter__(self) -> "ScriptedSession":
+        return self
+
+    async def __aexit__(self, *exc) -> None:
+        return None
+
+
+LOGGED_OUT = FakeHttpResponse(path="/users/sign_in", content_type="text/html", body="<html>login</html>")
+
+
+def _logged_in_client(responses: list[FakeHttpResponse]) -> tuple[LeakomaticClient, AsyncMock]:
+    """A client that is logged in, answers with the scripted responses, and can log in again."""
+    client = LeakomaticClient("user@example.com", "secret")
+    client._device_ids = ["1001"]
+    client._xsrf_token = "old-xsrf"
+    client._cookies = SimpleCookie()
+    session = ScriptedSession(responses)
+    client._create_session = AsyncMock(return_value=session)
+
+    async def login() -> bool:
+        client._xsrf_token = "new-xsrf"
+        return True
+
+    authenticate = AsyncMock(side_effect=login)
+    client.async_authenticate = authenticate
+    return client, authenticate
+
+
+@pytest.mark.parametrize(
+    "logged_out",
+    [
+        LOGGED_OUT,
+        FakeHttpResponse(status=401, content_type="application/json", body={"error": "sign in"}),
+        FakeHttpResponse(path="/devices/1001.json", content_type="text/html", body="<html>login</html>"),
+    ],
+)
+async def test_expired_session_is_renewed(logged_out: FakeHttpResponse) -> None:
+    """Redirect to the login page, 401, or HTML instead of JSON: log in again and retry once."""
+    client, authenticate = _logged_in_client([logged_out, FakeHttpResponse(body={"mode": 0})])
+
+    assert await client.async_get_device_data("1001") == {"mode": 0}
+    authenticate.assert_awaited_once()
+
+
+async def test_still_logged_out_after_relogin_gives_up() -> None:
+    """Only one new login per request, so wrong credentials cannot cause a login storm."""
+    client, authenticate = _logged_in_client([LOGGED_OUT, LOGGED_OUT])
+
+    assert await client.async_get_device_data("1001") is None
+    authenticate.assert_awaited_once()
+
+
+async def test_change_mode_on_expired_session_is_not_reported_as_success() -> None:
+    """The login page answers 200, which used to be logged as 'Successfully changed mode'."""
+    client, _ = _logged_in_client([LOGGED_OUT, LOGGED_OUT])
+
+    assert await client.async_change_mode("away", "1001") is False
+
+
+async def test_change_mode_after_renewed_session() -> None:
+    client, authenticate = _logged_in_client([LOGGED_OUT, FakeHttpResponse(path="/devices/1001/change_mode.json", body="")])
+
+    assert await client.async_change_mode("away", "1001") is True
+    authenticate.assert_awaited_once()
+
+
+async def test_rejected_login_calls_auth_failed_callback() -> None:
+    """A login that Leakomatic rejects during operation triggers reauthentication."""
+    rejected = MagicMock()
+    client = LeakomaticClient("user@example.com", "secret")
+    client.set_auth_failed_callback(rejected)
+    session = FakeHttpSession(FakeResponse(START_PAGE), FakeResponse(LOGIN_REJECTED))
+    with patch("custom_components.leakomatic.leakomatic_client.aiohttp.ClientSession", return_value=session):
+        assert await client.async_authenticate() is False
+
+    rejected.assert_called_once()
+
+
+async def test_connection_error_does_not_call_auth_failed_callback() -> None:
+    rejected = MagicMock()
+    client = LeakomaticClient("user@example.com", "secret")
+    client.set_auth_failed_callback(rejected)
+    session = FakeHttpSession(FakeResponse(START_PAGE), FakeResponse("", status=503))
+    with patch("custom_components.leakomatic.leakomatic_client.aiohttp.ClientSession", return_value=session):
+        assert await client.async_authenticate() is False
+
+    rejected.assert_not_called()

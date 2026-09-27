@@ -34,6 +34,13 @@ from .const import (
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
 
+# Where Leakomatic sends a browser whose session has expired
+LOGIN_PATHS = ("/login", "/users/sign_in")
+
+
+class LeakomaticRequestError(Exception):
+    """A request with the login session failed."""
+
 # Create SSL context at module level
 ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
 ssl_context.load_default_certs()
@@ -75,6 +82,7 @@ class LeakomaticClient:
         self._ws_token_expiry: Optional[datetime] = None
         self._reconnection_phase = 1  # 1=quick, 2=medium, 3=long
         self._connectivity_callbacks: list[Callable[[bool, int], None]] = []
+        self._auth_failed_callback: Optional[Callable[[], None]] = None
 
     async def _create_session(self, headers: Optional[Dict[str, str]] = None) -> aiohttp.ClientSession:
         """Create a new session with the saved cookies and headers.
@@ -137,6 +145,8 @@ class LeakomaticClient:
             login_success = await self._async_login()
             if not login_success:
                 _LOGGER.debug("Authentication failed at login (%s)", self._error_code)
+                if self._error_code == ERROR_INVALID_CREDENTIALS and self._auth_failed_callback:
+                    self._auth_failed_callback()
                 return False
 
             _LOGGER.debug("Authentication successful with Leakomatic API")
@@ -169,6 +179,14 @@ class LeakomaticClient:
     def device_id(self) -> Optional[str]:
         """Get the first device ID for backward compatibility."""
         return self._device_ids[0] if self._device_ids else None
+
+    def set_auth_failed_callback(self, callback: Optional[Callable[[], None]]) -> None:
+        """Set a function to call when Leakomatic rejects the credentials.
+
+        The integration uses it to start reauthentication when a login during
+        normal operation (for example after the session expired) is rejected.
+        """
+        self._auth_failed_callback = callback
 
     def register_connectivity_callback(self, callback: Callable[[bool, int], None]) -> None:
         """Register a callback for WebSocket connectivity status changes.
@@ -395,35 +413,15 @@ class LeakomaticClient:
         ):
             return self._device_data_cache[device_id]
             
-        # Ensure we're authenticated
-        if not await self._ensure_authenticated():
-            return None
-            
         try:
             _LOGGER.debug("Fetching data for device with ID: %s", device_id)
-            
-            # Create a new session with the saved cookies
-            async with await self._create_session() as session:
-                # Construct the URL for the device status JSON
-                url = f"{STATUS_URL}/{device_id}.json"
-                
-                async with session.get(url) as response:
-                    if response.status != 200:
-                        return self._handle_error(
-                            f"Failed to fetch device data - server returned {response.status}",
-                            return_value=None,
-                            level="debug"
-                        )
-                    
-                    # Update cookies and XSRF token from the response
-                    await self._update_session_from_response(response)
-                    
-                    # Parse the JSON response
-                    device_data = await response.json()
-                    self._device_data_cache[device_id] = device_data
-                    self._device_data_cache_time[device_id] = now
-                    return device_data
-                
+            device_data = await self._async_session_request(
+                "GET", f"{STATUS_URL}/{device_id}.json", expect_json=True
+            )
+            self._device_data_cache[device_id] = device_data
+            self._device_data_cache_time[device_id] = now
+            return device_data
+
         except Exception as err:
             return self._handle_error(f"Failed to fetch device data: {err}", return_value=None, level="debug")
 
@@ -439,49 +437,24 @@ class LeakomaticClient:
         if not self.device_ids:
             return self._handle_error("Cannot fetch websocket token - no devices configured", return_value=None, level="debug")
             
-        # Ensure we're authenticated
-        if not await self._ensure_authenticated():
-            return None
-            
         try:
             _LOGGER.debug("Fetching websocket token...")
-            
-            # Create a new session with the saved cookies
-            async with await self._create_session() as session:
-                # Construct the URL for the device status page (not JSON)
-                url = f"{STATUS_URL}/{self.device_ids[0]}"
-                
-                async with session.get(url) as response:
-                    if response.status != 200:
-                        return self._handle_error(
-                            f"Failed to fetch websocket token - server returned {response.status}",
-                            return_value=None,
-                            level="debug"
-                        )
-                    
-                    # Update cookies and XSRF token from the response
-                    await self._update_session_from_response(response)
-                    
-                    # Get the response text
-                    text = await response.text()
-                    
-                    # Define a regular expression pattern to match the ws token
-                    pattern = re.compile(r'token=([a-zA-Z0-9_.-]+)')
-                    
-                    # Search for the pattern in the response
-                    match = pattern.search(text)
-                    
-                    if not match:
-                        return self._handle_error(
-                            "Websocket token not found in the response",
-                            return_value=None,
-                            level="debug"
-                        )
-                    
-                    ws_token = match.group(1)
-                    _LOGGER.debug("Websocket token retrieved successfully")
-                    return ws_token
-                
+            # The device page (HTML, not JSON) contains the websocket token
+            text = await self._async_session_request(
+                "GET", f"{STATUS_URL}/{self.device_ids[0]}", expect_json=False
+            )
+
+            match = re.search(r'token=([a-zA-Z0-9_.-]+)', text)
+            if not match:
+                return self._handle_error(
+                    "Websocket token not found in the response",
+                    return_value=None,
+                    level="debug"
+                )
+
+            _LOGGER.debug("Websocket token retrieved successfully")
+            return match.group(1)
+
         except Exception as err:
             return self._handle_error(f"Failed to fetch websocket token: {err}", return_value=None, level="debug")
 
@@ -518,6 +491,75 @@ class LeakomaticClient:
         self._connectivity_callbacks.clear()
         _LOGGER.debug("Websocket connection stopped")
 
+    @staticmethod
+    def _is_logged_out(response: aiohttp.ClientResponse, expect_json: bool) -> bool:
+        """Return True if the response shows that the login session has expired.
+
+        Leakomatic is a Rails app: an expired session gives 401 for JSON
+        requests, or a redirect to the login page (followed by aiohttp, so the
+        final URL is the login page). HTML where JSON was expected is also a
+        login page.
+        """
+        if response.status == 401:
+            return True
+        if response.url.path.rstrip("/") in LOGIN_PATHS:
+            return True
+        return expect_json and response.content_type == "text/html"
+
+    async def _async_session_request(
+        self,
+        method: str,
+        url: str,
+        *,
+        expect_json: bool,
+        headers: Optional[Dict[str, str]] = None,
+        json_data: Optional[dict] = None,
+    ) -> Any:
+        """Make a request with the login session, logging in again once if it has expired.
+
+        Args:
+            method: HTTP method.
+            url: The URL to call.
+            expect_json: Parse the response as JSON (otherwise return the text).
+            headers: Headers for the request; the XSRF token is added.
+            json_data: JSON body to send.
+
+        Returns:
+            The parsed JSON or the response text.
+
+        Raises:
+            LeakomaticRequestError: The request failed, or the session could not
+                be renewed. Only one new login is tried per request, so wrong
+                credentials never turn into a stream of login attempts.
+        """
+        if not await self._ensure_authenticated():
+            raise LeakomaticRequestError(f"not logged in ({self._error_code})")
+
+        for attempt in range(2):
+            session_headers = dict(headers) if headers is not None else None
+            async with await self._create_session(headers=session_headers) as session:
+                async with session.request(method, url, json=json_data) as response:
+                    if self._is_logged_out(response, expect_json):
+                        if attempt == 0:
+                            _LOGGER.debug("Leakomatic session has expired, logging in again")
+                            self._xsrf_token = None
+                            if not await self.async_authenticate():
+                                raise LeakomaticRequestError(
+                                    f"session expired and logging in again failed ({self._error_code})"
+                                )
+                            continue
+                        raise LeakomaticRequestError("still logged out after logging in again")
+
+                    if response.status != 200:
+                        raise LeakomaticRequestError(f"server returned {response.status}")
+
+                    await self._update_session_from_response(response)
+                    if expect_json:
+                        return await response.json()
+                    return await response.text()
+
+        raise LeakomaticRequestError("request was not completed")
+
     async def _ensure_authenticated(self) -> bool:
         """Ensure the client is authenticated.
         
@@ -531,7 +573,7 @@ class LeakomaticClient:
             _LOGGER.debug("No XSRF token available, reconnecting to Leakomatic API")
             auth_success = await self.async_authenticate()
             if not auth_success:
-                _LOGGER.error("Failed to reconnect to Leakomatic API")
+                _LOGGER.debug("Failed to log in to Leakomatic API (%s)", self._error_code)
                 return False
         return True
 
@@ -605,47 +647,25 @@ class LeakomaticClient:
         if not device_id:
             return self._handle_error(f"Cannot {operation} - no device configured", return_value=False, level="warning")
             
-        # Ensure we're authenticated
-        if not await self._ensure_authenticated():
-            return False
-            
         try:
-            # Create headers for JSON content
             headers = {
                 "Content-Type": "application/json;charset=UTF-8",
                 "User-Agent": "Mozilla/5.0",
                 "Connection": "close"
             }
-            
-            # Create a new session with the saved cookies and specific headers for JSON
-            session = await self._create_session(headers=headers)
-            try:
-                # Construct the URL
-                url = f"{STATUS_URL}/{device_id}/{endpoint}"
-                
-                _LOGGER.debug("Making %s request to %s for device %s", operation, url, device_id)
-                
-                async with session.post(url, json=data) as response:
-                    # Get the response content
-                    response_text = await response.text()
-                    
-                    if response.status != 200:
-                        return self._handle_error(
-                            f"Failed to {operation} - server returned {response.status}",
-                            return_value=False,
-                            level="warning"
-                        )
-                    
-                    # Update cookies and XSRF token from the response
-                    await self._update_session_from_response(response)
-                    
-                    # For 200 status code, consider it a success
-                    _LOGGER.info("Successfully %s for device %s", operation, device_id)
-                    return True
-            finally:
-                # Always close the session
-                await session.close()
-                
+            url = f"{STATUS_URL}/{device_id}/{endpoint}"
+            _LOGGER.debug("Making %s request to %s for device %s", operation, url, device_id)
+
+            # A redirect to the login page (expired session) is not a success:
+            # the helper logs in again once and retries, or raises.
+            await self._async_session_request(
+                "POST", url, expect_json=False, headers=headers, json_data=data
+            )
+            _LOGGER.info("Successfully %s for device %s", operation, device_id)
+            return True
+
+        except LeakomaticRequestError as err:
+            return self._handle_error(f"Failed to {operation}: {err}", return_value=False, level="warning")
         except Exception as err:
             return self._handle_error(f"Failed to {operation}: {err}", return_value=False, level="error")
 
