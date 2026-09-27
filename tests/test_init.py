@@ -131,3 +131,17 @@ async def test_setup_starts_websocket_without_fetching_a_token(
     """The loop gets its own token, so a failed fetch at startup cannot leave it unstarted."""
     setup_integration.client.connect_to_websocket.assert_awaited_once()
     setup_integration.client.async_get_websocket_token.assert_not_awaited()
+
+
+# --- HA-261: a rejected login during operation starts reauthentication
+
+
+async def test_rejected_login_during_operation_starts_reauth(
+    hass: HomeAssistant, config_entry: MockConfigEntry, setup_integration: MockLeakomatic
+) -> None:
+    (auth_failed,) = setup_integration.client.set_auth_failed_callback.call_args.args
+    auth_failed()
+    await hass.async_block_till_done()
+
+    flows = hass.config_entries.flow.async_progress()
+    assert [flow["context"]["source"] for flow in flows] == ["reauth"]

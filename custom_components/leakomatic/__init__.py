@@ -164,6 +164,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: LeakomaticConfigEntry) -
         device_data=initial_device_data,
     )
 
+    # If Leakomatic rejects the credentials later (for example when the client
+    # logs in again after the session expired), ask the user for a new password.
+    client.set_auth_failed_callback(lambda: entry.async_start_reauth(hass))
+    entry.async_on_unload(lambda: client.set_auth_failed_callback(None))
+
     # Set up platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
