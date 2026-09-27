@@ -13,13 +13,13 @@ from homeassistant.components.select import (
     SelectEntity,
     SelectEntityDescription,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import EntityCategory
 
-from .const import DOMAIN, MessageType, DeviceMode
+from .const import MessageType, DeviceMode
 from .common import LeakomaticEntity, LeakomaticMessageHandler, MessageHandlerRegistry, log_with_entity
+from .models import LeakomaticConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ message_registry.register(MessageType.DEVICE_UPDATED.value, handle_device_update
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: LeakomaticConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Leakomatic select entity.
@@ -78,44 +78,15 @@ async def async_setup_entry(
         config_entry: The config entry to set up select entities for
         async_add_entities: Callback to register new entities
     """
-    domain_data = hass.data.get(DOMAIN, {}).get(config_entry.entry_id, {})
-    client = domain_data.get("client")
-    device_ids = domain_data.get("device_ids", [])
-    device_entries = domain_data.get("device_entries", {})
-    device_infos = domain_data.get("device_infos", {})
-
     _LOGGER.debug("Setting up Leakomatic select entities for config entry: %s", config_entry.entry_id)
-    
-    if not client or not device_ids or not device_entries or not device_infos:
-        _LOGGER.error("Missing client, device IDs, device entries, or device infos")
-        return
-    
-    # Get initial device data for all devices
-    device_data = await client.async_get_device_data()
-    if not device_data:
-        _LOGGER.error("Missing device data")
-        return
-        
-    # If we got data for a single device, convert it to a dict
-    if isinstance(device_data, dict) and "device_identifier" in device_data:
-        device_data = {device_ids[0]: device_data}
-    
+    data = config_entry.runtime_data
+    client = data.client
+
     # Create select entities for each device
     all_select_entities = []
-    for device_id in device_ids:
-        # Get data for this specific device
-        dev_data = device_data.get(device_id)
-        if not dev_data:
-            _LOGGER.warning("No data found for device %s", device_id)
-            continue
-            
-        # Get device info and entry for this device
-        device_info = device_infos.get(device_id)
-        device_entry = device_entries.get(device_id)
-        if not device_info or not device_entry:
-            _LOGGER.warning("Missing device info or entry for device %s", device_id)
-            continue
-        
+    for device_id, device_info in data.device_infos.items():
+        dev_data = data.device_data[device_id]
+
         # Create select entities for this device
         device_select_entities = [
             ModeSelect(device_info, device_id, dev_data, client),
@@ -130,10 +101,7 @@ async def async_setup_entry(
         """Handle WebSocket messages."""
         message_registry.handle_message(message, all_select_entities)
 
-    # Store the callback in hass.data for the WebSocket client to use
-    if "ws_callbacks" not in domain_data:
-        domain_data["ws_callbacks"] = []
-    domain_data["ws_callbacks"].append(handle_ws_message)
+    config_entry.async_on_unload(data.async_add_ws_listener(handle_ws_message))
 
 
 class ModeSelect(LeakomaticSelect):

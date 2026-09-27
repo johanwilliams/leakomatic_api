@@ -7,8 +7,6 @@ import pytest
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.leakomatic.const import DOMAIN
-
 from .conftest import MockLeakomatic, make_device_data, ws_message
 
 
@@ -45,8 +43,7 @@ async def test_error_in_one_platform_does_not_stop_the_others(
     def broken_callback(message: dict) -> None:
         raise RuntimeError("boom")
 
-    callbacks = hass.data[DOMAIN][config_entry.entry_id]["ws_callbacks"]
-    callbacks.insert(0, broken_callback)
+    config_entry.runtime_data.ws_listeners.insert(0, broken_callback)
 
     setup_integration.send(ws_message("device_updated", "SERIAL-A", mode=1))
 

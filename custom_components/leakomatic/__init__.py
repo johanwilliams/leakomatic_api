@@ -8,25 +8,23 @@ It provides real-time monitoring of device status, including:
 - Real-time updates via WebSocket connection
 """
 import logging
-from homeassistant.config_entries import ConfigEntry
+from typing import Any
+
+from homeassistant.const import ATTR_ENTITY_ID, Platform
 from homeassistant.core import HomeAssistant, callback, ServiceCall
-from homeassistant.helpers.device_registry import DeviceEntry, DeviceRegistry, async_get as async_get_device_registry
-from homeassistant.helpers.entity_registry import EntityRegistry, async_get as async_get_entity_registry
-from homeassistant.const import ATTR_ENTITY_ID
+from homeassistant.helpers.device_registry import DeviceInfo, async_get as async_get_device_registry
+from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 
 from .const import DOMAIN, LOGGER_NAME, DEFAULT_NAME, DeviceMode
 from .leakomatic_client import LeakomaticClient
+from .models import LeakomaticConfigEntry, LeakomaticData
 
 # Set up logger
 _LOGGER = logging.getLogger(LOGGER_NAME)
 
-PLATFORMS = ["sensor", "binary_sensor", "select", "button"]
+PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.SELECT, Platform.BUTTON]
 
-async def handle_ws_message(message: dict) -> None:
-    """Handle websocket messages by passing them to the sensor callback."""
-    _LOGGER.debug("Received websocket message: %s", message)
-
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: LeakomaticConfigEntry) -> bool:
     """Set up Leakomatic from a config entry.
     
     This function:
@@ -47,16 +45,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     # Initialize the client
     client = LeakomaticClient(entry.data["email"], entry.data["password"], hass)
-    
-    # Store the client in hass.data
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = {
-        "client": client,
-        "device_ids": [],  # Will be set after authentication
-        "device_entries": {},  # Will store device entries by device_id
-        "device_infos": {},  # Will store device info by device_id
-    }
-    
+
     # Authenticate to get the device IDs
     auth_success = await client.async_authenticate()
     if not auth_success:
@@ -69,9 +58,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.error("No device IDs found after authentication")
         return False
     
-    # Store the device IDs
-    hass.data[DOMAIN][entry.entry_id]["device_ids"] = device_ids
-
     # Fetch initial device data for all devices
     device_data = await client.async_get_device_data()
     if not device_data:
@@ -84,7 +70,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # If we got data for a single device, convert it to a dict
     if isinstance(device_data, dict) and "device_identifier" in device_data:
         device_data = {device_ids[0]: device_data}
-    
+
+    device_infos: dict[str, DeviceInfo] = {}
+    initial_device_data: dict[str, dict[str, Any]] = {}
+
     for device_id in device_ids:
         # Get data for this specific device
         dev_data = device_data.get(device_id)
@@ -147,22 +136,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             model_id=model_id
         )
         
-        # Store the device entry
-        hass.data[DOMAIN][entry.entry_id]["device_entries"][device_id] = device_entry
+        # Device info for the entities, built from the device entry. The
+        # serial number is what websocket messages are matched against.
+        device_infos[device_id] = DeviceInfo(
+            identifiers={(DOMAIN, device_id)},
+            name=device_entry.name,
+            manufacturer=device_entry.manufacturer,
+            model=device_entry.model,
+            sw_version=device_entry.sw_version,
+            serial_number=device_identifier,
+        )
+        initial_device_data[device_id] = dev_data
 
-        # Create device info dictionary using the device entry's information
-        device_info = {
-            "identifiers": {(DOMAIN, device_id)},
-            "name": device_entry.name,
-            "manufacturer": device_entry.manufacturer,
-            "model": device_entry.model,
-            "sw_version": device_entry.sw_version,
-            "serial_number": device_identifier,  # Add the device identifier for easy access
-        }
-        
-        # Store the device info in hass.data
-        hass.data[DOMAIN][entry.entry_id]["device_infos"][device_id] = device_info
-    
+    entry.runtime_data = LeakomaticData(
+        client=client,
+        device_infos=device_infos,
+        device_data=initial_device_data,
+    )
+
     # Set up platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -173,15 +164,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     @callback
     def dispatch_ws_message(message: dict) -> None:
-        """Pass a websocket message to every platform's callback.
+        """Pass a websocket message to every registered listener.
 
-        Each platform is called separately so that an error in one platform
+        Each listener is called separately so that an error in one platform
         does not stop the message from reaching the others.
         """
-        domain_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
-        for platform_callback in domain_data.get("ws_callbacks", []):
+        for listener in list(entry.runtime_data.ws_listeners):
             try:
-                platform_callback(message)
+                listener(message)
             except Exception:  # pylint: disable=broad-except
                 _LOGGER.exception("Error handling websocket message")
 
@@ -233,8 +223,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if isinstance(entity_ids, str):
             entity_ids = [entity_ids]
             
-        # Get the client from hass.data
-        client = hass.data[DOMAIN][entry.entry_id]["client"]
+        # Get the client from the config entry
+        client = entry.runtime_data.client
         
         # Change mode for each entity
         for entity_id in entity_ids:
@@ -280,36 +270,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.info("Leakomatic integration setup completed")
     return True
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: LeakomaticConfigEntry) -> bool:
     """Unload a config entry.
-    
+
     This function:
-    1. Unloads all platforms
-    2. Closes the client session
-    3. Cleans up the integration data
-    
+    1. Stops the websocket connection
+    2. Unloads all platforms (their websocket listeners are removed with them)
+
     Args:
         hass: The Home Assistant instance
         entry: The config entry to unload
-        
+
     Returns:
         bool: True if unload was successful, False otherwise
     """
     _LOGGER.debug("Unloading Leakomatic integration with config entry: %s", entry.entry_id)
-    
-    # Stop the websocket connection
-    if entry.entry_id in hass.data[DOMAIN]:
-        client = hass.data[DOMAIN][entry.entry_id].get("client")
-        if client:
-            await client.stop_websocket()
-    
-    # Unload platforms
+
+    await entry.runtime_data.client.stop_websocket()
+
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    
-    # Remove the entry from hass.data
     if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id)
-    
-    _LOGGER.info("Leakomatic integration unloaded successfully for %s", entry.entry_id)
-    
-    return unload_ok 
+        _LOGGER.info("Leakomatic integration unloaded successfully for %s", entry.entry_id)
+
+    return unload_ok

@@ -5,7 +5,7 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from .conftest import MockLeakomatic
+from .conftest import MockLeakomatic, ws_message
 
 
 async def test_setup_creates_entities(
@@ -30,3 +30,33 @@ async def test_unload(
 
     assert config_entry.state is ConfigEntryState.NOT_LOADED
     setup_integration.client.stop_websocket.assert_awaited_once()
+
+
+async def test_unload_removes_websocket_listeners(
+    hass: HomeAssistant, config_entry: MockConfigEntry, setup_integration: MockLeakomatic
+) -> None:
+    """The platforms' websocket listeners are removed when the entry unloads."""
+    data = config_entry.runtime_data
+    assert len(data.ws_listeners) == 3  # sensor, binary_sensor, select
+
+    assert await hass.config_entries.async_unload(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert data.ws_listeners == []
+
+
+async def test_reload_twice(
+    hass: HomeAssistant, config_entry: MockConfigEntry, setup_integration: MockLeakomatic
+) -> None:
+    """Reloading twice in a row keeps the same entities, and messages still arrive."""
+    for _ in range(2):
+        assert await hass.config_entries.async_reload(config_entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert config_entry.state is ConfigEntryState.LOADED
+    assert len(config_entry.runtime_data.ws_listeners) == 3
+    assert hass.states.get("select.leakomatic_mode").state == "home"
+    assert len(hass.states.async_entity_ids("select")) == 1
+
+    setup_integration.send(ws_message("device_updated", "SERIAL-A", mode=1))
+    assert hass.states.get("select.leakomatic_mode").state == "away"
