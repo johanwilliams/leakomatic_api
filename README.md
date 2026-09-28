@@ -1,312 +1,302 @@
-# Leakomatic Integration for Home Assistant
+# Leakomatic for Home Assistant
 
-This integration allows you to connect your Leakomatic water leak sensors to Home Assistant. Leakomatic is a water protection system that has been available since 2002, providing leak monitoring and automatic water shutoff capabilities for various types of properties. For more information about Leakomatic, visit [leakomatic.com](https://www.leakomatic.com).
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/docs/faq/custom_repositories/)
+[![Release](https://img.shields.io/github/v/release/johanwilliams/leakomatic_api)](https://github.com/johanwilliams/leakomatic_api/releases)
+[![Tests](https://github.com/johanwilliams/leakomatic_api/actions/workflows/tests.yml/badge.svg)](https://github.com/johanwilliams/leakomatic_api/actions/workflows/tests.yml)
+[![Validate](https://github.com/johanwilliams/leakomatic_api/actions/workflows/validate.yml/badge.svg)](https://github.com/johanwilliams/leakomatic_api/actions/workflows/validate.yml)
 
-## About Leakomatic
+Monitor and control your [Leakomatic](https://www.leakomatic.com) water leak guard from Home Assistant: see whether water is flowing, whether the valve is open, and the state of the device's three leak tests, get alarms as they happen, and switch between Home, Away and Pause.
 
-Water damage is a common issue in properties that can lead to significant costs and inconvenience. Leakomatic provides a monitoring system that can help prevent such damage by detecting leaks and automatically controlling water flow.
+The integration connects to the Leakomatic cloud with your Leakomatic account and receives updates in real time. It is a community project, not affiliated with Leakomatic.
 
-### System Capabilities
+- [What you need](#what-you-need)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Entities](#entities)
+- [Examples](#examples)
+- [How data is updated](#how-data-is-updated)
+- [Known limitations](#known-limitations)
+- [Troubleshooting](#troubleshooting)
+- [Removal](#removal)
+- [Contributing](#contributing)
 
-- **Leak Detection**: Monitors water flow and detects potential leaks
-- **Automatic Control**: Can automatically shut off water supply when issues are detected
-- **Property Types**: Compatible with various property types including:
-  - Residential properties
-  - Commercial buildings
-  - Construction sites
-  - Industrial facilities
+## What you need
 
-## Features
+- A Leakomatic device connected to the Leakomatic cloud, and the email and password you use in Leakomatic's app or at [cloud.leakomatic.com](https://cloud.leakomatic.com).
+- Home Assistant 2024.8 or newer (tested with 2026.9).
 
-- Real-time updates via WebSocket connection with persistent reconnection handling
-- Multi-phase retry strategy for robust connectivity:
-  - Phase 1: Quick retries (10 attempts with exponential backoff)
-  - Phase 2: Medium-term retries (every 6 hours for 24 hours)
-  - Phase 3: Long-term retries (every 12 hours indefinitely)
-- Automatic WebSocket token refresh every 24 hours
-- Detection of stale connections: a websocket that has been silent for 120 seconds is reconnected
-- Entities become unavailable when the connection to Leakomatic has been down for 5 minutes
-- Comprehensive device monitoring:
-  - Device mode monitoring and control (Home/Away/Pause)
-  - Quick test index monitoring
-  - Flow duration monitoring
-  - Longest tightness period monitoring
-  - Total volume monitoring
-  - Flow indicator monitoring
-  - Online status monitoring with last seen timestamp
-  - Signal strength monitoring
-  - Valve state monitoring
-  - Alarm state monitoring (Flow/Quick/Tightness tests)
-  - Device information display (model, software version, location)
-  - WebSocket connectivity status monitoring
-- Localization (English and Swedish) of entity names, states, attributes and error messages
-- Button to reset warnings or alarms
-- All devices on the account are set up (tested with one device)
-
-## Requirements
-
-- Home Assistant 2024.8.0 or newer (tested with 2026.9)
-- Python packages (installed by Home Assistant from the manifest):
-  - beautifulsoup4 >= 4.9.3
-  - websockets >= 15.0.1
-
-## Available Entities
-
-The integration provides the following entities:
-
-### Sensors
-
-- **Quick Test Index**: Displays the current quick test measurement value
-  - Numerical value indicating water flow characteristics
-  - Updates in real-time when quick tests are performed
-
-- **Last Flow Duration**: Shows the duration of the last completed water flow
-  - Measured in seconds
-  - Updates when a flow event completes
-  - Helps track water usage patterns
-
-- **Longest Tightness Period**: Shows the longest period of no water flow
-  - Measured in seconds
-  - Updates in real-time through WebSocket events
-  - Helps monitor system tightness and potential leaks
-
-- **Temperature** and **Pressure**: Readings from a sensor connected to the device's analog input ("Analog In" in Leakomatic's settings)
-  - Measured in °C and bar, updated in real time
-  - Unknown when the sensor is not connected
-  - Disabled by default; only useful if such a sensor is installed
-
-- **Total Volume**: The reading of a water meter connected to the device's pulse input ("AUX In" with a pulse volume in Leakomatic's settings)
-  - Measured in cubic meters (m³), device class water, so it can be used as a water source in Home Assistant's Energy dashboard
-  - Updated on flow events, water meter calibration and device updates
-  - Disabled by default; devices without a water meter report 0
-
-Temperature, Pressure and Total Volume follow the data Leakomatic sends, but have not been tested with real sensors or a real water meter connected. Reports are welcome.
-
-- **Pause Ends**: Shows when the pause mode ends and the device returns to its previous mode
-  - A timestamp; Unknown when the device is not paused
-  - The pause length is set in Leakomatic's app ("Time in pause mode")
-  - Useful in dashboards and automations, for example to notify before monitoring resumes
-
-- **Signal Strength**: Shows the WiFi signal strength (RSSI) of the device
-  - Measured in dBm
-  - Updates in real-time through WebSocket events
-  - Helps monitor device connectivity quality
-### Binary Sensors
-
-- **Flow Indicator**: Shows if water is currently flowing
-  - States: On (water flowing), Off (no water flow), Unknown (after startup, until the first flow event; the startup data from Leakomatic does not tell whether water is flowing)
-  - Updates in real-time through WebSocket flow events
-  - Useful for tracking active water usage and flow patterns
-
-- **Online Status**: Shows if the device is currently online
-  - States: On (online), Off (offline), Unknown (after startup, until the first message from the device)
-  - Turns off when Leakomatic reports the device offline, or when nothing has been heard from the device for 15 minutes while the connection to Leakomatic was up (the device reports every 5 minutes). Turns on again with the next message from the device
-  - Updates in real-time through WebSocket events
-  - Includes a last_seen attribute showing the timestamp of the last received message
-  - Useful for monitoring device connectivity and troubleshooting connection issues
-
-- **Valve**: Shows the current state of the water valve
-  - States: On (valve open), Off (valve closed), Unknown (valve state missing or invalid)
-  - Updates in real-time through WebSocket events
-  - Helps monitor valve operation and status
-
-- **WebSocket Connectivity**: Shows the status of the WebSocket connection to the Leakomatic API
-  - States: On (connected), Off (disconnected)
-  - Turns on only when the Leakomatic server has confirmed the subscription, so On means real-time updates are actually flowing
-  - Category: Diagnostic
-  - Updates in real-time when connection status changes
-  - Includes reconnection phase information in state attributes
-  - Useful for monitoring integration connectivity and troubleshooting connection issues
-  - Shows current retry phase during reconnection attempts
-
-### Select Entities
-
-- **Mode**: Allows changing the operating mode of your Leakomatic device
-  - Options: Home, Away, Pause
-  - Updates in real-time through WebSocket events
-  - Can be used to change the device mode directly from Home Assistant
-  - If Leakomatic does not accept the change, the action fails with an error, so the UI shows it and an automation or script stops at that step
-
-### Buttons
-
-- **Reset Alarms**: Allows resetting all active warnings or alarms on the device
-  - Located in the device configuration section
-  - Useful for clearing alarm states after resolving issues
-  - If the reset fails, the press fails with an error
-
-### Alarm Test Sensors
-
-The three alarm test sensors are enum sensors (device class `enum`) with the options `clear`, `warning` and `alarm`. Use these values in automations; the UI shows them translated. If Leakomatic reports an alarm level the integration does not know, the sensor shows Unknown instead of keeping its previous state. Each sensor also shows the test's settings as attributes (for example the flow test's alarm delay); they follow changes made in Leakomatic's app without a restart.
-
-- **Flow Test**: Monitors flow alarms and provides alarm state information
-  - States: Clear, Warning, Alarm
-  - Updates in real-time through WebSocket alarm events
-  - Detects if water flows longer than predefined time limits based on home or away mode, helping prevent major water damage
-
-- **Quick Test**: Monitors quick test alarms
-  - States: Clear, Warning, Alarm
-  - Updates in real-time through WebSocket alarm events
-  - Calculates a real-time index from pulse activity over the past hour to detect sudden drip leaks or changes in water usage trends
-
-- **Tightness Test**: Monitors tightness test alarms
-  - States: Clear, Warning, Alarm
-  - Updates in real-time through WebSocket alarm events
-  - Analyzes pulse activity over a 24-hour period to identify hidden leaks by ensuring at least one period with no water flow occurs
-
-## Message Handling System
-
-The integration implements a robust message handling system that processes various types of WebSocket messages:
-
-- Device updates (mode changes)
-- Status messages (valve state, signal strength)
-- Alarm triggers (flow, quick test, tightness test)
-- Flow indicator updates
-- Quick test index calculations
-- Tightness test period monitoring
-- Temperature sensor readings
-- Pressure sensor readings
-- Online status updates with timestamps
-
-Each message type is handled by specific handlers that update the relevant entities in real-time, ensuring accurate and timely state updates.
-
-## Persistent Reconnection Strategy
-
-The integration implements a robust multi-phase reconnection strategy to ensure reliable connectivity:
-
-### Phase 1: Quick Retries
-- 10 attempts with exponential backoff (5 seconds to 1 hour)
-- Includes jitter (±20%) to prevent thundering herd
-- Used for temporary network issues or brief service interruptions
-
-### Phase 2: Medium-term Retries
-- 4 attempts every 6 hours (24 hours total)
-- Used for longer network outages or service issues
-- Provides balance between responsiveness and resource usage
-
-### Phase 3: Long-term Retries
-- Indefinite retries every 12 hours
-- Ensures the integration never gives up permanently
-- Maintains connectivity even during extended outages
-
-### Additional Features
-- **Token Refresh**: Automatically refreshes WebSocket tokens every 24 hours
-- **Stale Connection Detection**: If an open websocket receives nothing for 120 seconds (not even the server's pings, which come every few seconds), it is treated as dead and reconnected
-- **Availability**: If the WebSocket connection has been down for 5 minutes, all entities except WebSocket Connectivity become unavailable, so stale values are not shown as current. They become available again as soon as the connection is back. Short disconnects, such as the server's nightly one, are not visible.
-- **Resource Efficient**: Long retry intervals prevent excessive CPU/network usage
-
-This strategy eliminates the need for manual integration reloads while maintaining robust connectivity to the Leakomatic API.
-
-## Supported Languages
-
-This integration supports the following languages:
-- English (en)
-- Swedish (sv)
-
-The integration will automatically use the language that matches your Home Assistant language settings. All sensor names, states, the names of the alarm test sensors' attributes (for example the flow test's alarm delay), error messages and UI elements will be displayed in your chosen language.
+All devices on the account are added. Temperature, pressure and water volume need an accessory on the device (see [Entities](#entities)).
 
 ## Installation
 
-### With HACS
+### With HACS (recommended)
 
-1. In HACS, open the menu (⋮) → Custom repositories, and add `https://github.com/johanwilliams/leakomatic_api` with the type Integration
-2. Search for "Leakomatic" in HACS and download it
-3. Restart Home Assistant
-4. Follow the configuration steps below
+1. In HACS, open the menu (⋮) → **Custom repositories**, add `https://github.com/johanwilliams/leakomatic_api` with the type **Integration**.
+2. Search for **Leakomatic** in HACS and download it.
+3. Restart Home Assistant.
 
 ### Manually
 
-1. Copy the `custom_components/leakomatic` directory from the latest [release](https://github.com/johanwilliams/leakomatic_api/releases) to your Home Assistant `custom_components` directory
-2. Restart Home Assistant
-3. Follow the configuration steps below
-
-## Removal
-
-1. Go to Settings → Devices & services → Leakomatic, open the menu (⋮) on the entry and choose Delete
-2. If you installed with HACS, remove the integration in HACS; if you installed manually, delete `custom_components/leakomatic`
-3. Restart Home Assistant
-
-Removing the integration does not change anything on the Leakomatic device or in your Leakomatic account.
+1. Copy `custom_components/leakomatic` from the latest [release](https://github.com/johanwilliams/leakomatic_api/releases) into the `custom_components` folder of your Home Assistant configuration.
+2. Restart Home Assistant.
 
 ## Configuration
 
-1. Go to Settings → Devices & Services
-2. Click "Add Integration"
-3. Search for "Leakomatic"
-4. Enter your email and password
-5. Click "Submit"
+1. Go to **Settings → Devices & services → Add integration** and search for **Leakomatic**.
+2. Enter your Leakomatic email and password.
 
-One entry is created per Leakomatic account, named after the account's email; all devices on the account are added to it. Adding the same account twice is refused. A device added to or removed from the account in Leakomatic shows up or disappears the next time the integration is reloaded or Home Assistant restarts.
+One entry is created per Leakomatic account, named after the email, with one device per Leakomatic device on the account. Adding the same account twice is refused. A device added to or removed from the account shows up or disappears the next time Home Assistant restarts or the integration is reloaded.
 
-The integration will automatically:
-- Connect to your Leakomatic devices
-- Set up real-time monitoring via WebSocket
-- Create all necessary entities
+If you change your Leakomatic password, Home Assistant shows a notification asking for the new one.
 
-## Debug Logging
+## Entities
 
-To enable debug logging for this integration, add the following to your `configuration.yaml` file:
+Each Leakomatic device gets the entities below. The names are shown in English or Swedish, following your Home Assistant language.
+
+### Water and valve
+
+| Entity | Type | What it shows |
+|---|---|---|
+| Flow indicator | Binary sensor | On while water is flowing. Unknown after startup until the first flow. |
+| Valve | Binary sensor | On when the valve is open, off when it is closed. |
+| Last flow duration | Sensor (s) | How long the last completed flow lasted. |
+| Longest tightness period | Sensor (s) | The longest period without any flow. |
+| Quick test index | Sensor | The current quick test index. |
+| Total volume | Sensor (m³) | The reading of a water meter on the device's pulse input. Usable as a water source in the Energy dashboard. *Disabled by default.* |
+| Temperature, Pressure | Sensor (°C, bar) | Readings from a sensor on the device's analog input. Unknown when the sensor is not connected. *Disabled by default.* |
+
+Total volume, temperature and pressure need an accessory connected and set up in Leakomatic's app (a water meter on "AUX In", a sensor on "Analog In"). They follow the data Leakomatic sends but have not been tested with real accessories; reports are welcome.
+
+### Leak tests
+
+| Entity | What it watches |
+|---|---|
+| Flow test | Water flowing longer than allowed: one limit when you are home, a much shorter one when you are away. |
+| Quick test | Small, frequent pulses over the last hour, such as a dripping tap or a running toilet. |
+| Tightness test | That the water has been completely still for a while every day; a hidden leak prevents that. |
+
+Each test sensor is `clear`, `warning` or `alarm` (shown translated in the UI), or unknown if Leakomatic reports a level the integration does not recognise. Its attributes show the test's settings from Leakomatic's app, for example the flow test's alarm delay; they follow changes you make in the app.
+
+### Mode and control
+
+| Entity | Type | What it does |
+|---|---|---|
+| Mode | Select | Home, Away or Pause. Changing it changes the device's mode. |
+| Pause ends | Sensor (timestamp) | When the pause ends and the device returns to its previous mode. Unknown when not paused. The pause length is set in Leakomatic's app. |
+| Reset alarms | Button | Resets all warnings and alarms on the device. |
+
+If Leakomatic does not accept a mode change or an alarm reset, the action fails with an error: the UI shows it, and an automation stops at that step with the error in its trace.
+
+### Connection (diagnostic)
+
+| Entity | What it shows |
+|---|---|
+| Online status | Whether the device is online. Off when Leakomatic reports it offline, or when nothing has been heard from it for 15 minutes (it reports every 5 minutes). Attribute `last_seen`. |
+| WebSocket connectivity | Whether the real-time connection to Leakomatic is up. Attribute `reconnection_phase`. |
+| Signal strength | The device's Wi-Fi signal (dBm). |
+
+## Examples
+
+Replace the entity IDs with yours: open **Settings → Devices & services → Leakomatic** and select the device. The examples use the automation syntax of Home Assistant 2024.10 and later (`triggers:`, `actions:`).
+
+### Away mode when the house is empty, home mode when someone is back
+
+In away mode the flow test allows only a very short flow, so a leak is caught within seconds when nobody is there to notice it. This automation switches to away when the alarm is armed away or everyone has left, and back to home when the alarm is disarmed or someone comes home:
 
 ```yaml
-logger:
-  default: info
-  logs:
-    custom_components.leakomatic: debug
+automation:
+  - alias: Leak guard follows the house
+    mode: queued
+    triggers:
+      - trigger: state
+        entity_id: alarm_control_panel.house
+        to: armed_away
+        id: away
+      - trigger: state
+        entity_id: zone.home
+        to: "0"
+        id: away
+      - trigger: state
+        entity_id: alarm_control_panel.house
+        to: disarmed
+        id: home
+      - trigger: numeric_state
+        entity_id: zone.home
+        above: 0
+        id: home
+    conditions:
+      # Leave a pause (for example during irrigation) alone
+      - condition: not
+        conditions:
+          - condition: state
+            entity_id: select.leakomatic_mode
+            state: pause
+    actions:
+      - action: select.select_option
+        target:
+          entity_id: select.leakomatic_mode
+        data:
+          option: "{{ trigger.id }}"
 ```
 
-After adding this configuration, restart Home Assistant to apply the changes. Debug logs will appear in your Home Assistant logs and can be viewed under Settings → System → Logs.
+### Pause during irrigation
 
-To turn debug logging on or off without a restart, call the `logger.set_level` action with `custom_components.leakomatic: debug` (or `warning` to turn it off again).
+Watering the lawn can run longer than the flow test allows in home mode (20 minutes by default), which would raise a flow alarm. Pause the leak guard just before the irrigation starts and switch back to home when it is done:
+
+```yaml
+automation:
+  - alias: Leak guard paused during irrigation
+    mode: restart
+    triggers:
+      - trigger: state
+        entity_id: switch.irrigation
+        to: "on"
+        id: start
+      - trigger: state
+        entity_id: switch.irrigation
+        to: "off"
+        id: done
+    actions:
+      - choose:
+          - conditions:
+              - condition: trigger
+                id: start
+            sequence:
+              - action: select.select_option
+                target:
+                  entity_id: select.leakomatic_mode
+                data:
+                  option: pause
+          - conditions:
+              - condition: trigger
+                id: done
+            sequence:
+              - action: select.select_option
+                target:
+                  entity_id: select.leakomatic_mode
+                data:
+                  option: home
+```
+
+If the irrigation is started by a schedule, trigger the pause a minute before it instead. The pause ends by itself after the time set in Leakomatic's app (*Time in pause mode*); make it longer than the longest irrigation, or the device goes back to its previous mode while the water is still running. The *Pause ends* sensor shows when that happens.
+
+### Notify on a leak alarm
+
+```yaml
+automation:
+  - alias: Leak alarm
+    triggers:
+      - trigger: state
+        entity_id:
+          - sensor.leakomatic_flow_test
+          - sensor.leakomatic_quick_test
+          - sensor.leakomatic_tightness_test
+        to:
+          - warning
+          - alarm
+    actions:
+      - action: notify.notify
+        data:
+          title: Leakomatic
+          message: "{{ trigger.to_state.name }}: {{ trigger.to_state.state }}"
+```
+
+### Remind before the pause ends
+
+```yaml
+automation:
+  - alias: Leak guard pause ends soon
+    triggers:
+      - trigger: time
+        at:
+          entity_id: sensor.leakomatic_pause_ends
+          offset: "-00:10:00"
+    actions:
+      - action: notify.notify
+        data:
+          message: The leak guard resumes monitoring in 10 minutes.
+```
+
+### How long has water been flowing this hour, and today?
+
+Home Assistant's **History stats** helper counts how long the flow indicator has been on. Measured over a week, this matches the flow durations the device reports to within seconds. Create it under Settings → Devices & services → Helpers → Create helper → History stats, or in YAML:
+
+```yaml
+sensor:
+  - platform: history_stats
+    name: Water flow this hour
+    entity_id: binary_sensor.leakomatic_flow_indicator
+    state: "on"
+    type: time
+    start: "{{ now().replace(minute=0, second=0, microsecond=0) }}"
+    end: "{{ now() }}"
+
+  - platform: history_stats
+    name: Water flow today
+    entity_id: binary_sensor.leakomatic_flow_indicator
+    state: "on"
+    type: time
+    start: "{{ today_at() }}"
+    end: "{{ now() }}"
+```
+
+The sensors show hours (0.25 = 15 minutes). A flow that crosses the hour is split correctly between the hours. Time while the flow indicator is unknown after a restart is not counted.
+
+## How data is updated
+
+The integration logs in to the Leakomatic cloud, reads each device's data once at startup, and then receives every change in real time over a websocket: flows, test results, alarms, mode changes and status messages. It does not poll.
+
+- The device itself reports about every 5 minutes; flows and alarms are sent as they happen.
+- Leakomatic closes the websocket on a schedule, typically once a night. The integration reconnects within seconds; you will not see it.
+- If the connection is lost, the integration retries: quickly at first, then every 6 hours, then every 12 hours, without giving up. If the connection has been down for **5 minutes**, all entities except WebSocket connectivity become unavailable, so old values are never shown as current.
+- An expired Leakomatic login is renewed automatically.
+
+## Known limitations
+
+- **No official API.** The integration uses the same cloud service as Leakomatic's web page and app. A change on Leakomatic's side can break it until the integration is updated.
+- **The valve cannot be controlled.** Leakomatic's cloud offers no command to open or close it; the device closes it itself on an alarm, according to its settings.
+- **No configuration changes.** Test limits, pause length and other settings are changed in Leakomatic's app; the integration shows them.
+- **Accessories untested.** Total volume, temperature and pressure have not been tested with real accessories.
+- **Several devices** on one account are supported but only tested with one.
 
 ## Troubleshooting
 
-If you encounter any issues with the integration:
+1. **Download the diagnostics:** Settings → Devices & services → Leakomatic, menu (⋮) → *Download diagnostics* (or from a device page). The file contains the device data and the connection state; email, serial numbers, IP address, location and account IDs are removed, and the alarm and event history is left out, so it can be attached to a GitHub issue.
+2. **Turn on debug logging** without a restart: call the `logger.set_level` action with `custom_components.leakomatic: debug` (and `warning` to turn it off again). The log is under Settings → System → Logs.
 
-1. Download the diagnostics: Settings → Devices & services → Leakomatic, menu (⋮) → Download diagnostics (or the same on a device page for one device). The file shows the device data from Leakomatic and the state of the connection. Personal data (email, serial numbers, IP address, location, user and customer IDs) is removed, and the alarm and event history is left out, so the file can be attached to a GitHub issue.
-2. Enable debug logging as described above
-3. Check the logs for detailed information
-4. Monitor the WebSocket Connectivity binary sensor for connection status
-5. Common issues and solutions:
-   - Authentication failures: If Leakomatic rejects the stored password (for example after you changed it), Home Assistant shows a notification asking you to re-authenticate. Enter the current password there; the integration reloads by itself.
-   - Connection issues: If Leakomatic cannot be reached when Home Assistant starts, the integration shows "Retrying setup" under Settings → Devices & services and keeps trying by itself. Check your network connection and firewall settings if it does not recover.
-   - Missing updates: Check WebSocket connection status in the logs and the WebSocket Connectivity sensor
-   - Sensor state issues: Verify device connectivity and data flow
-   - Changing the mode from an automation: use the `select.select_option` action on the device's Mode entity (for example `select.leakomatic_mode`). If Leakomatic does not accept the change, the action fails and the automation's trace shows the error.
-   - Persistent disconnections: The integration will automatically retry with a multi-phase strategy
-   - Stuck connections: a websocket that is silent for 120 seconds is reconnected automatically
-6. Reading the log:
-   - The Leakomatic server closes the websocket on a schedule (typically once per night). The integration reconnects within seconds; this is logged at debug/info level and needs no action.
-   - `Online Status - Nothing heard from the device for 15 minutes, marking it offline` (info) means the device has stopped reporting while the connection to Leakomatic works. Check the device's power and network.
-   - `No connection to Leakomatic for 5 minutes, marking entities unavailable` (info) and `Connection to Leakomatic restored, entities are available again` (info) mark when the entities became unavailable and available again.
-   - A warning such as `WebSocket reconnection failed 10 times, retrying every 6 hours (phase 2)` means the integration could not reconnect and has switched to longer retry intervals. Check your network connection and the Leakomatic service.
+Common situations:
 
-## Development Status
+| You see | What it means |
+|---|---|
+| "Retrying setup" under Devices & services | Leakomatic could not be reached at startup. Home Assistant keeps trying; check the network if it does not recover. |
+| A notification asking for the password | Leakomatic rejected the stored password. Enter the current one; the integration reloads by itself. |
+| All entities unavailable | No connection to Leakomatic for more than 5 minutes. The log says `No connection to Leakomatic for 5 minutes, marking entities unavailable`, and `Connection to Leakomatic restored` when it is back. |
+| Warning `WebSocket reconnection failed 10 times, retrying every 6 hours (phase 2)` | The quick reconnection attempts failed. Check the network and whether Leakomatic's service works. |
+| Online status off, log `Nothing heard from the device for 15 minutes` | The connection to Leakomatic works, but the device has stopped reporting. Check its power and network. |
 
-This integration is in active development and is not affiliated with Leakomatic. It uses the same cloud service as Leakomatic's web page and app; there is no official API, so a change on Leakomatic's side can break it. See the [changelog](CHANGELOG.md) for the current version and what has changed.
+## Removal
 
-The integration reads the device and can change the mode and reset alarms. It cannot open or close the valve directly (Leakomatic's cloud offers no such command) and does not change the device's configuration; use Leakomatic's app for that.
+1. Go to **Settings → Devices & services → Leakomatic**, open the menu (⋮) on the entry and choose **Delete**.
+2. Remove the integration in HACS, or delete `custom_components/leakomatic` if you installed it manually.
+3. Restart Home Assistant.
+
+Removing the integration changes nothing on the Leakomatic device or in your Leakomatic account.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+Contributions are welcome. For larger changes, please open an issue first. See the [changelog](CHANGELOG.md) for what has changed between versions.
 
-### Running the tests
-
-The tests use [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component) and run automatically on every pull request. To run them locally you need Python 3.14 on Linux or macOS (Home Assistant does not run on Windows; use WSL or a container there):
+The tests use [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component). They need Python 3.14 on Linux or macOS (Home Assistant does not run on Windows; use WSL or a container):
 
 ```bash
 pip install -r requirements_test.txt
 python -m pytest
-```
-
-Test data must be invented: do not add payloads from a real account, since they contain serial numbers, user IDs and locations.
-
-Every pull request is also checked by [hassfest](https://developers.home-assistant.io/blog/2020/04/16/hassfest/) (manifest, translations, services), the [HACS action](https://hacs.xyz/docs/publish/action) and [Ruff](https://docs.astral.sh/ruff/). Run the linter locally with:
-
-```bash
 pip install ruff
 ruff check .
 ```
 
+Every pull request is checked by the tests, [hassfest](https://developers.home-assistant.io/blog/2020/04/16/hassfest/), the [HACS action](https://hacs.xyz/docs/publish/action) and [Ruff](https://docs.astral.sh/ruff/). Test data must be invented: never add payloads from a real account, since they contain serial numbers, user IDs and locations.
+
 ## License
 
-This project is licensed under the terms of the license included in the repository. 
+MIT, see [LICENSE](LICENSE).
