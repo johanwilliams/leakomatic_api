@@ -35,7 +35,7 @@ async def test_device_updated_does_not_drive_flow_indicator(
 ) -> None:
     """device_updated can carry a stale flow_mode of 1; only flow_updated drives the flow indicator."""
     setup_integration.send(device_updated_message("SERIAL-A", 1001, mode=0, flow_mode=1))
-    assert hass.states.get("binary_sensor.leakomatic_flow_indicator").state == "off"
+    assert hass.states.get("binary_sensor.leakomatic_flow_indicator").state == "unknown"
 
     setup_integration.send(ws_message("flow_updated", "SERIAL-A", flow_mode=1))
     assert hass.states.get("binary_sensor.leakomatic_flow_indicator").state == "on"
@@ -125,3 +125,41 @@ async def test_disabled_entities_are_skipped(
     assert hass.states.get("sensor.leakomatic_total_volume") is None
     assert hass.states.get("sensor.leakomatic_flow_duration").state == "42"
     assert not _errors(caplog)
+
+
+# --- HA-197: missing or invalid data is unknown, not "off"
+
+FLOW = "binary_sensor.leakomatic_flow_indicator"
+ONLINE = "binary_sensor.leakomatic_online_status"
+VALVE = "binary_sensor.leakomatic_valve"
+
+
+async def test_flow_and_online_unknown_at_setup(hass: HomeAssistant, setup_integration: MockLeakomatic) -> None:
+    """The REST data at setup says nothing reliable about flow or being online."""
+    assert hass.states.get(FLOW).state == "unknown"
+    online = hass.states.get(ONLINE)
+    assert online.state == "unknown"
+    assert online.attributes["last_seen"] == "2026-01-01T12:00:00+00:00"
+
+
+async def test_online_after_first_message(hass: HomeAssistant, setup_integration: MockLeakomatic) -> None:
+    setup_integration.send(ws_message("status_message", "SERIAL-A", port_state=0, rssi=-60))
+    assert hass.states.get(ONLINE).state == "on"
+
+
+@pytest.mark.parametrize("devices", [{"1001": make_device_data("1001", "SERIAL-A", port_state=None)}])
+async def test_valve_unknown_without_port_state(hass: HomeAssistant, setup_integration: MockLeakomatic) -> None:
+    """Without port_state the valve is unknown - never 'closed' by default."""
+    assert hass.states.get(VALVE).state == "unknown"
+
+
+async def test_invalid_values_are_unknown(
+    hass: HomeAssistant, setup_integration: MockLeakomatic, caplog: pytest.LogCaptureFixture
+) -> None:
+    setup_integration.send(ws_message("flow_updated", "SERIAL-A", flow_mode="garbage"))
+    setup_integration.send(ws_message("status_message", "SERIAL-A", port_state="garbage", rssi=-60))
+
+    assert hass.states.get(FLOW).state == "unknown"
+    assert hass.states.get(VALVE).state == "unknown"
+    assert "Invalid value: garbage" in caplog.text
+    assert "Invalid port state value: garbage" in caplog.text
