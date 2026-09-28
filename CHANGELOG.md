@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Login: if the user ID cannot be found on the page after login, the integration no longer fails with a misleading "invalid credentials" error. It logs a clear warning that real-time updates will not be available.
 
 ### Changed
+- Flow Test, Quick Test and Tightness Test are now enum sensors (device class `enum`, options `clear`, `warning`, `alarm`). The state values are unchanged, so automations keep working. An unknown alarm level now makes the sensor unknown; previously it was logged and the old state was kept.
 - Binary sensors show *unknown* instead of *off* when the data needed is missing or invalid. Flow Indicator is unknown after startup until the first flow event (it was forced to off). Online Status is unknown after startup until the first message from the device (it could show offline while the device was up). Valve is unknown if the valve state is missing or invalid (it showed closed).
 - Minimum Home Assistant version is now documented as 2024.8.0 (in the README and `hacs.json`). The integration already required it (device registry `model_id`); the previously stated 2023.x versions were wrong.
 - Internal: runtime data is stored in the config entry (`entry.runtime_data`) instead of `hass.data`, and each platform's websocket listener is removed when the integration is unloaded or reloaded.

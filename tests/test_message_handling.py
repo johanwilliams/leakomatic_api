@@ -177,3 +177,50 @@ async def test_device_offline_marks_device_offline(hass: HomeAssistant, setup_in
 
     setup_integration.send(ws_message("status_message", "SERIAL-A", port_state=0, rssi=-60))
     assert hass.states.get(ONLINE).state == "on"
+
+
+# --- HA-263: the alarm test sensors are ENUM sensors with a closed set of states
+
+FLOW_TEST = "sensor.leakomatic_flow_test"
+
+
+def _alarm(serial: str, alarm_type: str, alarm_level: str) -> dict:
+    """alarm_triggered as the server sends it: operation and strings in data."""
+    message = ws_message("alarm_triggered", serial, alarm_type=alarm_type, alarm_level=alarm_level)
+    message["message"]["data"]["operation"] = "alarm_triggered"
+    return message
+
+
+async def test_alarm_sensor_is_enum(hass: HomeAssistant, setup_integration: MockLeakomatic) -> None:
+    state = hass.states.get(FLOW_TEST)
+    assert state.state == "clear"
+    assert state.attributes["device_class"] == "enum"
+    assert state.attributes["options"] == ["clear", "warning", "alarm"]
+
+
+async def test_alarm_levels(hass: HomeAssistant, setup_integration: MockLeakomatic) -> None:
+    for level, expected in (("1", "warning"), ("2", "alarm"), ("0", "clear")):
+        setup_integration.send(_alarm("SERIAL-A", "0", level))
+        assert hass.states.get(FLOW_TEST).state == expected
+
+    # Another alarm type does not touch the flow test sensor
+    setup_integration.send(_alarm("SERIAL-A", "1", "2"))
+    assert hass.states.get(FLOW_TEST).state == "clear"
+
+
+async def test_unknown_alarm_level_is_unknown(
+    hass: HomeAssistant, setup_integration: MockLeakomatic, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An unknown level must not leave the old state in place: the guard does not know."""
+    setup_integration.send(_alarm("SERIAL-A", "0", "7"))
+
+    assert hass.states.get(FLOW_TEST).state == "unknown"
+    assert "Unknown alarm level received: 7" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "devices",
+    [{"1001": make_device_data("1001", "SERIAL-A", current_alarm={"alarm_type": 0, "level": 1})}],
+)
+async def test_alarm_state_from_startup_data(hass: HomeAssistant, setup_integration: MockLeakomatic) -> None:
+    assert hass.states.get(FLOW_TEST).state == "warning"

@@ -425,6 +425,13 @@ class LongestTightnessPeriodSensor(LeakomaticSensor):
         log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.native_value)
 
 
+_ALARM_LEVEL_TO_STATE = {
+    AlarmLevel.CLEAR.value: TestState.CLEAR.value,
+    AlarmLevel.WARNING.value: TestState.WARNING.value,
+    AlarmLevel.ALARM.value: TestState.ALARM.value,
+}
+
+
 class AlarmTestSensor(LeakomaticEntity, SensorEntity):
     """Base class for Leakomatic alarm test sensors.
     
@@ -432,7 +439,12 @@ class AlarmTestSensor(LeakomaticEntity, SensorEntity):
     - CLEAR: No alarm
     - WARNING: Warning threshold exceeded
     - ALARM: Alarm threshold exceeded
+
+    An alarm level outside these makes the state unknown.
     """
+
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = [state.value for state in TestState]
 
     def __init__(
         self,
@@ -452,7 +464,7 @@ class AlarmTestSensor(LeakomaticEntity, SensorEntity):
             key=key,
             icon="mdi:water-alert",
         )
-        self._state = TestState.CLEAR.value
+        self._state: str | None = TestState.CLEAR.value
         self._alarm_type = alarm_type
         self._log_prefix = log_prefix
         
@@ -460,15 +472,14 @@ class AlarmTestSensor(LeakomaticEntity, SensorEntity):
         if device_data and "current_alarm" in device_data:
             current_alarm = device_data["current_alarm"]
             if current_alarm and current_alarm.get("alarm_type") == int(self._alarm_type):
-                alarm_level = str(current_alarm.get("level", AlarmLevel.CLEAR.value))
-                if alarm_level == AlarmLevel.WARNING.value:
-                    self._state = TestState.WARNING.value
-                elif alarm_level == AlarmLevel.ALARM.value:
-                    self._state = TestState.ALARM.value
-                elif alarm_level == AlarmLevel.CLEAR.value:
-                    self._state = TestState.CLEAR.value
-                else:
-                    log_with_entity(_LOGGER, logging.WARNING, self, "Unknown alarm level received: %s", alarm_level)
+                self._state = self._state_for_level(current_alarm.get("level", AlarmLevel.CLEAR.value))
+
+    def _state_for_level(self, alarm_level: Any) -> str | None:
+        """Return the state for an alarm level, or None (unknown) for an unknown level."""
+        state = _ALARM_LEVEL_TO_STATE.get(str(alarm_level))
+        if state is None:
+            log_with_entity(_LOGGER, logging.WARNING, self, "Unknown alarm level received: %s", alarm_level)
+        return state
 
     @property
     def native_value(self) -> StateType:
@@ -483,16 +494,7 @@ class AlarmTestSensor(LeakomaticEntity, SensorEntity):
             
             # Verify this is the correct alarm type
             if data.get("alarm_type") == self._alarm_type:
-                alarm_level = str(data.get("alarm_level", ""))
-                
-                if alarm_level == AlarmLevel.WARNING.value:
-                    self._state = TestState.WARNING.value
-                elif alarm_level == AlarmLevel.ALARM.value:
-                    self._state = TestState.ALARM.value
-                elif alarm_level == AlarmLevel.CLEAR.value:
-                    self._state = TestState.CLEAR.value
-                else:
-                    log_with_entity(_LOGGER, logging.WARNING, self, "Unknown alarm level received: %s", alarm_level)
+                self._state = self._state_for_level(data.get("alarm_level", ""))
                 self._device_data = data
                 self.async_write_ha_state()
                 # Add state change log message
