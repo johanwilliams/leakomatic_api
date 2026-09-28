@@ -261,10 +261,11 @@ To turn debug logging on or off without a restart, call the `logger.set_level` a
 
 If you encounter any issues with the integration:
 
-1. Enable debug logging as described above
-2. Check the logs for detailed information
-3. Monitor the WebSocket Connectivity binary sensor for connection status
-4. Common issues and solutions:
+1. Download the diagnostics: Settings → Devices & services → Leakomatic, menu (⋮) → Download diagnostics (or the same on a device page for one device). The file shows the device data from Leakomatic and the state of the connection. Personal data (email, serial numbers, IP address, location, user and customer IDs) is removed, and the alarm and event history is left out, so the file can be attached to a GitHub issue.
+2. Enable debug logging as described above
+3. Check the logs for detailed information
+4. Monitor the WebSocket Connectivity binary sensor for connection status
+5. Common issues and solutions:
    - Authentication failures: If Leakomatic rejects the stored password (for example after you changed it), Home Assistant shows a notification asking you to re-authenticate. Enter the current password there; the integration reloads by itself.
    - Connection issues: If Leakomatic cannot be reached when Home Assistant starts, the integration shows "Retrying setup" under Settings → Devices & services and keeps trying by itself. Check your network connection and firewall settings if it does not recover.
    - Missing updates: Check WebSocket connection status in the logs and the WebSocket Connectivity sensor
@@ -272,7 +273,7 @@ If you encounter any issues with the integration:
    - Changing the mode from an automation: use the `select.select_option` action on the device's Mode entity (for example `select.leakomatic_mode`). If Leakomatic does not accept the change, the action fails and the automation's trace shows the error.
    - Persistent disconnections: The integration will automatically retry with a multi-phase strategy
    - Stuck connections: a websocket that is silent for 120 seconds is reconnected automatically
-5. Reading the log:
+6. Reading the log:
    - The Leakomatic server closes the websocket on a schedule (typically once per night). The integration reconnects within seconds; this is logged at debug/info level and needs no action.
    - `Online Status - Nothing heard from the device for 15 minutes, marking it offline` (info) means the device has stopped reporting while the connection to Leakomatic works. Check the device's power and network.
    - `No connection to Leakomatic for 5 minutes, marking entities unavailable` (info) and `Connection to Leakomatic restored, entities are available again` (info) mark when the entities became unavailable and available again.

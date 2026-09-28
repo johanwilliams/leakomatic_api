@@ -162,6 +162,28 @@ class LeakomaticClient:
             _LOGGER.error("Authentication error: %s", err)
             return False
 
+    def connection_state(self) -> dict[str, Any]:
+        """The connection's state, for diagnostics. No credentials or tokens."""
+        def iso(moment: Optional[datetime]) -> Optional[str]:
+            return moment.isoformat() if moment else None
+
+        return {
+            "logged_in": bool(self._xsrf_token),
+            "error_code": self._error_code,
+            "device_ids": list(self._device_ids),
+            "websocket_connected": self._ws_connected,
+            "reconnection_phase": self._reconnection_phase,
+            "last_websocket_message": iso(self._last_ws_message),
+            "websocket_token_expiry": iso(self._ws_token_expiry),
+            "device_data_fetched": {
+                device_id: iso(fetched) for device_id, fetched in self._device_data_cache_time.items()
+            },
+        }
+
+    def cached_device_data(self, device_id: str) -> Optional[dict[str, Any]]:
+        """The latest device data fetched from the REST API, if any."""
+        return self._device_data_cache.get(device_id)
+
     @property
     def error_code(self) -> Optional[str]:
         """Get the error code if authentication failed."""
