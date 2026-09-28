@@ -69,6 +69,14 @@ class DeviceMode(Enum):
         except KeyError:
             raise ValueError(f"Invalid mode: {mode_str}. Must be one of: home, away, pause")
 
+    @classmethod
+    def option(cls, mode: object) -> str | None:
+        """The select option (home, away, pause) for a numeric mode, or None if unknown."""
+        try:
+            return cls(int(mode)).name.lower()
+        except (TypeError, ValueError):
+            return None
+
 class TestState(Enum):
     """Test sensor states.
     
