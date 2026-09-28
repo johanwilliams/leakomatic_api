@@ -87,6 +87,11 @@ The integration provides the following entities:
   - Helps track total water consumption
   - Updates on flow events and water meter calibration
 
+- **Pause Ends**: Shows when the pause mode ends and the device returns to its previous mode
+  - A timestamp; Unknown when the device is not paused
+  - The pause length is set in Leakomatic's app ("Time in pause mode")
+  - Useful in dashboards and automations, for example to notify before monitoring resumes
+
 - **Signal Strength**: Shows the WiFi signal strength (RSSI) of the device
   - Measured in dBm
   - Updates in real-time through WebSocket events

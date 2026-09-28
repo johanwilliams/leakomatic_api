@@ -13,6 +13,7 @@ The sensors are updated through real-time WebSocket updates.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -25,7 +26,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.typing import StateType
 
-from .const import MessageType, TestState, AlarmType, AlarmLevel
+from .const import DeviceMode, MessageType, TestState, AlarmType, AlarmLevel
 from .common import LeakomaticEntity, MessageHandlerRegistry, LeakomaticMessageHandler, log_with_entity
 from .models import LeakomaticConfigEntry
 
@@ -68,9 +69,9 @@ message_registry = MessageHandlerRegistry[LeakomaticSensor]()
 def handle_device_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
     """Handle device_updated messages."""
     LeakomaticMessageHandler.handle_device_update(
-        message, 
-        sensors, 
-        None,  # No flow sensor
+        message,
+        sensors,
+        PauseEndSensor,  # the mode
         None   # No online sensor
     )
 
@@ -104,9 +105,9 @@ def handle_tightness_test_update(message: dict, sensors: list[LeakomaticSensor])
 def handle_status_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
     """Handle status_message messages."""
     LeakomaticMessageHandler.handle_status_update(
-        message, 
-        sensors, 
-        SignalStrengthSensor,
+        message,
+        sensors,
+        (SignalStrengthSensor, PauseEndSensor),  # PauseEndSensor: mode_stoptime
         None   # No online sensor
     )
 
@@ -194,6 +195,7 @@ async def async_setup_entry(
             TotalVolumeSensor(device_info, device_id, dev_data),
             TemperatureSensor(device_info, device_id, dev_data),
             PressureSensor(device_info, device_id, dev_data),
+            PauseEndSensor(device_info, device_id, dev_data),
         ]
         all_sensors.extend(device_sensors)
     
@@ -826,5 +828,56 @@ class PressureSensor(LeakomaticSensor):
     def handle_update(self, data: dict[str, Any]) -> None:
         """Handle updated data from WebSocket."""
         self._device_data = data
+        self.async_write_ha_state()
+        log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.native_value)
+
+
+class PauseEndSensor(LeakomaticSensor):
+    """When the pause mode ends.
+
+    In pause mode the device returns to its previous mode after a configured
+    time. mode_stoptime is that moment as a Unix timestamp (0 when there is
+    no pause). It comes in status_message and the startup data, the mode in
+    device_updated and the startup data, so both are kept here.
+    """
+
+    def __init__(
+        self,
+        device_info: dict[str, Any],
+        device_id: str,
+        device_data: dict[str, Any] | None,
+    ) -> None:
+        """Initialize the pause end sensor."""
+        super().__init__(
+            device_info=device_info,
+            device_id=device_id,
+            device_data=device_data,
+            key="pause_end",
+            icon="mdi:timer-pause-outline",
+            device_class=SensorDeviceClass.TIMESTAMP,
+        )
+        data = device_data or {}
+        self._mode = data.get("mode")
+        self._stoptime = data.get("mode_stoptime")
+
+    @property
+    def native_value(self) -> datetime | None:
+        """Return when the pause ends, or None when the device is not paused."""
+        try:
+            mode = int(self._mode)
+            stoptime = int(self._stoptime)
+        except (TypeError, ValueError):
+            return None
+        if mode != DeviceMode.PAUSE.value or stoptime <= 0:
+            return None
+        return datetime.fromtimestamp(stoptime, tz=timezone.utc)
+
+    @callback
+    def handle_update(self, data: dict[str, Any]) -> None:
+        """Take the mode (device_updated) or the stop time (status_message)."""
+        if "mode" in data:
+            self._mode = data["mode"]
+        if "mode_stoptime" in data:
+            self._stoptime = data["mode_stoptime"]
         self.async_write_ha_state()
         log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.native_value)

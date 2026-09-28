@@ -108,6 +108,9 @@
                         "name": "Larmfördröjning (dagar)"
                     }
                 }
+            },
+            "pause_end": {
+                "name": "Paus slutar"
             }
         },
         "binary_sensor": {
