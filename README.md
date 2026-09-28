@@ -24,7 +24,8 @@ Water damage is a common issue in properties that can lead to significant costs 
   - Phase 2: Medium-term retries (every 6 hours for 24 hours)
   - Phase 3: Long-term retries (every 12 hours indefinitely)
 - Automatic WebSocket token refresh every 24 hours
-- Health monitoring to detect and recover from stuck connections
+- Detection of stale connections: a websocket that has been silent for 120 seconds is reconnected
+- Entities become unavailable when the connection to Leakomatic has been down for 5 minutes
 - Comprehensive device monitoring:
   - Device mode monitoring and control (Home/Away/Pause)
   - Quick test index monitoring
@@ -38,10 +39,9 @@ Water damage is a common issue in properties that can lead to significant costs 
   - Alarm state monitoring (Flow/Quick/Tightness tests)
   - Device information display (model, software version, location)
   - WebSocket connectivity status monitoring
-- Advanced message handling system for reliable updates
-- Full localization support for all sensor names and states
+- Localization (English and Swedish) of entity names, states, attributes and error messages
 - Button to reset warnings or alarms
-- Support for multiple devices per account
+- All devices on the account are set up (tested with one device)
 
 ## Requirements
 
@@ -157,7 +157,8 @@ The three alarm test sensors are enum sensors (device class `enum`) with the opt
 
 The integration implements a robust message handling system that processes various types of WebSocket messages:
 
-- Device updates (mode changes, valve state)
+- Device updates (mode changes)
+- Status messages (valve state, signal strength)
 - Alarm triggers (flow, quick test, tightness test)
 - Flow indicator updates
 - Quick test index calculations
@@ -165,7 +166,6 @@ The integration implements a robust message handling system that processes vario
 - Temperature sensor readings
 - Pressure sensor readings
 - Online status updates with timestamps
-- Connection health monitoring
 
 Each message type is handled by specific handlers that update the relevant entities in real-time, ensuring accurate and timely state updates.
 
@@ -190,7 +190,7 @@ The integration implements a robust multi-phase reconnection strategy to ensure 
 
 ### Additional Features
 - **Token Refresh**: Automatically refreshes WebSocket tokens every 24 hours
-- **Health Monitoring**: Detects stuck connections (no messages for 10+ minutes) and forces reconnection
+- **Stale Connection Detection**: If an open websocket receives nothing for 120 seconds (not even the server's pings, which come every few seconds), it is treated as dead and reconnected
 - **Availability**: If the WebSocket connection has been down for 5 minutes, all entities except WebSocket Connectivity become unavailable, so stale values are not shown as current. They become available again as soon as the connection is back. Short disconnects, such as the server's nightly one, are not visible.
 - **Resource Efficient**: Long retry intervals prevent excessive CPU/network usage
 
@@ -206,9 +206,26 @@ The integration will automatically use the language that matches your Home Assis
 
 ## Installation
 
-1. Copy the `custom_components/leakomatic` directory to your Home Assistant `custom_components` directory
+### With HACS
+
+1. In HACS, open the menu (⋮) → Custom repositories, and add `https://github.com/johanwilliams/leakomatic_api` with the type Integration
+2. Search for "Leakomatic" in HACS and download it
+3. Restart Home Assistant
+4. Follow the configuration steps below
+
+### Manually
+
+1. Copy the `custom_components/leakomatic` directory from the latest [release](https://github.com/johanwilliams/leakomatic_api/releases) to your Home Assistant `custom_components` directory
 2. Restart Home Assistant
 3. Follow the configuration steps below
+
+## Removal
+
+1. Go to Settings → Devices & services → Leakomatic, open the menu (⋮) on the entry and choose Delete
+2. If you installed with HACS, remove the integration in HACS; if you installed manually, delete `custom_components/leakomatic`
+3. Restart Home Assistant
+
+Removing the integration does not change anything on the Leakomatic device or in your Leakomatic account.
 
 ## Configuration
 
@@ -234,7 +251,9 @@ logger:
     custom_components.leakomatic: debug
 ```
 
-After adding this configuration, restart Home Assistant to apply the changes. Debug logs will appear in your Home Assistant logs and can be viewed in the Developer Tools > Logs section of the Home Assistant UI.
+After adding this configuration, restart Home Assistant to apply the changes. Debug logs will appear in your Home Assistant logs and can be viewed under Settings → System → Logs.
+
+To turn debug logging on or off without a restart, call the `logger.set_level` action with `custom_components.leakomatic: debug` (or `warning` to turn it off again).
 
 ## Troubleshooting
 
@@ -251,7 +270,7 @@ If you encounter any issues with the integration:
    - Service call failures: Check entity IDs and mode parameters
    - Multiple device support: Ensure proper device selection when using services
    - Persistent disconnections: The integration will automatically retry with a multi-phase strategy
-   - Stuck connections: Health monitoring will detect and recover from stuck connections automatically
+   - Stuck connections: a websocket that is silent for 120 seconds is reconnected automatically
 5. Reading the log:
    - The Leakomatic server closes the websocket on a schedule (typically once per night). The integration reconnects within seconds; this is logged at debug/info level and needs no action.
    - `Online Status - Nothing heard from the device for 15 minutes, marking it offline` (info) means the device has stopped reporting while the connection to Leakomatic works. Check the device's power and network.
@@ -260,20 +279,9 @@ If you encounter any issues with the integration:
 
 ## Development Status
 
-This integration is currently in active development. See the [changelog](CHANGELOG.md) for the current version and what has changed.
+This integration is in active development and is not affiliated with Leakomatic. It uses the same cloud service as Leakomatic's web page and app; there is no official API, so a change on Leakomatic's side can break it. See the [changelog](CHANGELOG.md) for the current version and what has changed.
 
-Recent improvements:
-- Implemented persistent WebSocket reconnection with multi-phase retry strategy
-- Added WebSocket connectivity binary sensor for real-time connection monitoring
-- Enhanced error handling and recovery mechanisms
-- Improved token management with automatic refresh
-
-Future enhancements planned:
-- Historical data analysis features
-- Additional alarm state details and configuration options
-- More detailed device diagnostics and health monitoring
-- Enhanced error reporting and user notifications
-- Advanced connectivity analytics and reporting
+The integration reads the device and can change the mode and reset alarms. It cannot open or close the valve directly (Leakomatic's cloud offers no such command) and does not change the device's configuration; use Leakomatic's app for that.
 
 ## Contributing
 
