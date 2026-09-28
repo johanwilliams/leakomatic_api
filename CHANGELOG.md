@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Total volume sensor: water meter calibration messages now update the sensor (they were read from the wrong place in the message), and an invalid value is logged instead of raising a second error.
 - Entities that are disabled in the entity registry are no longer updated by websocket messages, which could raise an error.
 - Unloading or reloading the integration now stops the websocket connection immediately. Previously the old connection loop was only told to stop and could keep running: up to 30 seconds while connected, or until its next retry (up to 12 hours) while waiting to reconnect.
+- WebSocket Connectivity sensor: it showed "connected" from startup, before any connection existed, and as soon as the subscription was sent, even if the server then refused it. It now starts as disconnected and turns on only when the server confirms the subscription. A refused subscription or a server disconnect that refuses the token is handled as a failed attempt (with the normal backoff and a new token) instead of being logged as `Unknown message type in response`.
 - Login: if the user ID cannot be found on the page after login, the integration no longer fails with a misleading "invalid credentials" error. It logs a clear warning that real-time updates will not be available.
 
 ### Changed

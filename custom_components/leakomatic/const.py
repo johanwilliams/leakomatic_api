@@ -25,6 +25,8 @@ class MessageType(Enum):
     WELCOME = "welcome"  # Initial connection welcome message
     PING = "ping"  # Keep-alive ping message
     CONFIRM_SUBSCRIPTION = "confirm_subscription"  # Subscription confirmation
+    REJECT_SUBSCRIPTION = "reject_subscription"  # Subscription refused by the server
+    DISCONNECT = "disconnect"  # Server is closing the connection
     DEVICE_UPDATED = "device_updated"  # General device status update
     ALARM_TRIGGERED = "alarm_triggered"  # Alarm event notification
     CONFIGURATION_ADDED = "configuration_added"  # Configuration change notification    
