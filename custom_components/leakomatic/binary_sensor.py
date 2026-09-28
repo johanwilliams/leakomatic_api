@@ -471,7 +471,6 @@ class WebSocketConnectivityBinarySensor(LeakomaticBinarySensor):
             device_class=BinarySensorDeviceClass.CONNECTIVITY,
         )
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
-        self._attr_name = "WebSocket Connectivity"
         self._websocket_connected = False
         self._reconnection_phase = 1
         self._last_connection_change: datetime | None = None

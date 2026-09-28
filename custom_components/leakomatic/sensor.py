@@ -13,11 +13,14 @@ The sensors are updated through real-time WebSocket updates.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
 from homeassistant.components.sensor import (
     SensorEntity,
+    SensorEntityDescription,
     SensorDeviceClass,
     SensorStateClass,
 )
@@ -65,72 +68,68 @@ class LeakomaticSensor(LeakomaticEntity, SensorEntity):
             key=key,
             icon=icon,
         )
-        self._attr_device_class = device_class
-        self._attr_native_unit_of_measurement = native_unit_of_measurement
-        self._attr_state_class = state_class
+        # Only what is given: an _attr_ set to None would override an entity description
+        if device_class is not None:
+            self._attr_device_class = device_class
+        if native_unit_of_measurement is not None:
+            self._attr_native_unit_of_measurement = native_unit_of_measurement
+        if state_class is not None:
+            self._attr_state_class = state_class
 
 # Create a global registry instance
 message_registry = MessageHandlerRegistry[LeakomaticSensor]()
 
-# Define message handlers
-def handle_device_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
-    """Handle device_updated messages."""
-    LeakomaticMessageHandler.handle_device_update(
-        message,
-        sensors,
-        # the mode, total_flow_volume, active_alarms
-        (PauseEndSensor, TotalVolumeSensor, FlowTestSensor, QuickTestSensor, TightnessTestSensor),
-        None   # No online sensor
+
+def _value_sensors(sensors: list[LeakomaticSensor], operation: str) -> list[LeakomaticSensor]:
+    """The value sensors that take their value from this message type."""
+    return [
+        sensor for sensor in sensors
+        if isinstance(sensor, LeakomaticValueSensor) and operation in sensor.entity_description.updated_by
+    ]
+
+
+def _update(message: dict, sensors: list[LeakomaticSensor], operation: str, *special: type) -> None:
+    """Update the value sensors for this message type and the given special sensor classes."""
+    targets = _value_sensors(sensors, operation) + [s for s in sensors if isinstance(s, special)]
+    LeakomaticMessageHandler.update_matching_entities(
+        message, targets, (LeakomaticValueSensor, *special), None
     )
+
+
+def handle_device_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
+    """device_updated: the mode, total_flow_volume and active_alarms."""
+    _update(message, sensors, MessageType.DEVICE_UPDATED.value, PauseEndSensor, TotalVolumeSensor, *ALARM_SENSORS)
+
 
 def handle_quick_test_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
-    """Handle quick_test_updated messages."""
-    LeakomaticMessageHandler.handle_quick_test_update(
-        message, 
-        sensors, 
-        QuickTestIndexSensor,
-        None   # No online sensor
-    )
+    """quick_test_updated."""
+    _update(message, sensors, MessageType.QUICK_TEST_UPDATED.value)
+
 
 def handle_flow_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
-    """Handle flow_updated messages."""
-    LeakomaticMessageHandler.handle_flow_update(
-        message, 
-        sensors, 
-        (FlowDurationSensor, TotalVolumeSensor),
-        None   # No online sensor
-    )
+    """flow_updated: the flow duration, and the water meter reading on models with one."""
+    _update(message, sensors, MessageType.FLOW_UPDATED.value, TotalVolumeSensor)
+
 
 def handle_tightness_test_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
-    """Handle tightness_test_updated messages."""
-    LeakomaticMessageHandler.handle_tightness_test_update(
-        message, 
-        sensors, 
-        LongestTightnessPeriodSensor,
-        None   # No online sensor
-    )
+    """tightness_test_updated."""
+    _update(message, sensors, MessageType.TIGHTNESS_TEST_UPDATED.value)
+
 
 def handle_status_update(message: dict, sensors: list[LeakomaticSensor]) -> None:
-    """Handle status_message messages."""
-    LeakomaticMessageHandler.handle_status_update(
-        message,
-        sensors,
-        (SignalStrengthSensor, PauseEndSensor),  # PauseEndSensor: mode_stoptime
-        None   # No online sensor
-    )
+    """status_message: the signal strength, and mode_stoptime for Pause Ends."""
+    _update(message, sensors, MessageType.STATUS_MESSAGE.value, PauseEndSensor)
+
 
 def handle_alarm_triggered(message: dict, sensors: list[LeakomaticSensor]) -> None:
-    """Handle alarm_triggered messages."""
-    LeakomaticMessageHandler.handle_alarm_triggered(
-        message, 
-        sensors, 
-        (FlowTestSensor, QuickTestSensor, TightnessTestSensor),
-        None   # No online sensor
-    )
+    """alarm_triggered."""
+    _update(message, sensors, MessageType.ALARM_TRIGGERED.value, *ALARM_SENSORS)
+
 
 def handle_water_meter_calibration(message: dict, sensors: list[LeakomaticSensor]) -> None:
-    """Handle water_meter_calibration_updated messages."""
-    LeakomaticMessageHandler.update_matching_entities(message, sensors, TotalVolumeSensor, None)
+    """water_meter_calibration_updated."""
+    _update(message, sensors, MessageType.WATER_METER_CALIBRATION_UPDATED.value, TotalVolumeSensor)
+
 
 def _as_int(value: Any) -> int | None:
     """The analog sensor fields can arrive as numbers or strings."""
@@ -139,31 +138,33 @@ def _as_int(value: Any) -> int | None:
     except (TypeError, ValueError):
         return None
 
+
 def handle_analog_sensor_message(message: dict, sensors: list[LeakomaticSensor]) -> None:
-    """Handle analog_sensor_message messages."""
+    """analog_sensor_message: a reading from the sensor on the analog input."""
     data = message.get("message", {}).get("data", {})
     sensor_type = _as_int(data.get("sensor_type"))
     connected = _as_int(data.get("connected"))
-    value = data.get("value")
-
-    # sensor_type 1 is pressure, 2 is temperature. A sensor that is not
-    # connected has no reading: its value becomes unknown.
-    target = {1: PressureSensor, 2: TemperatureSensor}.get(sensor_type)
-    if target is not None:
+    targets = [
+        sensor for sensor in sensors
+        if isinstance(sensor, LeakomaticValueSensor) and sensor.entity_description.analog_type == sensor_type
+    ]
+    # A sensor that is not connected has no reading: its value becomes unknown.
+    if targets:
         LeakomaticMessageHandler.update_matching_entities(
-            message, sensors, target, None,
-            update_data={"value": value if connected == 1 else None}
+            message, targets, LeakomaticValueSensor, None,
+            update_data={"value": data.get("value") if connected == 1 else None},
         )
+
 
 def handle_configuration_added(message: dict, sensors: list[LeakomaticSensor]) -> None:
     """A new device configuration: the alarm test sensors show its settings."""
-    LeakomaticMessageHandler.update_matching_entities(
-        message, sensors, (FlowTestSensor, QuickTestSensor, TightnessTestSensor), None
-    )
+    _update(message, sensors, MessageType.CONFIGURATION_ADDED.value, *ALARM_SENSORS)
+
 
 def handle_default(message: dict, sensors: list[LeakomaticSensor]) -> None:
     """Handle any other message type."""
     LeakomaticMessageHandler.handle_default(message, sensors)
+
 
 # Register all handlers
 message_registry.register(MessageType.DEVICE_UPDATED.value, handle_device_update)
@@ -177,49 +178,30 @@ message_registry.register(MessageType.ANALOG_SENSOR_MESSAGE.value, handle_analog
 message_registry.register(MessageType.CONFIGURATION_ADDED.value, handle_configuration_added)
 message_registry.register_default(handle_default)
 
+
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: LeakomaticConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up the Leakomatic sensor.
-    
-    This function:
-    1. Gets the device information from the config entry
-    2. Creates and adds the sensor entities for each device
-    
-    Args:
-        hass: The Home Assistant instance
-        config_entry: The config entry to set up sensors for
-        async_add_entities: Callback to register new entities
-    """
+    """Set up the Leakomatic sensors: for each device, the value sensors and the special ones."""
     _LOGGER.debug("Setting up Leakomatic sensor for config entry: %s", config_entry.entry_id)
     data = config_entry.runtime_data
 
-    # Create sensors for each device
-    all_sensors = []
+    all_sensors: list[LeakomaticSensor] = []
     for device_id, device_info in data.device_infos.items():
         dev_data = data.device_data[device_id]
+        all_sensors.extend(
+            LeakomaticValueSensor(device_info, device_id, dev_data, description)
+            for description in VALUE_SENSORS
+        )
+        all_sensors.extend(
+            sensor_class(device_info, device_id, dev_data)
+            for sensor_class in (FlowTestSensor, QuickTestSensor, TightnessTestSensor, TotalVolumeSensor, PauseEndSensor)
+        )
 
-        # Create sensors for this device
-        device_sensors = [
-            QuickTestIndexSensor(device_info, device_id, dev_data),
-            FlowDurationSensor(device_info, device_id, dev_data),
-            SignalStrengthSensor(device_info, device_id, dev_data),
-            LongestTightnessPeriodSensor(device_info, device_id, dev_data),
-            FlowTestSensor(device_info, device_id, dev_data),
-            QuickTestSensor(device_info, device_id, dev_data),
-            TightnessTestSensor(device_info, device_id, dev_data),
-            TotalVolumeSensor(device_info, device_id, dev_data),
-            TemperatureSensor(device_info, device_id, dev_data),
-            PressureSensor(device_info, device_id, dev_data),
-            PauseEndSensor(device_info, device_id, dev_data),
-        ]
-        all_sensors.extend(device_sensors)
-    
     async_add_entities(all_sensors)
-    
-    # Register callback for WebSocket updates
+
     @callback
     def handle_ws_message(message: dict) -> None:
         """Handle WebSocket messages."""
@@ -228,219 +210,150 @@ async def async_setup_entry(
     config_entry.async_on_unload(data.async_add_ws_listener(handle_ws_message))
 
 
-class QuickTestIndexSensor(LeakomaticSensor):
-    """Representation of a Leakomatic Quick Test sensor.
-    
-    This sensor represents the quick test index of the Leakomatic device.
-    It is updated through WebSocket updates.
+def _round(digits: int) -> Callable[[Any], StateType]:
+    return lambda value: round(float(value), digits)
+
+
+def _whole_seconds(value: Any) -> int:
+    return int(float(value))
+
+
+@dataclass(frozen=True, kw_only=True)
+class LeakomaticSensorEntityDescription(SensorEntityDescription):
+    """A sensor whose value is one field, converted.
+
+    fields: the field names to read, in order (the websocket message's name
+        first, then the startup data's).
+    convert: turns the raw value into the state; raising ValueError or
+        TypeError makes it invalid (logged, unknown).
+    updated_by: the message types that carry the value.
+    analog_type: for analog_sensor_message, the sensor_type this sensor shows.
+    keep_last_positive: keep the last value above zero (a flow that has just
+        started reports 0; the last completed flow is what the sensor shows).
     """
+
+    fields: tuple[str, ...]
+    convert: Callable[[Any], StateType]
+    updated_by: frozenset[str] = frozenset()
+    analog_type: int | None = None
+    keep_last_positive: bool = False
+
+
+VALUE_SENSORS: tuple[LeakomaticSensorEntityDescription, ...] = (
+    LeakomaticSensorEntityDescription(
+        key="quick_test_index",
+        icon="mdi:water",
+        state_class=SensorStateClass.MEASUREMENT,
+        fields=("value", "current_quick_test"),
+        convert=_round(2),
+        updated_by=frozenset({MessageType.QUICK_TEST_UPDATED.value}),
+    ),
+    LeakomaticSensorEntityDescription(
+        key="flow_duration",
+        icon="mdi:clock-outline",
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        fields=("flow_duration", "current_flow_duration"),
+        convert=_whole_seconds,
+        updated_by=frozenset({MessageType.FLOW_UPDATED.value}),
+        keep_last_positive=True,
+    ),
+    LeakomaticSensorEntityDescription(
+        key="signal_strength",
+        icon="mdi:wifi",
+        device_class=SensorDeviceClass.SIGNAL_STRENGTH,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        fields=("rssi",),
+        convert=int,
+        updated_by=frozenset({MessageType.STATUS_MESSAGE.value}),
+    ),
+    LeakomaticSensorEntityDescription(
+        key="longest_tightness_period",
+        icon="mdi:water",
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        fields=("value", "current_tightness_test"),
+        convert=_whole_seconds,
+        updated_by=frozenset({MessageType.TIGHTNESS_TEST_UPDATED.value}),
+    ),
+    LeakomaticSensorEntityDescription(
+        key="temperature",
+        icon="mdi:thermometer-water",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        entity_registry_enabled_default=False,
+        fields=("value", "last_temperature_value"),
+        convert=_round(1),
+        analog_type=2,
+    ),
+    LeakomaticSensorEntityDescription(
+        key="pressure",
+        icon="mdi:gauge",
+        device_class=SensorDeviceClass.PRESSURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfPressure.BAR,
+        entity_registry_enabled_default=False,
+        fields=("value", "last_pressure_value"),
+        convert=_round(1),
+        analog_type=1,
+    ),
+)
+
+
+class LeakomaticValueSensor(LeakomaticSensor):
+    """A sensor described by a LeakomaticSensorEntityDescription."""
+
+    entity_description: LeakomaticSensorEntityDescription
 
     def __init__(
         self,
         device_info: dict[str, Any],
         device_id: str,
         device_data: dict[str, Any] | None,
+        description: LeakomaticSensorEntityDescription,
     ) -> None:
-        """Initialize the quick test sensor."""
+        """Initialize the sensor from its description and the startup data."""
         super().__init__(
             device_info=device_info,
             device_id=device_id,
             device_data=device_data,
-            key="quick_test_index",
-            icon="mdi:water",
-            state_class=SensorStateClass.MEASUREMENT,
+            key=description.key,
+            icon=description.icon,
         )
+        self.entity_description = description
+        self._attr_entity_registry_enabled_default = description.entity_registry_enabled_default
+        self._value: StateType = None
+        self._value = self._read(device_data or {})
+
+    def _read(self, data: dict[str, Any]) -> StateType:
+        """The converted value of the first field that is present."""
+        description = self.entity_description
+        raw = next((data[field] for field in description.fields if data.get(field) is not None), None)
+        if raw is None:
+            return self._value if description.keep_last_positive else None
+        try:
+            value = description.convert(raw)
+        except (ValueError, TypeError):
+            log_with_entity(_LOGGER, logging.WARNING, self, "Invalid value: %s", raw)
+            return self._value if description.keep_last_positive else None
+        if description.keep_last_positive and not value > 0:
+            return self._value
+        return value
 
     @property
     def native_value(self) -> StateType:
         """Return the state of the sensor."""
-        if not self._device_data:
-            return None
-        
-        # Get the quick test value - try both possible field names
-        value = self._device_data.get("value")
-        if value is None:
-            value = self._device_data.get("current_quick_test")
-        
-        if value is not None:
-            try:
-                return round(float(value), 2)  # Round to 2 decimal places
-            except (ValueError, TypeError):
-                log_with_entity(_LOGGER, logging.WARNING, self, "Invalid value: %s", value)
-                return None
-        
-        return None
+        return self._value
 
     @callback
     def handle_update(self, data: dict[str, Any]) -> None:
-        """Handle updated data from WebSocket."""
-        self._device_data = data
-        self.async_write_ha_state()
-        log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.native_value)
-
-
-class FlowDurationSensor(LeakomaticSensor):
-    """Representation of a Leakomatic Last Flow Duration sensor.
-    
-    This sensor represents the duration of the last completed flow in seconds.
-    It is updated through WebSocket updates when a flow completes (flow_mode = 0).
-    Home Assistant will automatically format the duration in an appropriate unit
-    (days, hours, minutes, seconds) based on the value.
-    """
-
-    def __init__(
-        self,
-        device_info: dict[str, Any],
-        device_id: str,
-        device_data: dict[str, Any] | None,
-    ) -> None:
-        """Initialize the flow duration sensor."""
-        super().__init__(
-            device_info=device_info,
-            device_id=device_id,
-            device_data=device_data,
-            key="flow_duration",
-            icon="mdi:clock-outline",
-            device_class=SensorDeviceClass.DURATION,
-            state_class=SensorStateClass.MEASUREMENT,
-            native_unit_of_measurement=UnitOfTime.SECONDS
-        )
-        self._last_known_duration: int | None = None
-
-    @property
-    def native_value(self) -> StateType:
-        """Return the state of the sensor."""
-        if not self._device_data:
-            return self._last_known_duration
-        
-        # Get the flow duration value - try both possible field names
-        value = self._device_data.get("flow_duration")
-        if value is None:
-            value = self._device_data.get("current_flow_duration")
-        
-        if value is not None:
-            try:
-                # Ensure the value is an integer number of seconds
-                duration = int(float(value))
-                if duration > 0:
-                    self._last_known_duration = duration
-                return self._last_known_duration
-            except (ValueError, TypeError):
-                log_with_entity(_LOGGER, logging.WARNING, self, "Invalid value: %s", value)
-                return self._last_known_duration
-        
-        return self._last_known_duration
-
-    @callback
-    def handle_update(self, data: dict[str, Any]) -> None:
-        """Handle updated data from WebSocket."""
-        self._device_data = data
-        self.async_write_ha_state()
-        log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.native_value)
-
-
-class SignalStrengthSensor(LeakomaticSensor):
-    """Representation of a Leakomatic Signal Strength sensor.
-    
-    This sensor represents the WiFi signal strength (RSSI) of the Leakomatic device.
-    It is updated through WebSocket updates with status_message operation.
-    """
-
-    def __init__(
-        self,
-        device_info: dict[str, Any],
-        device_id: str,
-        device_data: dict[str, Any] | None,
-    ) -> None:
-        """Initialize the signal strength sensor."""
-        super().__init__(
-            device_info=device_info,
-            device_id=device_id,
-            device_data=device_data,
-            key="signal_strength",
-            icon="mdi:wifi",
-            device_class=SensorDeviceClass.SIGNAL_STRENGTH,
-            state_class=SensorStateClass.MEASUREMENT,
-            native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT
-        )
-        self._attr_entity_category = EntityCategory.DIAGNOSTIC
-
-    @property
-    def native_value(self) -> StateType:
-        """Return the state of the sensor."""
-        if not self._device_data:
-            return None
-        
-        # Get the RSSI value
-        rssi = self._device_data.get("rssi")
-        if rssi is not None:
-            try:
-                return int(rssi)  # RSSI should be an integer
-            except (ValueError, TypeError):
-                log_with_entity(_LOGGER, logging.WARNING, self, "Invalid value: %s", rssi)
-                return None
-        
-        return None
-
-    @callback
-    def handle_update(self, data: dict[str, Any]) -> None:
-        """Handle updated data from WebSocket."""
-        self._device_data = data
-        self.async_write_ha_state()
-        log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.native_value)
-
-
-class LongestTightnessPeriodSensor(LeakomaticSensor):
-    """Representation of a Leakomatic Longest Tightness Period sensor.
-    
-    This sensor represents the longest tightness period of the Leakomatic device.
-    It is updated through WebSocket updates.
-    The value is in seconds.
-    """
-
-    def __init__(
-        self,
-        device_info: dict[str, Any],
-        device_id: str,
-        device_data: dict[str, Any] | None,
-    ) -> None:
-        """Initialize the longest tightness period sensor."""
-        super().__init__(
-            device_info=device_info,
-            device_id=device_id,
-            device_data=device_data,
-            key="longest_tightness_period",
-            icon="mdi:water",
-            device_class=SensorDeviceClass.DURATION,
-            state_class=SensorStateClass.MEASUREMENT,
-            native_unit_of_measurement=UnitOfTime.SECONDS
-        )
-
-    @property
-    def native_value(self) -> StateType:
-        """Return the state of the sensor."""
-        if not self._device_data:
-            return None
-        
-        # Get the tightness period value - try both possible field names
-        value = self._device_data.get("value")
-        if value is None:
-            value = self._device_data.get("current_tightness_test")
-        
-        if value is not None:
-            try:
-                # Convert to integer since we're dealing with seconds
-                return int(float(value))
-            except (ValueError, TypeError):
-                log_with_entity(_LOGGER, logging.WARNING, self, "Invalid value: %s", value)
-                return None
-        
-        return None
-
-    @callback
-    def handle_update(self, data: dict[str, Any]) -> None:
-        """Handle updated data from WebSocket."""
-        self._device_data = data
+        """Take the value from a websocket message."""
+        self._value = self._read(data)
         self.async_write_ha_state()
         log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.native_value)
 
@@ -704,116 +617,6 @@ class TotalVolumeSensor(LeakomaticSensor):
         self.async_write_ha_state()
 
 
-class TemperatureSensor(LeakomaticSensor):
-    """Representation of a Leakomatic Temperature sensor.
-    
-    This sensor represents the temperature reading from the Leakomatic device.
-    It is updated through WebSocket updates with analog_sensor_message operation.
-    The temperature is measured in Celsius (°C).
-    """
-
-    def __init__(
-        self,
-        device_info: dict[str, Any],
-        device_id: str,
-        device_data: dict[str, Any] | None,
-    ) -> None:
-        """Initialize the temperature sensor."""
-        super().__init__(
-            device_info=device_info,
-            device_id=device_id,
-            device_data=device_data,
-            key="temperature",
-            icon="mdi:thermometer-water",
-            device_class=SensorDeviceClass.TEMPERATURE,
-            state_class=SensorStateClass.MEASUREMENT,
-            native_unit_of_measurement=UnitOfTemperature.CELSIUS
-        )
-        self._attr_entity_registry_enabled_default = False
-
-    @property
-    def native_value(self) -> StateType:
-        """Return the state of the sensor."""
-        if not self._device_data:
-            return None
-        
-        # Get the temperature value - try both possible field names
-        value = self._device_data.get("value")
-        if value is None:
-            value = self._device_data.get("last_temperature_value")
-        
-        if value is not None:
-            try:
-                # Round to 1 decimal place
-                return round(float(value), 1)
-            except (ValueError, TypeError):
-                return None
-        
-        return None
-
-    @callback
-    def handle_update(self, data: dict[str, Any]) -> None:
-        """Handle updated data from WebSocket."""
-        self._device_data = data
-        self.async_write_ha_state()
-        log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.native_value)
-
-
-class PressureSensor(LeakomaticSensor):
-    """Representation of a Leakomatic Pressure sensor.
-    
-    This sensor represents the pressure reading from the Leakomatic device.
-    It is updated through WebSocket updates with analog_sensor_message operation.
-    The pressure is measured in bar.
-    """
-
-    def __init__(
-        self,
-        device_info: dict[str, Any],
-        device_id: str,
-        device_data: dict[str, Any] | None,
-    ) -> None:
-        """Initialize the pressure sensor."""
-        super().__init__(
-            device_info=device_info,
-            device_id=device_id,
-            device_data=device_data,
-            key="pressure",
-            icon="mdi:gauge",
-            device_class=SensorDeviceClass.PRESSURE,
-            state_class=SensorStateClass.MEASUREMENT,
-            native_unit_of_measurement=UnitOfPressure.BAR
-        )
-        self._attr_entity_registry_enabled_default = False
-
-    @property
-    def native_value(self) -> StateType:
-        """Return the state of the sensor."""
-        if not self._device_data:
-            return None
-        
-        # Get the pressure value - try both possible field names
-        value = self._device_data.get("value")
-        if value is None:
-            value = self._device_data.get("last_pressure_value")
-        
-        if value is not None:
-            try:
-                # Round to 1 decimal place
-                return round(float(value), 1)
-            except (ValueError, TypeError):
-                return None
-        
-        return None
-
-    @callback
-    def handle_update(self, data: dict[str, Any]) -> None:
-        """Handle updated data from WebSocket."""
-        self._device_data = data
-        self.async_write_ha_state()
-        log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.native_value)
-
-
 class PauseEndSensor(LeakomaticSensor):
     """When the pause mode ends.
 
@@ -863,3 +666,7 @@ class PauseEndSensor(LeakomaticSensor):
             self._stoptime = data["mode_stoptime"]
         self.async_write_ha_state()
         log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.native_value)
+
+
+# The alarm test sensors, used by the message handlers above (looked up when they run)
+ALARM_SENSORS = (FlowTestSensor, QuickTestSensor, TightnessTestSensor)

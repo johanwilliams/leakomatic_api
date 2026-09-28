@@ -17,7 +17,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.const import EntityCategory
 
-from .const import DOMAIN, MessageType
+from .const import DOMAIN, DeviceMode, MessageType
 from .common import LeakomaticEntity, LeakomaticMessageHandler, MessageHandlerRegistry, log_with_entity
 from .models import LeakomaticConfigEntry
 
@@ -142,21 +142,7 @@ class ModeSelect(LeakomaticSelect):
     @property
     def current_option(self) -> str | None:
         """Return the current selected option."""
-        if not self._device_data:
-            return None
-        
-        # Get the mode from the device data
-        mode = self._device_data.get("mode")
-        
-        # Convert numeric mode to string option
-        if mode == 0:
-            return "home"
-        elif mode == 1:
-            return "away"
-        elif mode == 2:
-            return "pause"
-        else:
-            return None
+        return DeviceMode.option(self._device_data.get("mode"))
 
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""
@@ -173,9 +159,7 @@ class ModeSelect(LeakomaticSelect):
     @callback
     def handle_update(self, data: dict[str, Any]) -> None:
         """Handle updated data from WebSocket."""
-        mode = data.get("mode")
-        if mode is not None:
-            mode_str = "home" if mode == 0 else "away" if mode == 1 else "pause" if mode == 2 else str(mode)
-            log_with_entity(_LOGGER, logging.DEBUG, self, "Changing mode to %s", mode_str)
+        if data.get("mode") is not None:
+            log_with_entity(_LOGGER, logging.DEBUG, self, "Mode is now %s", DeviceMode.option(data["mode"]))
         self._device_data = data
         self.async_write_ha_state() 
