@@ -44,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Login: if the user ID cannot be found on the page after login, the integration no longer fails with a misleading "invalid credentials" error. It logs a clear warning that real-time updates will not be available.
 
 ### Changed
+- README rewritten: what you need, installation and configuration, the entities in tables, automation examples (away and home with the house, pause during irrigation, leak alarm notification, reminder before the pause ends, water flow per hour and day), how data is updated, known limitations, troubleshooting and removal.
 - WebSocket Connectivity uses its translated name (in Swedish "WebSocket-anslutning"); a hard-coded English name overrode the translation. The entity ID is unchanged.
 - Internal: the simple sensors (quick test index, flow duration, signal strength, longest tightness period, temperature, pressure) are entity descriptions with one sensor class instead of six near-identical classes, and the mode select uses the one mapping between mode numbers and options. What the entities show is unchanged, which a snapshot test of all entities recorded before the change checks.
 - Internal: the client keeps one HTTP session (created with Home Assistant's helper, with its own cookie jar) instead of opening a new session for every request, and closes it when the integration unloads or its setup fails. The websocket uses Home Assistant's cached SSL context.
