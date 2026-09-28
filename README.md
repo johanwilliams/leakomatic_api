@@ -60,7 +60,7 @@ The integration provides the following entities:
   - Numerical value indicating water flow characteristics
   - Updates in real-time when quick tests are performed
 
-- **Flow Duration**: Shows the duration of the last completed water flow
+- **Last Flow Duration**: Shows the duration of the last completed water flow
   - Measured in seconds
   - Updates when a flow event completes
   - Helps track water usage patterns
@@ -202,7 +202,7 @@ This integration supports the following languages:
 - English (en)
 - Swedish (sv)
 
-The integration will automatically use the language that matches your Home Assistant language settings. All sensor names, states, and UI elements will be displayed in your chosen language.
+The integration will automatically use the language that matches your Home Assistant language settings. All sensor names, states, the names of the alarm test sensors' attributes (for example the flow test's alarm delay), error messages and UI elements will be displayed in your chosen language.
 
 ## Installation
 

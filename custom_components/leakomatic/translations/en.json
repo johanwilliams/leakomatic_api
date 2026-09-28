@@ -38,10 +38,7 @@
                 "name": "Total Volume"
             },
             "quick_test_index": {
-                "name": "Quick Test Index",
-                "state": {
-                    "unknown": "Unknown"
-                }
+                "name": "Quick Test Index"
             },
             "quick_test": {
                 "name": "Quick Test",
@@ -50,17 +47,20 @@
                     "warning": "Warning",
                     "alarm": "Alarm"
                 },
-                "alarm_delay": "Alarm delay (hours)",
-                "index_limit": "Index limit"
-            },
-            "longest_tightness_period": {
-                "name": "Tightness Period",
-                "state": {
-                    "unknown": "Unknown"
+                "state_attributes": {
+                    "alarm_delay": {
+                        "name": "Alarm delay (hours)"
+                    },
+                    "index_limit": {
+                        "name": "Index limit"
+                    }
                 }
             },
+            "longest_tightness_period": {
+                "name": "Longest Tightness Period"
+            },
             "flow_duration": {
-                "name": "Flow Duration"
+                "name": "Last Flow Duration"
             },
             "signal_strength": {
                 "name": "Signal Strength"
@@ -78,9 +78,17 @@
                     "warning": "Warning",
                     "alarm": "Alarm"
                 },
-                "duration_away": "Duration Away (seconds)",
-                "duration_home": "Duration Home (minutes)",
-                "alarm_delay": "Alarm delay (minutes)"
+                "state_attributes": {
+                    "duration_away": {
+                        "name": "Duration Away (seconds)"
+                    },
+                    "duration_home": {
+                        "name": "Duration Home (minutes)"
+                    },
+                    "alarm_delay": {
+                        "name": "Alarm delay (minutes)"
+                    }
+                }
             },
             "tightness_test": {
                 "name": "Tightness Test",
@@ -89,9 +97,17 @@
                     "warning": "Warning",
                     "alarm": "Alarm"
                 },
-                "pulse_free_periods": "Pulse free periods",
-                "period_duration": "Period duration (minutes)",
-                "alarm_delay": "Alarm delay (days)"
+                "state_attributes": {
+                    "pulse_free_periods": {
+                        "name": "Pulse free periods"
+                    },
+                    "period_duration": {
+                        "name": "Period duration (minutes)"
+                    },
+                    "alarm_delay": {
+                        "name": "Alarm delay (days)"
+                    }
+                }
             }
         },
         "binary_sensor": {
