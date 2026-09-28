@@ -1,0 +1,2138 @@
+{
+ "startup": {
+  "binary_sensor.leakomatic_flow_indicator": {
+   "state": "unknown",
+   "attributes": {
+    "device_class": "running",
+    "friendly_name": "Leakomatic Flow Indicator",
+    "icon": "mdi:water"
+   }
+  },
+  "binary_sensor.leakomatic_online_status": {
+   "state": "unknown",
+   "attributes": {
+    "device_class": "connectivity",
+    "friendly_name": "Leakomatic Online Status",
+    "icon": "mdi:wifi",
+    "last_seen": "2026-01-01T12:00:00+00:00"
+   }
+  },
+  "binary_sensor.leakomatic_valve": {
+   "state": "on",
+   "attributes": {
+    "device_class": "opening",
+    "friendly_name": "Leakomatic Valve",
+    "icon": "mdi:valve"
+   }
+  },
+  "binary_sensor.leakomatic_websocket_connectivity": {
+   "state": "off",
+   "attributes": {
+    "device_class": "connectivity",
+    "friendly_name": "Leakomatic WebSocket Connectivity",
+    "icon": "mdi:webhook",
+    "reconnection_phase": 1
+   }
+  },
+  "button.leakomatic_reset_alarms": {
+   "state": "unknown",
+   "attributes": {
+    "friendly_name": "Leakomatic Reset alarms",
+    "icon": "mdi:alarm-off"
+   }
+  },
+  "select.leakomatic_mode": {
+   "state": "pause",
+   "attributes": {
+    "friendly_name": "Leakomatic Mode",
+    "icon": "mdi:home",
+    "options": [
+     "home",
+     "away",
+     "pause"
+    ]
+   }
+  },
+  "sensor.leakomatic_flow_test": {
+   "state": "clear",
+   "attributes": {
+    "alarm_delay": 5,
+    "device_class": "enum",
+    "duration_away": 5,
+    "duration_home": 20,
+    "friendly_name": "Leakomatic Flow Test",
+    "icon": "mdi:water-alert",
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ]
+   }
+  },
+  "sensor.leakomatic_last_flow_duration": {
+   "state": "42",
+   "attributes": {
+    "device_class": "duration",
+    "friendly_name": "Leakomatic Last Flow Duration",
+    "icon": "mdi:clock-outline",
+    "state_class": "measurement",
+    "unit_of_measurement": "s"
+   }
+  },
+  "sensor.leakomatic_longest_tightness_period": {
+   "state": "3600",
+   "attributes": {
+    "device_class": "duration",
+    "friendly_name": "Leakomatic Longest Tightness Period",
+    "icon": "mdi:water",
+    "state_class": "measurement",
+    "unit_of_measurement": "s"
+   }
+  },
+  "sensor.leakomatic_pause_ends": {
+   "state": "2030-01-01T00:00:00+00:00",
+   "attributes": {
+    "device_class": "timestamp",
+    "friendly_name": "Leakomatic Pause Ends",
+    "icon": "mdi:timer-pause-outline"
+   }
+  },
+  "sensor.leakomatic_pressure": {
+   "state": "3.1",
+   "attributes": {
+    "device_class": "pressure",
+    "friendly_name": "Leakomatic Pressure",
+    "icon": "mdi:gauge",
+    "state_class": "measurement",
+    "unit_of_measurement": "bar"
+   }
+  },
+  "sensor.leakomatic_quick_test": {
+   "state": "warning",
+   "attributes": {
+    "alarm_delay": 1,
+    "device_class": "enum",
+    "friendly_name": "Leakomatic Quick Test",
+    "icon": "mdi:water-alert",
+    "index_limit": 1.0,
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ]
+   }
+  },
+  "sensor.leakomatic_quick_test_index": {
+   "state": "0.12",
+   "attributes": {
+    "friendly_name": "Leakomatic Quick Test Index",
+    "icon": "mdi:water",
+    "state_class": "measurement"
+   }
+  },
+  "sensor.leakomatic_signal_strength": {
+   "state": "-61",
+   "attributes": {
+    "device_class": "signal_strength",
+    "friendly_name": "Leakomatic Signal Strength",
+    "icon": "mdi:wifi",
+    "state_class": "measurement",
+    "unit_of_measurement": "dBm"
+   }
+  },
+  "sensor.leakomatic_temperature": {
+   "state": "7.2",
+   "attributes": {
+    "device_class": "temperature",
+    "friendly_name": "Leakomatic Temperature",
+    "icon": "mdi:thermometer-water",
+    "state_class": "measurement",
+    "unit_of_measurement": "°C"
+   }
+  },
+  "sensor.leakomatic_tightness_test": {
+   "state": "clear",
+   "attributes": {
+    "alarm_delay": 1,
+    "device_class": "enum",
+    "friendly_name": "Leakomatic Tightness Test",
+    "icon": "mdi:water-alert",
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ],
+    "period_duration": 15,
+    "pulse_free_periods": 1
+   }
+  },
+  "sensor.leakomatic_total_volume": {
+   "state": "1.25",
+   "attributes": {
+    "device_class": "water",
+    "friendly_name": "Leakomatic Total Volume",
+    "icon": "mdi:counter",
+    "state_class": "total_increasing",
+    "unit_of_measurement": "m³"
+   }
+  }
+ },
+ "quick test": {
+  "binary_sensor.leakomatic_flow_indicator": {
+   "state": "unknown",
+   "attributes": {
+    "device_class": "running",
+    "friendly_name": "Leakomatic Flow Indicator",
+    "icon": "mdi:water"
+   }
+  },
+  "binary_sensor.leakomatic_online_status": {
+   "state": "on",
+   "attributes": {
+    "device_class": "connectivity",
+    "friendly_name": "Leakomatic Online Status",
+    "icon": "mdi:wifi",
+    "last_seen": "2026-09-28T12:00:00+00:00"
+   }
+  },
+  "binary_sensor.leakomatic_valve": {
+   "state": "on",
+   "attributes": {
+    "device_class": "opening",
+    "friendly_name": "Leakomatic Valve",
+    "icon": "mdi:valve"
+   }
+  },
+  "binary_sensor.leakomatic_websocket_connectivity": {
+   "state": "off",
+   "attributes": {
+    "device_class": "connectivity",
+    "friendly_name": "Leakomatic WebSocket Connectivity",
+    "icon": "mdi:webhook",
+    "reconnection_phase": 1
+   }
+  },
+  "button.leakomatic_reset_alarms": {
+   "state": "unknown",
+   "attributes": {
+    "friendly_name": "Leakomatic Reset alarms",
+    "icon": "mdi:alarm-off"
+   }
+  },
+  "select.leakomatic_mode": {
+   "state": "pause",
+   "attributes": {
+    "friendly_name": "Leakomatic Mode",
+    "icon": "mdi:home",
+    "options": [
+     "home",
+     "away",
+     "pause"
+    ]
+   }
+  },
+  "sensor.leakomatic_flow_test": {
+   "state": "clear",
+   "attributes": {
+    "alarm_delay": 5,
+    "device_class": "enum",
+    "duration_away": 5,
+    "duration_home": 20,
+    "friendly_name": "Leakomatic Flow Test",
+    "icon": "mdi:water-alert",
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ]
+   }
+  },
+  "sensor.leakomatic_last_flow_duration": {
+   "state": "42",
+   "attributes": {
+    "device_class": "duration",
+    "friendly_name": "Leakomatic Last Flow Duration",
+    "icon": "mdi:clock-outline",
+    "state_class": "measurement",
+    "unit_of_measurement": "s"
+   }
+  },
+  "sensor.leakomatic_longest_tightness_period": {
+   "state": "3600",
+   "attributes": {
+    "device_class": "duration",
+    "friendly_name": "Leakomatic Longest Tightness Period",
+    "icon": "mdi:water",
+    "state_class": "measurement",
+    "unit_of_measurement": "s"
+   }
+  },
+  "sensor.leakomatic_pause_ends": {
+   "state": "2030-01-01T00:00:00+00:00",
+   "attributes": {
+    "device_class": "timestamp",
+    "friendly_name": "Leakomatic Pause Ends",
+    "icon": "mdi:timer-pause-outline"
+   }
+  },
+  "sensor.leakomatic_pressure": {
+   "state": "3.1",
+   "attributes": {
+    "device_class": "pressure",
+    "friendly_name": "Leakomatic Pressure",
+    "icon": "mdi:gauge",
+    "state_class": "measurement",
+    "unit_of_measurement": "bar"
+   }
+  },
+  "sensor.leakomatic_quick_test": {
+   "state": "warning",
+   "attributes": {
+    "alarm_delay": 1,
+    "device_class": "enum",
+    "friendly_name": "Leakomatic Quick Test",
+    "icon": "mdi:water-alert",
+    "index_limit": 1.0,
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ]
+   }
+  },
+  "sensor.leakomatic_quick_test_index": {
+   "state": "0.46",
+   "attributes": {
+    "friendly_name": "Leakomatic Quick Test Index",
+    "icon": "mdi:water",
+    "state_class": "measurement"
+   }
+  },
+  "sensor.leakomatic_signal_strength": {
+   "state": "-61",
+   "attributes": {
+    "device_class": "signal_strength",
+    "friendly_name": "Leakomatic Signal Strength",
+    "icon": "mdi:wifi",
+    "state_class": "measurement",
+    "unit_of_measurement": "dBm"
+   }
+  },
+  "sensor.leakomatic_temperature": {
+   "state": "7.2",
+   "attributes": {
+    "device_class": "temperature",
+    "friendly_name": "Leakomatic Temperature",
+    "icon": "mdi:thermometer-water",
+    "state_class": "measurement",
+    "unit_of_measurement": "°C"
+   }
+  },
+  "sensor.leakomatic_tightness_test": {
+   "state": "clear",
+   "attributes": {
+    "alarm_delay": 1,
+    "device_class": "enum",
+    "friendly_name": "Leakomatic Tightness Test",
+    "icon": "mdi:water-alert",
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ],
+    "period_duration": 15,
+    "pulse_free_periods": 1
+   }
+  },
+  "sensor.leakomatic_total_volume": {
+   "state": "1.25",
+   "attributes": {
+    "device_class": "water",
+    "friendly_name": "Leakomatic Total Volume",
+    "icon": "mdi:counter",
+    "state_class": "total_increasing",
+    "unit_of_measurement": "m³"
+   }
+  }
+ },
+ "tightness": {
+  "binary_sensor.leakomatic_flow_indicator": {
+   "state": "unknown",
+   "attributes": {
+    "device_class": "running",
+    "friendly_name": "Leakomatic Flow Indicator",
+    "icon": "mdi:water"
+   }
+  },
+  "binary_sensor.leakomatic_online_status": {
+   "state": "on",
+   "attributes": {
+    "device_class": "connectivity",
+    "friendly_name": "Leakomatic Online Status",
+    "icon": "mdi:wifi",
+    "last_seen": "2026-09-28T12:00:00+00:00"
+   }
+  },
+  "binary_sensor.leakomatic_valve": {
+   "state": "on",
+   "attributes": {
+    "device_class": "opening",
+    "friendly_name": "Leakomatic Valve",
+    "icon": "mdi:valve"
+   }
+  },
+  "binary_sensor.leakomatic_websocket_connectivity": {
+   "state": "off",
+   "attributes": {
+    "device_class": "connectivity",
+    "friendly_name": "Leakomatic WebSocket Connectivity",
+    "icon": "mdi:webhook",
+    "reconnection_phase": 1
+   }
+  },
+  "button.leakomatic_reset_alarms": {
+   "state": "unknown",
+   "attributes": {
+    "friendly_name": "Leakomatic Reset alarms",
+    "icon": "mdi:alarm-off"
+   }
+  },
+  "select.leakomatic_mode": {
+   "state": "pause",
+   "attributes": {
+    "friendly_name": "Leakomatic Mode",
+    "icon": "mdi:home",
+    "options": [
+     "home",
+     "away",
+     "pause"
+    ]
+   }
+  },
+  "sensor.leakomatic_flow_test": {
+   "state": "clear",
+   "attributes": {
+    "alarm_delay": 5,
+    "device_class": "enum",
+    "duration_away": 5,
+    "duration_home": 20,
+    "friendly_name": "Leakomatic Flow Test",
+    "icon": "mdi:water-alert",
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ]
+   }
+  },
+  "sensor.leakomatic_last_flow_duration": {
+   "state": "42",
+   "attributes": {
+    "device_class": "duration",
+    "friendly_name": "Leakomatic Last Flow Duration",
+    "icon": "mdi:clock-outline",
+    "state_class": "measurement",
+    "unit_of_measurement": "s"
+   }
+  },
+  "sensor.leakomatic_longest_tightness_period": {
+   "state": "1800",
+   "attributes": {
+    "device_class": "duration",
+    "friendly_name": "Leakomatic Longest Tightness Period",
+    "icon": "mdi:water",
+    "state_class": "measurement",
+    "unit_of_measurement": "s"
+   }
+  },
+  "sensor.leakomatic_pause_ends": {
+   "state": "2030-01-01T00:00:00+00:00",
+   "attributes": {
+    "device_class": "timestamp",
+    "friendly_name": "Leakomatic Pause Ends",
+    "icon": "mdi:timer-pause-outline"
+   }
+  },
+  "sensor.leakomatic_pressure": {
+   "state": "3.1",
+   "attributes": {
+    "device_class": "pressure",
+    "friendly_name": "Leakomatic Pressure",
+    "icon": "mdi:gauge",
+    "state_class": "measurement",
+    "unit_of_measurement": "bar"
+   }
+  },
+  "sensor.leakomatic_quick_test": {
+   "state": "warning",
+   "attributes": {
+    "alarm_delay": 1,
+    "device_class": "enum",
+    "friendly_name": "Leakomatic Quick Test",
+    "icon": "mdi:water-alert",
+    "index_limit": 1.0,
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ]
+   }
+  },
+  "sensor.leakomatic_quick_test_index": {
+   "state": "0.46",
+   "attributes": {
+    "friendly_name": "Leakomatic Quick Test Index",
+    "icon": "mdi:water",
+    "state_class": "measurement"
+   }
+  },
+  "sensor.leakomatic_signal_strength": {
+   "state": "-61",
+   "attributes": {
+    "device_class": "signal_strength",
+    "friendly_name": "Leakomatic Signal Strength",
+    "icon": "mdi:wifi",
+    "state_class": "measurement",
+    "unit_of_measurement": "dBm"
+   }
+  },
+  "sensor.leakomatic_temperature": {
+   "state": "7.2",
+   "attributes": {
+    "device_class": "temperature",
+    "friendly_name": "Leakomatic Temperature",
+    "icon": "mdi:thermometer-water",
+    "state_class": "measurement",
+    "unit_of_measurement": "°C"
+   }
+  },
+  "sensor.leakomatic_tightness_test": {
+   "state": "clear",
+   "attributes": {
+    "alarm_delay": 1,
+    "device_class": "enum",
+    "friendly_name": "Leakomatic Tightness Test",
+    "icon": "mdi:water-alert",
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ],
+    "period_duration": 15,
+    "pulse_free_periods": 1
+   }
+  },
+  "sensor.leakomatic_total_volume": {
+   "state": "1.25",
+   "attributes": {
+    "device_class": "water",
+    "friendly_name": "Leakomatic Total Volume",
+    "icon": "mdi:counter",
+    "state_class": "total_increasing",
+    "unit_of_measurement": "m³"
+   }
+  }
+ },
+ "flow start": {
+  "binary_sensor.leakomatic_flow_indicator": {
+   "state": "on",
+   "attributes": {
+    "device_class": "running",
+    "friendly_name": "Leakomatic Flow Indicator",
+    "icon": "mdi:water"
+   }
+  },
+  "binary_sensor.leakomatic_online_status": {
+   "state": "on",
+   "attributes": {
+    "device_class": "connectivity",
+    "friendly_name": "Leakomatic Online Status",
+    "icon": "mdi:wifi",
+    "last_seen": "2026-09-28T12:00:00+00:00"
+   }
+  },
+  "binary_sensor.leakomatic_valve": {
+   "state": "on",
+   "attributes": {
+    "device_class": "opening",
+    "friendly_name": "Leakomatic Valve",
+    "icon": "mdi:valve"
+   }
+  },
+  "binary_sensor.leakomatic_websocket_connectivity": {
+   "state": "off",
+   "attributes": {
+    "device_class": "connectivity",
+    "friendly_name": "Leakomatic WebSocket Connectivity",
+    "icon": "mdi:webhook",
+    "reconnection_phase": 1
+   }
+  },
+  "button.leakomatic_reset_alarms": {
+   "state": "unknown",
+   "attributes": {
+    "friendly_name": "Leakomatic Reset alarms",
+    "icon": "mdi:alarm-off"
+   }
+  },
+  "select.leakomatic_mode": {
+   "state": "pause",
+   "attributes": {
+    "friendly_name": "Leakomatic Mode",
+    "icon": "mdi:home",
+    "options": [
+     "home",
+     "away",
+     "pause"
+    ]
+   }
+  },
+  "sensor.leakomatic_flow_test": {
+   "state": "clear",
+   "attributes": {
+    "alarm_delay": 5,
+    "device_class": "enum",
+    "duration_away": 5,
+    "duration_home": 20,
+    "friendly_name": "Leakomatic Flow Test",
+    "icon": "mdi:water-alert",
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ]
+   }
+  },
+  "sensor.leakomatic_last_flow_duration": {
+   "state": "42",
+   "attributes": {
+    "device_class": "duration",
+    "friendly_name": "Leakomatic Last Flow Duration",
+    "icon": "mdi:clock-outline",
+    "state_class": "measurement",
+    "unit_of_measurement": "s"
+   }
+  },
+  "sensor.leakomatic_longest_tightness_period": {
+   "state": "1800",
+   "attributes": {
+    "device_class": "duration",
+    "friendly_name": "Leakomatic Longest Tightness Period",
+    "icon": "mdi:water",
+    "state_class": "measurement",
+    "unit_of_measurement": "s"
+   }
+  },
+  "sensor.leakomatic_pause_ends": {
+   "state": "2030-01-01T00:00:00+00:00",
+   "attributes": {
+    "device_class": "timestamp",
+    "friendly_name": "Leakomatic Pause Ends",
+    "icon": "mdi:timer-pause-outline"
+   }
+  },
+  "sensor.leakomatic_pressure": {
+   "state": "3.1",
+   "attributes": {
+    "device_class": "pressure",
+    "friendly_name": "Leakomatic Pressure",
+    "icon": "mdi:gauge",
+    "state_class": "measurement",
+    "unit_of_measurement": "bar"
+   }
+  },
+  "sensor.leakomatic_quick_test": {
+   "state": "warning",
+   "attributes": {
+    "alarm_delay": 1,
+    "device_class": "enum",
+    "friendly_name": "Leakomatic Quick Test",
+    "icon": "mdi:water-alert",
+    "index_limit": 1.0,
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ]
+   }
+  },
+  "sensor.leakomatic_quick_test_index": {
+   "state": "0.46",
+   "attributes": {
+    "friendly_name": "Leakomatic Quick Test Index",
+    "icon": "mdi:water",
+    "state_class": "measurement"
+   }
+  },
+  "sensor.leakomatic_signal_strength": {
+   "state": "-61",
+   "attributes": {
+    "device_class": "signal_strength",
+    "friendly_name": "Leakomatic Signal Strength",
+    "icon": "mdi:wifi",
+    "state_class": "measurement",
+    "unit_of_measurement": "dBm"
+   }
+  },
+  "sensor.leakomatic_temperature": {
+   "state": "7.2",
+   "attributes": {
+    "device_class": "temperature",
+    "friendly_name": "Leakomatic Temperature",
+    "icon": "mdi:thermometer-water",
+    "state_class": "measurement",
+    "unit_of_measurement": "°C"
+   }
+  },
+  "sensor.leakomatic_tightness_test": {
+   "state": "clear",
+   "attributes": {
+    "alarm_delay": 1,
+    "device_class": "enum",
+    "friendly_name": "Leakomatic Tightness Test",
+    "icon": "mdi:water-alert",
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ],
+    "period_duration": 15,
+    "pulse_free_periods": 1
+   }
+  },
+  "sensor.leakomatic_total_volume": {
+   "state": "1.25",
+   "attributes": {
+    "device_class": "water",
+    "friendly_name": "Leakomatic Total Volume",
+    "icon": "mdi:counter",
+    "state_class": "total_increasing",
+    "unit_of_measurement": "m³"
+   }
+  }
+ },
+ "flow end": {
+  "binary_sensor.leakomatic_flow_indicator": {
+   "state": "off",
+   "attributes": {
+    "device_class": "running",
+    "friendly_name": "Leakomatic Flow Indicator",
+    "icon": "mdi:water"
+   }
+  },
+  "binary_sensor.leakomatic_online_status": {
+   "state": "on",
+   "attributes": {
+    "device_class": "connectivity",
+    "friendly_name": "Leakomatic Online Status",
+    "icon": "mdi:wifi",
+    "last_seen": "2026-09-28T12:00:00+00:00"
+   }
+  },
+  "binary_sensor.leakomatic_valve": {
+   "state": "on",
+   "attributes": {
+    "device_class": "opening",
+    "friendly_name": "Leakomatic Valve",
+    "icon": "mdi:valve"
+   }
+  },
+  "binary_sensor.leakomatic_websocket_connectivity": {
+   "state": "off",
+   "attributes": {
+    "device_class": "connectivity",
+    "friendly_name": "Leakomatic WebSocket Connectivity",
+    "icon": "mdi:webhook",
+    "reconnection_phase": 1
+   }
+  },
+  "button.leakomatic_reset_alarms": {
+   "state": "unknown",
+   "attributes": {
+    "friendly_name": "Leakomatic Reset alarms",
+    "icon": "mdi:alarm-off"
+   }
+  },
+  "select.leakomatic_mode": {
+   "state": "pause",
+   "attributes": {
+    "friendly_name": "Leakomatic Mode",
+    "icon": "mdi:home",
+    "options": [
+     "home",
+     "away",
+     "pause"
+    ]
+   }
+  },
+  "sensor.leakomatic_flow_test": {
+   "state": "clear",
+   "attributes": {
+    "alarm_delay": 5,
+    "device_class": "enum",
+    "duration_away": 5,
+    "duration_home": 20,
+    "friendly_name": "Leakomatic Flow Test",
+    "icon": "mdi:water-alert",
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ]
+   }
+  },
+  "sensor.leakomatic_last_flow_duration": {
+   "state": "17",
+   "attributes": {
+    "device_class": "duration",
+    "friendly_name": "Leakomatic Last Flow Duration",
+    "icon": "mdi:clock-outline",
+    "state_class": "measurement",
+    "unit_of_measurement": "s"
+   }
+  },
+  "sensor.leakomatic_longest_tightness_period": {
+   "state": "1800",
+   "attributes": {
+    "device_class": "duration",
+    "friendly_name": "Leakomatic Longest Tightness Period",
+    "icon": "mdi:water",
+    "state_class": "measurement",
+    "unit_of_measurement": "s"
+   }
+  },
+  "sensor.leakomatic_pause_ends": {
+   "state": "2030-01-01T00:00:00+00:00",
+   "attributes": {
+    "device_class": "timestamp",
+    "friendly_name": "Leakomatic Pause Ends",
+    "icon": "mdi:timer-pause-outline"
+   }
+  },
+  "sensor.leakomatic_pressure": {
+   "state": "3.1",
+   "attributes": {
+    "device_class": "pressure",
+    "friendly_name": "Leakomatic Pressure",
+    "icon": "mdi:gauge",
+    "state_class": "measurement",
+    "unit_of_measurement": "bar"
+   }
+  },
+  "sensor.leakomatic_quick_test": {
+   "state": "warning",
+   "attributes": {
+    "alarm_delay": 1,
+    "device_class": "enum",
+    "friendly_name": "Leakomatic Quick Test",
+    "icon": "mdi:water-alert",
+    "index_limit": 1.0,
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ]
+   }
+  },
+  "sensor.leakomatic_quick_test_index": {
+   "state": "0.46",
+   "attributes": {
+    "friendly_name": "Leakomatic Quick Test Index",
+    "icon": "mdi:water",
+    "state_class": "measurement"
+   }
+  },
+  "sensor.leakomatic_signal_strength": {
+   "state": "-61",
+   "attributes": {
+    "device_class": "signal_strength",
+    "friendly_name": "Leakomatic Signal Strength",
+    "icon": "mdi:wifi",
+    "state_class": "measurement",
+    "unit_of_measurement": "dBm"
+   }
+  },
+  "sensor.leakomatic_temperature": {
+   "state": "7.2",
+   "attributes": {
+    "device_class": "temperature",
+    "friendly_name": "Leakomatic Temperature",
+    "icon": "mdi:thermometer-water",
+    "state_class": "measurement",
+    "unit_of_measurement": "°C"
+   }
+  },
+  "sensor.leakomatic_tightness_test": {
+   "state": "clear",
+   "attributes": {
+    "alarm_delay": 1,
+    "device_class": "enum",
+    "friendly_name": "Leakomatic Tightness Test",
+    "icon": "mdi:water-alert",
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ],
+    "period_duration": 15,
+    "pulse_free_periods": 1
+   }
+  },
+  "sensor.leakomatic_total_volume": {
+   "state": "1.3",
+   "attributes": {
+    "device_class": "water",
+    "friendly_name": "Leakomatic Total Volume",
+    "icon": "mdi:counter",
+    "state_class": "total_increasing",
+    "unit_of_measurement": "m³"
+   }
+  }
+ },
+ "status": {
+  "binary_sensor.leakomatic_flow_indicator": {
+   "state": "off",
+   "attributes": {
+    "device_class": "running",
+    "friendly_name": "Leakomatic Flow Indicator",
+    "icon": "mdi:water"
+   }
+  },
+  "binary_sensor.leakomatic_online_status": {
+   "state": "on",
+   "attributes": {
+    "device_class": "connectivity",
+    "friendly_name": "Leakomatic Online Status",
+    "icon": "mdi:wifi",
+    "last_seen": "2026-09-28T12:00:00+00:00"
+   }
+  },
+  "binary_sensor.leakomatic_valve": {
+   "state": "off",
+   "attributes": {
+    "device_class": "opening",
+    "friendly_name": "Leakomatic Valve",
+    "icon": "mdi:valve"
+   }
+  },
+  "binary_sensor.leakomatic_websocket_connectivity": {
+   "state": "off",
+   "attributes": {
+    "device_class": "connectivity",
+    "friendly_name": "Leakomatic WebSocket Connectivity",
+    "icon": "mdi:webhook",
+    "reconnection_phase": 1
+   }
+  },
+  "button.leakomatic_reset_alarms": {
+   "state": "unknown",
+   "attributes": {
+    "friendly_name": "Leakomatic Reset alarms",
+    "icon": "mdi:alarm-off"
+   }
+  },
+  "select.leakomatic_mode": {
+   "state": "pause",
+   "attributes": {
+    "friendly_name": "Leakomatic Mode",
+    "icon": "mdi:home",
+    "options": [
+     "home",
+     "away",
+     "pause"
+    ]
+   }
+  },
+  "sensor.leakomatic_flow_test": {
+   "state": "clear",
+   "attributes": {
+    "alarm_delay": 5,
+    "device_class": "enum",
+    "duration_away": 5,
+    "duration_home": 20,
+    "friendly_name": "Leakomatic Flow Test",
+    "icon": "mdi:water-alert",
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ]
+   }
+  },
+  "sensor.leakomatic_last_flow_duration": {
+   "state": "17",
+   "attributes": {
+    "device_class": "duration",
+    "friendly_name": "Leakomatic Last Flow Duration",
+    "icon": "mdi:clock-outline",
+    "state_class": "measurement",
+    "unit_of_measurement": "s"
+   }
+  },
+  "sensor.leakomatic_longest_tightness_period": {
+   "state": "1800",
+   "attributes": {
+    "device_class": "duration",
+    "friendly_name": "Leakomatic Longest Tightness Period",
+    "icon": "mdi:water",
+    "state_class": "measurement",
+    "unit_of_measurement": "s"
+   }
+  },
+  "sensor.leakomatic_pause_ends": {
+   "state": "2030-01-01T01:00:00+00:00",
+   "attributes": {
+    "device_class": "timestamp",
+    "friendly_name": "Leakomatic Pause Ends",
+    "icon": "mdi:timer-pause-outline"
+   }
+  },
+  "sensor.leakomatic_pressure": {
+   "state": "3.1",
+   "attributes": {
+    "device_class": "pressure",
+    "friendly_name": "Leakomatic Pressure",
+    "icon": "mdi:gauge",
+    "state_class": "measurement",
+    "unit_of_measurement": "bar"
+   }
+  },
+  "sensor.leakomatic_quick_test": {
+   "state": "warning",
+   "attributes": {
+    "alarm_delay": 1,
+    "device_class": "enum",
+    "friendly_name": "Leakomatic Quick Test",
+    "icon": "mdi:water-alert",
+    "index_limit": 1.0,
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ]
+   }
+  },
+  "sensor.leakomatic_quick_test_index": {
+   "state": "0.46",
+   "attributes": {
+    "friendly_name": "Leakomatic Quick Test Index",
+    "icon": "mdi:water",
+    "state_class": "measurement"
+   }
+  },
+  "sensor.leakomatic_signal_strength": {
+   "state": "-70",
+   "attributes": {
+    "device_class": "signal_strength",
+    "friendly_name": "Leakomatic Signal Strength",
+    "icon": "mdi:wifi",
+    "state_class": "measurement",
+    "unit_of_measurement": "dBm"
+   }
+  },
+  "sensor.leakomatic_temperature": {
+   "state": "7.2",
+   "attributes": {
+    "device_class": "temperature",
+    "friendly_name": "Leakomatic Temperature",
+    "icon": "mdi:thermometer-water",
+    "state_class": "measurement",
+    "unit_of_measurement": "°C"
+   }
+  },
+  "sensor.leakomatic_tightness_test": {
+   "state": "clear",
+   "attributes": {
+    "alarm_delay": 1,
+    "device_class": "enum",
+    "friendly_name": "Leakomatic Tightness Test",
+    "icon": "mdi:water-alert",
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ],
+    "period_duration": 15,
+    "pulse_free_periods": 1
+   }
+  },
+  "sensor.leakomatic_total_volume": {
+   "state": "1.3",
+   "attributes": {
+    "device_class": "water",
+    "friendly_name": "Leakomatic Total Volume",
+    "icon": "mdi:counter",
+    "state_class": "total_increasing",
+    "unit_of_measurement": "m³"
+   }
+  }
+ },
+ "temperature": {
+  "binary_sensor.leakomatic_flow_indicator": {
+   "state": "off",
+   "attributes": {
+    "device_class": "running",
+    "friendly_name": "Leakomatic Flow Indicator",
+    "icon": "mdi:water"
+   }
+  },
+  "binary_sensor.leakomatic_online_status": {
+   "state": "on",
+   "attributes": {
+    "device_class": "connectivity",
+    "friendly_name": "Leakomatic Online Status",
+    "icon": "mdi:wifi",
+    "last_seen": "2026-09-28T12:00:00+00:00"
+   }
+  },
+  "binary_sensor.leakomatic_valve": {
+   "state": "off",
+   "attributes": {
+    "device_class": "opening",
+    "friendly_name": "Leakomatic Valve",
+    "icon": "mdi:valve"
+   }
+  },
+  "binary_sensor.leakomatic_websocket_connectivity": {
+   "state": "off",
+   "attributes": {
+    "device_class": "connectivity",
+    "friendly_name": "Leakomatic WebSocket Connectivity",
+    "icon": "mdi:webhook",
+    "reconnection_phase": 1
+   }
+  },
+  "button.leakomatic_reset_alarms": {
+   "state": "unknown",
+   "attributes": {
+    "friendly_name": "Leakomatic Reset alarms",
+    "icon": "mdi:alarm-off"
+   }
+  },
+  "select.leakomatic_mode": {
+   "state": "pause",
+   "attributes": {
+    "friendly_name": "Leakomatic Mode",
+    "icon": "mdi:home",
+    "options": [
+     "home",
+     "away",
+     "pause"
+    ]
+   }
+  },
+  "sensor.leakomatic_flow_test": {
+   "state": "clear",
+   "attributes": {
+    "alarm_delay": 5,
+    "device_class": "enum",
+    "duration_away": 5,
+    "duration_home": 20,
+    "friendly_name": "Leakomatic Flow Test",
+    "icon": "mdi:water-alert",
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ]
+   }
+  },
+  "sensor.leakomatic_last_flow_duration": {
+   "state": "17",
+   "attributes": {
+    "device_class": "duration",
+    "friendly_name": "Leakomatic Last Flow Duration",
+    "icon": "mdi:clock-outline",
+    "state_class": "measurement",
+    "unit_of_measurement": "s"
+   }
+  },
+  "sensor.leakomatic_longest_tightness_period": {
+   "state": "1800",
+   "attributes": {
+    "device_class": "duration",
+    "friendly_name": "Leakomatic Longest Tightness Period",
+    "icon": "mdi:water",
+    "state_class": "measurement",
+    "unit_of_measurement": "s"
+   }
+  },
+  "sensor.leakomatic_pause_ends": {
+   "state": "2030-01-01T01:00:00+00:00",
+   "attributes": {
+    "device_class": "timestamp",
+    "friendly_name": "Leakomatic Pause Ends",
+    "icon": "mdi:timer-pause-outline"
+   }
+  },
+  "sensor.leakomatic_pressure": {
+   "state": "3.1",
+   "attributes": {
+    "device_class": "pressure",
+    "friendly_name": "Leakomatic Pressure",
+    "icon": "mdi:gauge",
+    "state_class": "measurement",
+    "unit_of_measurement": "bar"
+   }
+  },
+  "sensor.leakomatic_quick_test": {
+   "state": "warning",
+   "attributes": {
+    "alarm_delay": 1,
+    "device_class": "enum",
+    "friendly_name": "Leakomatic Quick Test",
+    "icon": "mdi:water-alert",
+    "index_limit": 1.0,
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ]
+   }
+  },
+  "sensor.leakomatic_quick_test_index": {
+   "state": "0.46",
+   "attributes": {
+    "friendly_name": "Leakomatic Quick Test Index",
+    "icon": "mdi:water",
+    "state_class": "measurement"
+   }
+  },
+  "sensor.leakomatic_signal_strength": {
+   "state": "-70",
+   "attributes": {
+    "device_class": "signal_strength",
+    "friendly_name": "Leakomatic Signal Strength",
+    "icon": "mdi:wifi",
+    "state_class": "measurement",
+    "unit_of_measurement": "dBm"
+   }
+  },
+  "sensor.leakomatic_temperature": {
+   "state": "8.5",
+   "attributes": {
+    "device_class": "temperature",
+    "friendly_name": "Leakomatic Temperature",
+    "icon": "mdi:thermometer-water",
+    "state_class": "measurement",
+    "unit_of_measurement": "°C"
+   }
+  },
+  "sensor.leakomatic_tightness_test": {
+   "state": "clear",
+   "attributes": {
+    "alarm_delay": 1,
+    "device_class": "enum",
+    "friendly_name": "Leakomatic Tightness Test",
+    "icon": "mdi:water-alert",
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ],
+    "period_duration": 15,
+    "pulse_free_periods": 1
+   }
+  },
+  "sensor.leakomatic_total_volume": {
+   "state": "1.3",
+   "attributes": {
+    "device_class": "water",
+    "friendly_name": "Leakomatic Total Volume",
+    "icon": "mdi:counter",
+    "state_class": "total_increasing",
+    "unit_of_measurement": "m³"
+   }
+  }
+ },
+ "pressure": {
+  "binary_sensor.leakomatic_flow_indicator": {
+   "state": "off",
+   "attributes": {
+    "device_class": "running",
+    "friendly_name": "Leakomatic Flow Indicator",
+    "icon": "mdi:water"
+   }
+  },
+  "binary_sensor.leakomatic_online_status": {
+   "state": "on",
+   "attributes": {
+    "device_class": "connectivity",
+    "friendly_name": "Leakomatic Online Status",
+    "icon": "mdi:wifi",
+    "last_seen": "2026-09-28T12:00:00+00:00"
+   }
+  },
+  "binary_sensor.leakomatic_valve": {
+   "state": "off",
+   "attributes": {
+    "device_class": "opening",
+    "friendly_name": "Leakomatic Valve",
+    "icon": "mdi:valve"
+   }
+  },
+  "binary_sensor.leakomatic_websocket_connectivity": {
+   "state": "off",
+   "attributes": {
+    "device_class": "connectivity",
+    "friendly_name": "Leakomatic WebSocket Connectivity",
+    "icon": "mdi:webhook",
+    "reconnection_phase": 1
+   }
+  },
+  "button.leakomatic_reset_alarms": {
+   "state": "unknown",
+   "attributes": {
+    "friendly_name": "Leakomatic Reset alarms",
+    "icon": "mdi:alarm-off"
+   }
+  },
+  "select.leakomatic_mode": {
+   "state": "pause",
+   "attributes": {
+    "friendly_name": "Leakomatic Mode",
+    "icon": "mdi:home",
+    "options": [
+     "home",
+     "away",
+     "pause"
+    ]
+   }
+  },
+  "sensor.leakomatic_flow_test": {
+   "state": "clear",
+   "attributes": {
+    "alarm_delay": 5,
+    "device_class": "enum",
+    "duration_away": 5,
+    "duration_home": 20,
+    "friendly_name": "Leakomatic Flow Test",
+    "icon": "mdi:water-alert",
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ]
+   }
+  },
+  "sensor.leakomatic_last_flow_duration": {
+   "state": "17",
+   "attributes": {
+    "device_class": "duration",
+    "friendly_name": "Leakomatic Last Flow Duration",
+    "icon": "mdi:clock-outline",
+    "state_class": "measurement",
+    "unit_of_measurement": "s"
+   }
+  },
+  "sensor.leakomatic_longest_tightness_period": {
+   "state": "1800",
+   "attributes": {
+    "device_class": "duration",
+    "friendly_name": "Leakomatic Longest Tightness Period",
+    "icon": "mdi:water",
+    "state_class": "measurement",
+    "unit_of_measurement": "s"
+   }
+  },
+  "sensor.leakomatic_pause_ends": {
+   "state": "2030-01-01T01:00:00+00:00",
+   "attributes": {
+    "device_class": "timestamp",
+    "friendly_name": "Leakomatic Pause Ends",
+    "icon": "mdi:timer-pause-outline"
+   }
+  },
+  "sensor.leakomatic_pressure": {
+   "state": "4.2",
+   "attributes": {
+    "device_class": "pressure",
+    "friendly_name": "Leakomatic Pressure",
+    "icon": "mdi:gauge",
+    "state_class": "measurement",
+    "unit_of_measurement": "bar"
+   }
+  },
+  "sensor.leakomatic_quick_test": {
+   "state": "warning",
+   "attributes": {
+    "alarm_delay": 1,
+    "device_class": "enum",
+    "friendly_name": "Leakomatic Quick Test",
+    "icon": "mdi:water-alert",
+    "index_limit": 1.0,
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ]
+   }
+  },
+  "sensor.leakomatic_quick_test_index": {
+   "state": "0.46",
+   "attributes": {
+    "friendly_name": "Leakomatic Quick Test Index",
+    "icon": "mdi:water",
+    "state_class": "measurement"
+   }
+  },
+  "sensor.leakomatic_signal_strength": {
+   "state": "-70",
+   "attributes": {
+    "device_class": "signal_strength",
+    "friendly_name": "Leakomatic Signal Strength",
+    "icon": "mdi:wifi",
+    "state_class": "measurement",
+    "unit_of_measurement": "dBm"
+   }
+  },
+  "sensor.leakomatic_temperature": {
+   "state": "8.5",
+   "attributes": {
+    "device_class": "temperature",
+    "friendly_name": "Leakomatic Temperature",
+    "icon": "mdi:thermometer-water",
+    "state_class": "measurement",
+    "unit_of_measurement": "°C"
+   }
+  },
+  "sensor.leakomatic_tightness_test": {
+   "state": "clear",
+   "attributes": {
+    "alarm_delay": 1,
+    "device_class": "enum",
+    "friendly_name": "Leakomatic Tightness Test",
+    "icon": "mdi:water-alert",
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ],
+    "period_duration": 15,
+    "pulse_free_periods": 1
+   }
+  },
+  "sensor.leakomatic_total_volume": {
+   "state": "1.3",
+   "attributes": {
+    "device_class": "water",
+    "friendly_name": "Leakomatic Total Volume",
+    "icon": "mdi:counter",
+    "state_class": "total_increasing",
+    "unit_of_measurement": "m³"
+   }
+  }
+ },
+ "flow alarm": {
+  "binary_sensor.leakomatic_flow_indicator": {
+   "state": "off",
+   "attributes": {
+    "device_class": "running",
+    "friendly_name": "Leakomatic Flow Indicator",
+    "icon": "mdi:water"
+   }
+  },
+  "binary_sensor.leakomatic_online_status": {
+   "state": "on",
+   "attributes": {
+    "device_class": "connectivity",
+    "friendly_name": "Leakomatic Online Status",
+    "icon": "mdi:wifi",
+    "last_seen": "2026-09-28T12:00:00+00:00"
+   }
+  },
+  "binary_sensor.leakomatic_valve": {
+   "state": "off",
+   "attributes": {
+    "device_class": "opening",
+    "friendly_name": "Leakomatic Valve",
+    "icon": "mdi:valve"
+   }
+  },
+  "binary_sensor.leakomatic_websocket_connectivity": {
+   "state": "off",
+   "attributes": {
+    "device_class": "connectivity",
+    "friendly_name": "Leakomatic WebSocket Connectivity",
+    "icon": "mdi:webhook",
+    "reconnection_phase": 1
+   }
+  },
+  "button.leakomatic_reset_alarms": {
+   "state": "unknown",
+   "attributes": {
+    "friendly_name": "Leakomatic Reset alarms",
+    "icon": "mdi:alarm-off"
+   }
+  },
+  "select.leakomatic_mode": {
+   "state": "pause",
+   "attributes": {
+    "friendly_name": "Leakomatic Mode",
+    "icon": "mdi:home",
+    "options": [
+     "home",
+     "away",
+     "pause"
+    ]
+   }
+  },
+  "sensor.leakomatic_flow_test": {
+   "state": "alarm",
+   "attributes": {
+    "alarm_delay": 5,
+    "device_class": "enum",
+    "duration_away": 5,
+    "duration_home": 20,
+    "friendly_name": "Leakomatic Flow Test",
+    "icon": "mdi:water-alert",
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ]
+   }
+  },
+  "sensor.leakomatic_last_flow_duration": {
+   "state": "17",
+   "attributes": {
+    "device_class": "duration",
+    "friendly_name": "Leakomatic Last Flow Duration",
+    "icon": "mdi:clock-outline",
+    "state_class": "measurement",
+    "unit_of_measurement": "s"
+   }
+  },
+  "sensor.leakomatic_longest_tightness_period": {
+   "state": "1800",
+   "attributes": {
+    "device_class": "duration",
+    "friendly_name": "Leakomatic Longest Tightness Period",
+    "icon": "mdi:water",
+    "state_class": "measurement",
+    "unit_of_measurement": "s"
+   }
+  },
+  "sensor.leakomatic_pause_ends": {
+   "state": "2030-01-01T01:00:00+00:00",
+   "attributes": {
+    "device_class": "timestamp",
+    "friendly_name": "Leakomatic Pause Ends",
+    "icon": "mdi:timer-pause-outline"
+   }
+  },
+  "sensor.leakomatic_pressure": {
+   "state": "4.2",
+   "attributes": {
+    "device_class": "pressure",
+    "friendly_name": "Leakomatic Pressure",
+    "icon": "mdi:gauge",
+    "state_class": "measurement",
+    "unit_of_measurement": "bar"
+   }
+  },
+  "sensor.leakomatic_quick_test": {
+   "state": "warning",
+   "attributes": {
+    "alarm_delay": 1,
+    "device_class": "enum",
+    "friendly_name": "Leakomatic Quick Test",
+    "icon": "mdi:water-alert",
+    "index_limit": 1.0,
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ]
+   }
+  },
+  "sensor.leakomatic_quick_test_index": {
+   "state": "0.46",
+   "attributes": {
+    "friendly_name": "Leakomatic Quick Test Index",
+    "icon": "mdi:water",
+    "state_class": "measurement"
+   }
+  },
+  "sensor.leakomatic_signal_strength": {
+   "state": "-70",
+   "attributes": {
+    "device_class": "signal_strength",
+    "friendly_name": "Leakomatic Signal Strength",
+    "icon": "mdi:wifi",
+    "state_class": "measurement",
+    "unit_of_measurement": "dBm"
+   }
+  },
+  "sensor.leakomatic_temperature": {
+   "state": "8.5",
+   "attributes": {
+    "device_class": "temperature",
+    "friendly_name": "Leakomatic Temperature",
+    "icon": "mdi:thermometer-water",
+    "state_class": "measurement",
+    "unit_of_measurement": "°C"
+   }
+  },
+  "sensor.leakomatic_tightness_test": {
+   "state": "clear",
+   "attributes": {
+    "alarm_delay": 1,
+    "device_class": "enum",
+    "friendly_name": "Leakomatic Tightness Test",
+    "icon": "mdi:water-alert",
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ],
+    "period_duration": 15,
+    "pulse_free_periods": 1
+   }
+  },
+  "sensor.leakomatic_total_volume": {
+   "state": "1.3",
+   "attributes": {
+    "device_class": "water",
+    "friendly_name": "Leakomatic Total Volume",
+    "icon": "mdi:counter",
+    "state_class": "total_increasing",
+    "unit_of_measurement": "m³"
+   }
+  }
+ },
+ "home": {
+  "binary_sensor.leakomatic_flow_indicator": {
+   "state": "off",
+   "attributes": {
+    "device_class": "running",
+    "friendly_name": "Leakomatic Flow Indicator",
+    "icon": "mdi:water"
+   }
+  },
+  "binary_sensor.leakomatic_online_status": {
+   "state": "on",
+   "attributes": {
+    "device_class": "connectivity",
+    "friendly_name": "Leakomatic Online Status",
+    "icon": "mdi:wifi",
+    "last_seen": "2026-09-28T12:00:00+00:00"
+   }
+  },
+  "binary_sensor.leakomatic_valve": {
+   "state": "off",
+   "attributes": {
+    "device_class": "opening",
+    "friendly_name": "Leakomatic Valve",
+    "icon": "mdi:valve"
+   }
+  },
+  "binary_sensor.leakomatic_websocket_connectivity": {
+   "state": "off",
+   "attributes": {
+    "device_class": "connectivity",
+    "friendly_name": "Leakomatic WebSocket Connectivity",
+    "icon": "mdi:webhook",
+    "reconnection_phase": 1
+   }
+  },
+  "button.leakomatic_reset_alarms": {
+   "state": "unknown",
+   "attributes": {
+    "friendly_name": "Leakomatic Reset alarms",
+    "icon": "mdi:alarm-off"
+   }
+  },
+  "select.leakomatic_mode": {
+   "state": "home",
+   "attributes": {
+    "friendly_name": "Leakomatic Mode",
+    "icon": "mdi:home",
+    "options": [
+     "home",
+     "away",
+     "pause"
+    ]
+   }
+  },
+  "sensor.leakomatic_flow_test": {
+   "state": "clear",
+   "attributes": {
+    "alarm_delay": 5,
+    "device_class": "enum",
+    "duration_away": 5,
+    "duration_home": 20,
+    "friendly_name": "Leakomatic Flow Test",
+    "icon": "mdi:water-alert",
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ]
+   }
+  },
+  "sensor.leakomatic_last_flow_duration": {
+   "state": "17",
+   "attributes": {
+    "device_class": "duration",
+    "friendly_name": "Leakomatic Last Flow Duration",
+    "icon": "mdi:clock-outline",
+    "state_class": "measurement",
+    "unit_of_measurement": "s"
+   }
+  },
+  "sensor.leakomatic_longest_tightness_period": {
+   "state": "1800",
+   "attributes": {
+    "device_class": "duration",
+    "friendly_name": "Leakomatic Longest Tightness Period",
+    "icon": "mdi:water",
+    "state_class": "measurement",
+    "unit_of_measurement": "s"
+   }
+  },
+  "sensor.leakomatic_pause_ends": {
+   "state": "unknown",
+   "attributes": {
+    "device_class": "timestamp",
+    "friendly_name": "Leakomatic Pause Ends",
+    "icon": "mdi:timer-pause-outline"
+   }
+  },
+  "sensor.leakomatic_pressure": {
+   "state": "4.2",
+   "attributes": {
+    "device_class": "pressure",
+    "friendly_name": "Leakomatic Pressure",
+    "icon": "mdi:gauge",
+    "state_class": "measurement",
+    "unit_of_measurement": "bar"
+   }
+  },
+  "sensor.leakomatic_quick_test": {
+   "state": "clear",
+   "attributes": {
+    "alarm_delay": 1,
+    "device_class": "enum",
+    "friendly_name": "Leakomatic Quick Test",
+    "icon": "mdi:water-alert",
+    "index_limit": 1.0,
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ]
+   }
+  },
+  "sensor.leakomatic_quick_test_index": {
+   "state": "0.46",
+   "attributes": {
+    "friendly_name": "Leakomatic Quick Test Index",
+    "icon": "mdi:water",
+    "state_class": "measurement"
+   }
+  },
+  "sensor.leakomatic_signal_strength": {
+   "state": "-70",
+   "attributes": {
+    "device_class": "signal_strength",
+    "friendly_name": "Leakomatic Signal Strength",
+    "icon": "mdi:wifi",
+    "state_class": "measurement",
+    "unit_of_measurement": "dBm"
+   }
+  },
+  "sensor.leakomatic_temperature": {
+   "state": "8.5",
+   "attributes": {
+    "device_class": "temperature",
+    "friendly_name": "Leakomatic Temperature",
+    "icon": "mdi:thermometer-water",
+    "state_class": "measurement",
+    "unit_of_measurement": "°C"
+   }
+  },
+  "sensor.leakomatic_tightness_test": {
+   "state": "clear",
+   "attributes": {
+    "alarm_delay": 1,
+    "device_class": "enum",
+    "friendly_name": "Leakomatic Tightness Test",
+    "icon": "mdi:water-alert",
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ],
+    "period_duration": 15,
+    "pulse_free_periods": 1
+   }
+  },
+  "sensor.leakomatic_total_volume": {
+   "state": "1.4",
+   "attributes": {
+    "device_class": "water",
+    "friendly_name": "Leakomatic Total Volume",
+    "icon": "mdi:counter",
+    "state_class": "total_increasing",
+    "unit_of_measurement": "m³"
+   }
+  }
+ },
+ "invalid values": {
+  "binary_sensor.leakomatic_flow_indicator": {
+   "state": "off",
+   "attributes": {
+    "device_class": "running",
+    "friendly_name": "Leakomatic Flow Indicator",
+    "icon": "mdi:water"
+   }
+  },
+  "binary_sensor.leakomatic_online_status": {
+   "state": "on",
+   "attributes": {
+    "device_class": "connectivity",
+    "friendly_name": "Leakomatic Online Status",
+    "icon": "mdi:wifi",
+    "last_seen": "2026-09-28T12:00:00+00:00"
+   }
+  },
+  "binary_sensor.leakomatic_valve": {
+   "state": "off",
+   "attributes": {
+    "device_class": "opening",
+    "friendly_name": "Leakomatic Valve",
+    "icon": "mdi:valve"
+   }
+  },
+  "binary_sensor.leakomatic_websocket_connectivity": {
+   "state": "off",
+   "attributes": {
+    "device_class": "connectivity",
+    "friendly_name": "Leakomatic WebSocket Connectivity",
+    "icon": "mdi:webhook",
+    "reconnection_phase": 1
+   }
+  },
+  "button.leakomatic_reset_alarms": {
+   "state": "unknown",
+   "attributes": {
+    "friendly_name": "Leakomatic Reset alarms",
+    "icon": "mdi:alarm-off"
+   }
+  },
+  "select.leakomatic_mode": {
+   "state": "home",
+   "attributes": {
+    "friendly_name": "Leakomatic Mode",
+    "icon": "mdi:home",
+    "options": [
+     "home",
+     "away",
+     "pause"
+    ]
+   }
+  },
+  "sensor.leakomatic_flow_test": {
+   "state": "clear",
+   "attributes": {
+    "alarm_delay": 5,
+    "device_class": "enum",
+    "duration_away": 5,
+    "duration_home": 20,
+    "friendly_name": "Leakomatic Flow Test",
+    "icon": "mdi:water-alert",
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ]
+   }
+  },
+  "sensor.leakomatic_last_flow_duration": {
+   "state": "17",
+   "attributes": {
+    "device_class": "duration",
+    "friendly_name": "Leakomatic Last Flow Duration",
+    "icon": "mdi:clock-outline",
+    "state_class": "measurement",
+    "unit_of_measurement": "s"
+   }
+  },
+  "sensor.leakomatic_longest_tightness_period": {
+   "state": "1800",
+   "attributes": {
+    "device_class": "duration",
+    "friendly_name": "Leakomatic Longest Tightness Period",
+    "icon": "mdi:water",
+    "state_class": "measurement",
+    "unit_of_measurement": "s"
+   }
+  },
+  "sensor.leakomatic_pause_ends": {
+   "state": "unknown",
+   "attributes": {
+    "device_class": "timestamp",
+    "friendly_name": "Leakomatic Pause Ends",
+    "icon": "mdi:timer-pause-outline"
+   }
+  },
+  "sensor.leakomatic_pressure": {
+   "state": "4.2",
+   "attributes": {
+    "device_class": "pressure",
+    "friendly_name": "Leakomatic Pressure",
+    "icon": "mdi:gauge",
+    "state_class": "measurement",
+    "unit_of_measurement": "bar"
+   }
+  },
+  "sensor.leakomatic_quick_test": {
+   "state": "clear",
+   "attributes": {
+    "alarm_delay": 1,
+    "device_class": "enum",
+    "friendly_name": "Leakomatic Quick Test",
+    "icon": "mdi:water-alert",
+    "index_limit": 1.0,
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ]
+   }
+  },
+  "sensor.leakomatic_quick_test_index": {
+   "state": "unknown",
+   "attributes": {
+    "friendly_name": "Leakomatic Quick Test Index",
+    "icon": "mdi:water",
+    "state_class": "measurement"
+   }
+  },
+  "sensor.leakomatic_signal_strength": {
+   "state": "-70",
+   "attributes": {
+    "device_class": "signal_strength",
+    "friendly_name": "Leakomatic Signal Strength",
+    "icon": "mdi:wifi",
+    "state_class": "measurement",
+    "unit_of_measurement": "dBm"
+   }
+  },
+  "sensor.leakomatic_temperature": {
+   "state": "8.5",
+   "attributes": {
+    "device_class": "temperature",
+    "friendly_name": "Leakomatic Temperature",
+    "icon": "mdi:thermometer-water",
+    "state_class": "measurement",
+    "unit_of_measurement": "°C"
+   }
+  },
+  "sensor.leakomatic_tightness_test": {
+   "state": "clear",
+   "attributes": {
+    "alarm_delay": 1,
+    "device_class": "enum",
+    "friendly_name": "Leakomatic Tightness Test",
+    "icon": "mdi:water-alert",
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ],
+    "period_duration": 15,
+    "pulse_free_periods": 1
+   }
+  },
+  "sensor.leakomatic_total_volume": {
+   "state": "1.4",
+   "attributes": {
+    "device_class": "water",
+    "friendly_name": "Leakomatic Total Volume",
+    "icon": "mdi:counter",
+    "state_class": "total_increasing",
+    "unit_of_measurement": "m³"
+   }
+  }
+ },
+ "offline": {
+  "binary_sensor.leakomatic_flow_indicator": {
+   "state": "off",
+   "attributes": {
+    "device_class": "running",
+    "friendly_name": "Leakomatic Flow Indicator",
+    "icon": "mdi:water"
+   }
+  },
+  "binary_sensor.leakomatic_online_status": {
+   "state": "off",
+   "attributes": {
+    "device_class": "connectivity",
+    "friendly_name": "Leakomatic Online Status",
+    "icon": "mdi:wifi",
+    "last_seen": "2026-09-28T12:00:00+00:00"
+   }
+  },
+  "binary_sensor.leakomatic_valve": {
+   "state": "off",
+   "attributes": {
+    "device_class": "opening",
+    "friendly_name": "Leakomatic Valve",
+    "icon": "mdi:valve"
+   }
+  },
+  "binary_sensor.leakomatic_websocket_connectivity": {
+   "state": "off",
+   "attributes": {
+    "device_class": "connectivity",
+    "friendly_name": "Leakomatic WebSocket Connectivity",
+    "icon": "mdi:webhook",
+    "reconnection_phase": 1
+   }
+  },
+  "button.leakomatic_reset_alarms": {
+   "state": "unknown",
+   "attributes": {
+    "friendly_name": "Leakomatic Reset alarms",
+    "icon": "mdi:alarm-off"
+   }
+  },
+  "select.leakomatic_mode": {
+   "state": "home",
+   "attributes": {
+    "friendly_name": "Leakomatic Mode",
+    "icon": "mdi:home",
+    "options": [
+     "home",
+     "away",
+     "pause"
+    ]
+   }
+  },
+  "sensor.leakomatic_flow_test": {
+   "state": "clear",
+   "attributes": {
+    "alarm_delay": 5,
+    "device_class": "enum",
+    "duration_away": 5,
+    "duration_home": 20,
+    "friendly_name": "Leakomatic Flow Test",
+    "icon": "mdi:water-alert",
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ]
+   }
+  },
+  "sensor.leakomatic_last_flow_duration": {
+   "state": "17",
+   "attributes": {
+    "device_class": "duration",
+    "friendly_name": "Leakomatic Last Flow Duration",
+    "icon": "mdi:clock-outline",
+    "state_class": "measurement",
+    "unit_of_measurement": "s"
+   }
+  },
+  "sensor.leakomatic_longest_tightness_period": {
+   "state": "1800",
+   "attributes": {
+    "device_class": "duration",
+    "friendly_name": "Leakomatic Longest Tightness Period",
+    "icon": "mdi:water",
+    "state_class": "measurement",
+    "unit_of_measurement": "s"
+   }
+  },
+  "sensor.leakomatic_pause_ends": {
+   "state": "unknown",
+   "attributes": {
+    "device_class": "timestamp",
+    "friendly_name": "Leakomatic Pause Ends",
+    "icon": "mdi:timer-pause-outline"
+   }
+  },
+  "sensor.leakomatic_pressure": {
+   "state": "4.2",
+   "attributes": {
+    "device_class": "pressure",
+    "friendly_name": "Leakomatic Pressure",
+    "icon": "mdi:gauge",
+    "state_class": "measurement",
+    "unit_of_measurement": "bar"
+   }
+  },
+  "sensor.leakomatic_quick_test": {
+   "state": "clear",
+   "attributes": {
+    "alarm_delay": 1,
+    "device_class": "enum",
+    "friendly_name": "Leakomatic Quick Test",
+    "icon": "mdi:water-alert",
+    "index_limit": 1.0,
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ]
+   }
+  },
+  "sensor.leakomatic_quick_test_index": {
+   "state": "unknown",
+   "attributes": {
+    "friendly_name": "Leakomatic Quick Test Index",
+    "icon": "mdi:water",
+    "state_class": "measurement"
+   }
+  },
+  "sensor.leakomatic_signal_strength": {
+   "state": "-70",
+   "attributes": {
+    "device_class": "signal_strength",
+    "friendly_name": "Leakomatic Signal Strength",
+    "icon": "mdi:wifi",
+    "state_class": "measurement",
+    "unit_of_measurement": "dBm"
+   }
+  },
+  "sensor.leakomatic_temperature": {
+   "state": "8.5",
+   "attributes": {
+    "device_class": "temperature",
+    "friendly_name": "Leakomatic Temperature",
+    "icon": "mdi:thermometer-water",
+    "state_class": "measurement",
+    "unit_of_measurement": "°C"
+   }
+  },
+  "sensor.leakomatic_tightness_test": {
+   "state": "clear",
+   "attributes": {
+    "alarm_delay": 1,
+    "device_class": "enum",
+    "friendly_name": "Leakomatic Tightness Test",
+    "icon": "mdi:water-alert",
+    "options": [
+     "clear",
+     "warning",
+     "alarm"
+    ],
+    "period_duration": 15,
+    "pulse_free_periods": 1
+   }
+  },
+  "sensor.leakomatic_total_volume": {
+   "state": "1.4",
+   "attributes": {
+    "device_class": "water",
+    "friendly_name": "Leakomatic Total Volume",
+    "icon": "mdi:counter",
+    "state_class": "total_increasing",
+    "unit_of_measurement": "m³"
+   }
+  }
+ }
+}
