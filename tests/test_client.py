@@ -546,3 +546,42 @@ def test_same_message_after_the_window_is_delivered() -> None:
         assert client._is_duplicate(QUICK_TEST) is True
     with patch(monotonic, return_value=100.0 + DUPLICATE_MESSAGE_WINDOW + 1):
         assert client._is_duplicate(QUICK_TEST) is False
+
+
+# --- HA-286: a failing recv() ends the attempt instead of spinning
+
+
+class BrokenWebSocket(FakeWebSocket):
+    """recv() raises the same error every time, without closing."""
+
+    def __init__(self, frames: list[str]) -> None:
+        super().__init__(frames)
+        self.recv_calls = 0
+
+    async def recv(self) -> str:
+        if self._frames:
+            return self._frames.pop(0)
+        self.recv_calls += 1
+        raise RuntimeError("socket in a bad state")
+
+
+async def test_failing_recv_ends_the_attempt(caplog: pytest.LogCaptureFixture) -> None:
+    client = _client_for_reconnect_tests()
+    websocket = BrokenWebSocket([WELCOME, CONFIRM])
+
+    with patch("custom_components.leakomatic.leakomatic_client.websockets.connect", return_value=websocket):
+        result = await asyncio.wait_for(client._attempt_websocket_connection("ws-token"), timeout=5)
+
+    assert result is True  # a confirmed connection existed and was lost: reconnect promptly
+    assert websocket.recv_calls == 1
+    assert "Error receiving from the websocket, reconnecting" in caplog.text
+
+
+async def test_unparsable_message_is_skipped(caplog: pytest.LogCaptureFixture) -> None:
+    """A bad frame is logged and the connection keeps going."""
+    client = _client_for_reconnect_tests()
+
+    received = await _received(client, ["not json", QUICK_TEST])
+
+    assert [m["message"]["data"]["value"] for m in received] == [0.11]
+    assert "Error processing websocket message" in caplog.text
