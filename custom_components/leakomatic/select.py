@@ -14,10 +14,11 @@ from homeassistant.components.select import (
     SelectEntityDescription,
 )
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import EntityCategory
 
-from .const import MessageType, DeviceMode
+from .const import DOMAIN, MessageType, DeviceMode
 from .common import LeakomaticEntity, LeakomaticMessageHandler, MessageHandlerRegistry, log_with_entity
 from .models import LeakomaticConfigEntry
 
@@ -163,7 +164,12 @@ class ModeSelect(LeakomaticSelect):
         log_with_entity(_LOGGER, logging.DEBUG, self, "Changing mode to %s", option)
         success = await self._client.async_change_mode(option, self._device_id)
         if not success:
-            log_with_entity(_LOGGER, logging.ERROR, self, "Failed to change mode to %s", option)
+            # The client has logged why. Tell the caller (UI, automation, script).
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="change_mode_failed",
+                translation_placeholders={"mode": option},
+            )
 
     @callback
     def handle_update(self, data: dict[str, Any]) -> None:

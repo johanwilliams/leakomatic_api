@@ -11,10 +11,12 @@ from typing import Any
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import EntityCategory
 
 from .common import LeakomaticEntity, log_with_entity
+from .const import DOMAIN
 from .models import LeakomaticConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
@@ -101,7 +103,10 @@ class ResetAlarmsButton(LeakomaticButton):
     async def async_press(self) -> None:
         """Handle the button press."""
         success = await self._client.async_reset_alarms(self._device_id)
-        if success:
-            log_with_entity(_LOGGER, logging.INFO, self, "Successfully reset all alarms")
-        else:
-            log_with_entity(_LOGGER, logging.ERROR, self, "Failed to reset alarms") 
+        if not success:
+            # The client has logged why. Tell the caller (UI, automation, script).
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="reset_alarms_failed",
+            )
+        log_with_entity(_LOGGER, logging.INFO, self, "Successfully reset all alarms")

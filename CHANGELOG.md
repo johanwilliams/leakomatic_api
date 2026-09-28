@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Mode select and Reset Alarms button: a failed mode change or alarm reset was only logged, and the caller (the UI, an automation or a script) was told it succeeded. It now fails with an error (translated to English and Swedish), so an automation that sets the mode stops at that step and its trace shows the error.
 - Online Status: when Leakomatic reported the device offline (`device_offline`), the sensor was set to online. It is now set to offline, and back to online with the next message from the device.
 - If Leakomatic could not be reached when Home Assistant started (network, DNS or server problems), the integration failed and stayed failed until it was reloaded by hand. Home Assistant now retries the setup automatically until Leakomatic can be reached.
 - If the websocket token could not be fetched at startup, real-time updates never started and all entities stayed at their startup values until Home Assistant was restarted. The reconnection loop now logs in and fetches the token itself, and keeps retrying with the normal backoff.

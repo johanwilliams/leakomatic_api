@@ -126,12 +126,14 @@ The integration provides the following entities:
   - Options: Home, Away, Pause
   - Updates in real-time through WebSocket events
   - Can be used to change the device mode directly from Home Assistant
+  - If Leakomatic does not accept the change, the action fails with an error, so the UI shows it and an automation or script stops at that step
 
 ### Buttons
 
 - **Reset Alarms**: Allows resetting all active warnings or alarms on the device
   - Located in the device configuration section
   - Useful for clearing alarm states after resolving issues
+  - If the reset fails, the press fails with an error
 
 ### Alarm Test Sensors
 
