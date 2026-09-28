@@ -3,3 +3,11 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 timeout = 60
+
+[tool.ruff]
+target-version = "py313"
+
+[tool.ruff.lint]
+# Start with Ruff's default rules: they catch real errors (undefined names,
+# unused imports, syntax errors) without style noise. Widen later.
+select = ["E4", "E7", "E9", "F"]

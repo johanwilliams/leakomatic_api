@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Entities become unavailable when the connection to Leakomatic has been down for 5 minutes, instead of showing their last values as if they were current (possibly for hours while the integration waits to reconnect). The WebSocket Connectivity sensor stays available and shows the connection state. Short disconnects, such as the server's nightly one, do not affect availability. Both changes are logged once at info level.
 - Reauthentication: if Leakomatic rejects the stored password (for example after you change it), Home Assistant asks for the new password instead of just failing.
 - Test suite based on `pytest-homeassistant-custom-component`, run on every pull request by a GitHub Actions workflow.
+- Validation on every pull request: hassfest (manifest, translations, services), the HACS action and Ruff (lint). Unused imports found by Ruff are removed.
 
 ## [0.1.6] - 2026-07-01
 

@@ -5,7 +5,7 @@ This module contains shared code used by both sensor and binary_sensor platforms
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Dict, Optional, TypeVar, Generic, Type, Union
+from typing import Any, Callable, Dict, Optional, TypeVar, Generic, Type
 
 from homeassistant.helpers.entity import DeviceInfo
 

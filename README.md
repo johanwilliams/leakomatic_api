@@ -298,6 +298,13 @@ python -m pytest
 
 Test data must be invented: do not add payloads from a real account, since they contain serial numbers, user IDs and locations.
 
+Every pull request is also checked by [hassfest](https://developers.home-assistant.io/blog/2020/04/16/hassfest/) (manifest, translations, services), the [HACS action](https://hacs.xyz/docs/publish/action) and [Ruff](https://docs.astral.sh/ruff/). Run the linter locally with:
+
+```bash
+pip install ruff
+ruff check .
+```
+
 ## License
 
 This project is licensed under the terms of the license included in the repository. 
