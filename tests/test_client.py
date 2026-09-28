@@ -57,7 +57,6 @@ async def test_login_without_user_link(caplog: pytest.LogCaptureFixture) -> None
     """HA-193: a login page without the users link still logs in and warns clearly."""
     client = LeakomaticClient("user@example.com", "secret")
     client._session = FakeSession(FakeResponse(LOGIN_PAGE_WITHOUT_USER_LINK))
-    client._cookies = SimpleCookie()
     client._auth_token = "csrf"
 
     assert await client._async_login() is True
@@ -155,12 +154,20 @@ LOGIN_OK = '<html><body><a href="/users/1">me</a><table><tr id="device_1001"></t
 LOGIN_REJECTED = '<html><body><div class="alert-danger">Invalid Email or password.</div></body></html>'
 
 
+class FakeCookieJar:
+    def clear(self) -> None:
+        return None
+
+
 class FakeHttpSession:
     """Stand-in for aiohttp.ClientSession: get() is the start page, post() the login."""
+
+    closed = False
 
     def __init__(self, start: FakeResponse | Exception, login: FakeResponse | Exception) -> None:
         self._start = start
         self._login = login
+        self.cookie_jar = FakeCookieJar()
 
     def _respond(self, response: FakeResponse | Exception) -> FakeResponse:
         if isinstance(response, Exception):
@@ -305,8 +312,11 @@ class FakeHttpResponse:
 class ScriptedSession:
     """Session whose request() returns the next scripted response."""
 
+    closed = False
+
     def __init__(self, responses: list[FakeHttpResponse]) -> None:
         self._responses = responses
+        self.cookie_jar = FakeCookieJar()
 
     def request(self, *args, **kwargs) -> FakeHttpResponse:
         return self._responses.pop(0)
@@ -335,9 +345,7 @@ def _logged_in_client(responses: list[FakeHttpResponse]) -> tuple[LeakomaticClie
     client = LeakomaticClient("user@example.com", "secret")
     client._device_ids = ["1001"]
     client._xsrf_token = "old-xsrf"
-    client._cookies = SimpleCookie()
-    session = ScriptedSession(responses)
-    client._create_session = AsyncMock(return_value=session)
+    client._session = ScriptedSession(responses)
 
     async def login() -> bool:
         client._xsrf_token = "new-xsrf"
@@ -585,3 +593,32 @@ async def test_unparsable_message_is_skipped(caplog: pytest.LogCaptureFixture) -
 
     assert [m["message"]["data"]["value"] for m in received] == [0.11]
     assert "Error processing websocket message" in caplog.text
+
+
+# --- HA-205: one HTTP session for the client's lifetime
+
+
+async def test_one_session_for_all_requests() -> None:
+    """Requests reuse the client's session instead of opening a new one each time."""
+    client = LeakomaticClient("user@example.com", "secret")
+    client._device_ids = ["1001", "1002"]
+    client._xsrf_token = "xsrf"
+    session = ScriptedSession([FakeHttpResponse(body={"id": 1}), FakeHttpResponse(path="/devices/1002.json", body={"id": 2})])
+
+    with patch(
+        "custom_components.leakomatic.leakomatic_client.aiohttp.ClientSession", return_value=session
+    ) as session_cls:
+        assert await client.async_get_device_data("1001") == {"id": 1}
+        assert await client.async_get_device_data("1002") == {"id": 2}
+
+    session_cls.assert_called_once()
+
+
+async def test_login_starts_from_an_empty_cookie_jar() -> None:
+    client = LeakomaticClient("user@example.com", "secret")
+    session = FakeHttpSession(FakeResponse(START_PAGE), FakeResponse(LOGIN_OK))
+    session.cookie_jar = MagicMock()
+    with patch("custom_components.leakomatic.leakomatic_client.aiohttp.ClientSession", return_value=session):
+        assert await client.async_authenticate() is True
+
+    session.cookie_jar.clear.assert_called_once()

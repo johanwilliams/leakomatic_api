@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import logging
 import re
-import ssl
 import asyncio
 import random
 import time
@@ -18,6 +17,8 @@ from typing import Any, Optional, Callable, Dict
 from datetime import datetime, timedelta, timezone
 
 import aiohttp
+from homeassistant.helpers.aiohttp_client import async_create_clientsession
+from homeassistant.util.ssl import get_default_context
 import websockets
 from bs4 import BeautifulSoup
 import urllib.parse
@@ -42,10 +43,6 @@ LOGIN_PATHS = ("/login", "/users/sign_in")
 class LeakomaticRequestError(Exception):
     """A request with the login session failed."""
 
-# Create SSL context at module level
-ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-ssl_context.load_default_certs()
-ssl_context.set_default_verify_paths()
 
 class LeakomaticClient:
     """Client for the Leakomatic API.
@@ -71,7 +68,6 @@ class LeakomaticClient:
         self._session: Optional[aiohttp.ClientSession] = None
         self._error_code: Optional[str] = None
         self._xsrf_token: Optional[str] = None
-        self._cookies: Optional[aiohttp.CookieJar] = None
         self._ws_running = True
         self._ws_callbacks: list[Callable[[dict], None]] = []
         self._device_data_cache: dict[str, Any] = {}
@@ -87,27 +83,30 @@ class LeakomaticClient:
         self._recent_frames: dict[str, float] = {}
         self._auth_failed_callback: Optional[Callable[[], None]] = None
 
-    async def _create_session(self, headers: Optional[Dict[str, str]] = None) -> aiohttp.ClientSession:
-        """Create a new session with the saved cookies and headers.
-        
-        Args:
-            headers: Optional headers to include in the session.
-                    If not provided, default headers will be used.
-                    The XSRF token will be added to the headers if it exists.
-        
-        Returns:
-            An aiohttp ClientSession with the configured cookies and headers.
+    def _get_session(self) -> aiohttp.ClientSession:
+        """The client's HTTP session, created on first use.
+
+        One session for the client's lifetime, with its own cookie jar: the
+        login depends on Leakomatic's session and XSRF cookies, which must not
+        mix with other integrations' cookies in Home Assistant's shared session.
+        With hass, Home Assistant closes it when it stops; async_close closes
+        it when the integration unloads.
         """
-        if headers is None:
-            headers = DEFAULT_HEADERS.copy()
-        
-        # Always add the XSRF token to the headers if it exists
+        if self._session is None or self._session.closed:
+            if self._hass is not None:
+                self._session = async_create_clientsession(self._hass, cookie_jar=aiohttp.CookieJar())
+            else:
+                self._session = aiohttp.ClientSession(cookie_jar=aiohttp.CookieJar())
+        return self._session
+
+    def _request_headers(self, headers: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+        """Headers for a request: the given ones (or the defaults) plus the XSRF token."""
+        request_headers = dict(headers) if headers is not None else DEFAULT_HEADERS.copy()
         if self._xsrf_token:
-            headers[XSRF_TOKEN_HEADER] = urllib.parse.unquote(self._xsrf_token)
+            request_headers[XSRF_TOKEN_HEADER] = urllib.parse.unquote(self._xsrf_token)
         else:
             _LOGGER.warning("No XSRF token available for session headers")
-        
-        return aiohttp.ClientSession(cookies=self._cookies, headers=headers)
+        return request_headers
 
     async def _update_session_from_response(self, response: aiohttp.ClientResponse) -> None:
         """Update cookies and XSRF token from a response.
@@ -115,7 +114,6 @@ class LeakomaticClient:
         Args:
             response: The aiohttp ClientResponse to extract cookies and XSRF token from.
         """
-        self._cookies.update(response.cookies)
         new_xsrf_token = await self._async_get_xsrf_token(response)
         if new_xsrf_token:
             self._xsrf_token = new_xsrf_token
@@ -134,8 +132,9 @@ class LeakomaticClient:
         try:
             _LOGGER.debug("Initiating authentication process with Leakomatic")
 
-            # Create a new session
-            self._session = aiohttp.ClientSession()
+            # A fresh login: forget the cookies of any earlier session
+            session = self._get_session()
+            session.cookie_jar.clear()
 
             # Get the auth token from the start page
             self._auth_token = await self._async_get_startpage()
@@ -162,11 +161,6 @@ class LeakomaticClient:
         except Exception as err:
             _LOGGER.error("Authentication error: %s", err)
             return False
-        finally:
-            # Close the session after authentication
-            if self._session:
-                await self._session.close()
-                self._session = None
 
     @property
     def error_code(self) -> Optional[str]:
@@ -251,8 +245,6 @@ class LeakomaticClient:
                     self._error_code = ERROR_CANNOT_CONNECT
                     return None
                 
-                # Save the cookies from the start page
-                self._cookies = response.cookies
                 
                 text = await response.text()
                 soup = BeautifulSoup(text, 'html.parser')
@@ -328,8 +320,6 @@ class LeakomaticClient:
                     self._error_code = ERROR_XSRF_TOKEN_MISSING
                     return False
                 
-                # Update the cookies with any new ones from the login response
-                self._cookies.update(response.cookies)
                 self._xsrf_token = xsrf_token
                 
                 # Check if login was successful by looking for device elements
@@ -544,27 +534,27 @@ class LeakomaticClient:
             raise LeakomaticRequestError(f"not logged in ({self._error_code})")
 
         for attempt in range(2):
-            session_headers = dict(headers) if headers is not None else None
-            async with await self._create_session(headers=session_headers) as session:
-                async with session.request(method, url, json=json_data) as response:
-                    if self._is_logged_out(response, expect_json):
-                        if attempt == 0:
-                            _LOGGER.debug("Leakomatic session has expired, logging in again")
-                            self._xsrf_token = None
-                            if not await self.async_authenticate():
-                                raise LeakomaticRequestError(
-                                    f"session expired and logging in again failed ({self._error_code})"
-                                )
-                            continue
-                        raise LeakomaticRequestError("still logged out after logging in again")
+            async with self._get_session().request(
+                method, url, json=json_data, headers=self._request_headers(headers)
+            ) as response:
+                if self._is_logged_out(response, expect_json):
+                    if attempt == 0:
+                        _LOGGER.debug("Leakomatic session has expired, logging in again")
+                        self._xsrf_token = None
+                        if not await self.async_authenticate():
+                            raise LeakomaticRequestError(
+                                f"session expired and logging in again failed ({self._error_code})"
+                            )
+                        continue
+                    raise LeakomaticRequestError("still logged out after logging in again")
 
-                    if response.status != 200:
-                        raise LeakomaticRequestError(f"server returned {response.status}")
+                if response.status != 200:
+                    raise LeakomaticRequestError(f"server returned {response.status}")
 
-                    await self._update_session_from_response(response)
-                    if expect_json:
-                        return await response.json()
-                    return await response.text()
+                await self._update_session_from_response(response)
+                if expect_json:
+                    return await response.json()
+                return await response.text()
 
         raise LeakomaticRequestError("request was not completed")
 
@@ -895,7 +885,7 @@ class LeakomaticClient:
                 ws_url,
                 subprotocols=['actioncable-v1-json'],
                 additional_headers=WEBSOCKET_HEADERS,
-                ssl=ssl_context,
+                ssl=get_default_context(),
                 ping_interval=20,  # Send ping every 20 seconds
                 ping_timeout=10,   # Wait 10 seconds for pong response
                 close_timeout=5    # Wait 5 seconds for close response

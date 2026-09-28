@@ -73,10 +73,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: LeakomaticConfigEntry) -
         ConfigEntryNotReady: Leakomatic could not be reached or gave no usable data;
             Home Assistant retries the setup by itself.
     """
+    client = LeakomaticClient(entry.data[CONF_EMAIL], entry.data[CONF_PASSWORD], hass)
+    try:
+        return await _async_setup(hass, entry, client)
+    except BaseException:
+        # Setup failed (Home Assistant retries it with a new client): close
+        # this client's HTTP session instead of leaving it open until shutdown.
+        await client.async_close()
+        raise
+
+
+async def _async_setup(hass: HomeAssistant, entry: LeakomaticConfigEntry, client: LeakomaticClient) -> bool:
+    """Set up the entry with a client; see async_setup_entry."""
     _LOGGER.debug("Setting up Leakomatic integration with config entry: %s", entry.entry_id)
 
-    # Initialize the client
-    client = LeakomaticClient(entry.data[CONF_EMAIL], entry.data[CONF_PASSWORD], hass)
 
     # Authenticate to get the device IDs. Only rejected credentials start a
     # reauthentication; everything else is treated as temporary and retried.
@@ -252,6 +262,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: LeakomaticConfigEntry) 
 
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
+        await entry.runtime_data.client.async_close()
         _LOGGER.info("Leakomatic integration unloaded successfully for %s", entry.entry_id)
 
     return unload_ok
