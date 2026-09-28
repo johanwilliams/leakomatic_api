@@ -78,6 +78,7 @@ class MockLeakomatic:
         self.client = MagicMock()
         self.ws_callback: Callable[[dict], None] | None = None
         self.ws_task_cancelled = False
+        self.connectivity_callbacks: list[Callable[[bool, int], None]] = []
 
         client = self.client
         client.device_ids = list(devices)
@@ -90,6 +91,17 @@ class MockLeakomatic:
         client.stop_websocket = AsyncMock()
         client.async_change_mode = AsyncMock(return_value=True)
         client.async_reset_alarms = AsyncMock(return_value=True)
+        client.register_connectivity_callback = MagicMock(side_effect=self._register_connectivity)
+
+    def _register_connectivity(self, callback: Callable[[bool, int], None]) -> None:
+        # Like the real client: report the current state (not connected) at once.
+        self.connectivity_callbacks.append(callback)
+        callback(False, 1)
+
+    def set_connected(self, connected: bool) -> None:
+        """Report a websocket connection change the way the client would."""
+        for callback in self.connectivity_callbacks:
+            callback(connected, 1)
 
     async def _device_data(self, device_id: str | None = None) -> dict[str, Any]:
         # Mirrors LeakomaticClient: one device -> its data, several -> keyed by ID.

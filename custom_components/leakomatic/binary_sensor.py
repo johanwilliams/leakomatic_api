@@ -459,6 +459,11 @@ class WebSocketConnectivityBinarySensor(LeakomaticBinarySensor):
         self._last_connection_change: datetime | None = None
 
     @property
+    def available(self) -> bool:
+        """Always available: this sensor reports the connection itself."""
+        return True
+
+    @property
     def is_on(self) -> bool:
         """Return true if WebSocket is connected."""
         return self._websocket_connected

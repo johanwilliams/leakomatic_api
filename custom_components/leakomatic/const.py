@@ -141,6 +141,10 @@ MAX_MEDIUM_RETRIES = 4  # 4 attempts = 24 hours
 # Phase 3: Long-term retries (every 12 hours indefinitely)
 LONG_RETRY_INTERVAL = 43200  # 12 hours in seconds
 
+# Entities become unavailable when the websocket has been down this long. The
+# server's scheduled (nightly) disconnect is reconnected within seconds.
+UNAVAILABLE_AFTER_DISCONNECT = 300  # 5 minutes
+
 # Health check interval
 HEALTH_CHECK_INTERVAL = 300  # 5 minutes
 

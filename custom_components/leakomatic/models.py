@@ -9,6 +9,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import callback
 from homeassistant.helpers.device_registry import DeviceInfo
 
+from .availability import ConnectionAvailability
 from .leakomatic_client import LeakomaticClient
 
 type LeakomaticConfigEntry = ConfigEntry[LeakomaticData]
@@ -25,12 +26,15 @@ class LeakomaticData:
             messages are matched against.
         device_data: The device data from the REST API at setup, per device ID.
             Entities use it for their initial state.
+        availability: Whether the entities are available, based on the
+            websocket connection.
         ws_listeners: Callbacks that receive every websocket message.
     """
 
     client: LeakomaticClient
     device_infos: dict[str, DeviceInfo]
     device_data: dict[str, dict[str, Any]]
+    availability: ConnectionAvailability
     ws_listeners: list[Callable[[dict], None]] = field(default_factory=list)
 
     @callback

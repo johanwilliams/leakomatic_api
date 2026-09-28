@@ -187,7 +187,7 @@ The integration implements a robust multi-phase reconnection strategy to ensure 
 ### Additional Features
 - **Token Refresh**: Automatically refreshes WebSocket tokens every 24 hours
 - **Health Monitoring**: Detects stuck connections (no messages for 10+ minutes) and forces reconnection
-- **Graceful Degradation**: Integration continues working with polling even when WebSocket is down
+- **Availability**: If the WebSocket connection has been down for 5 minutes, all entities except WebSocket Connectivity become unavailable, so stale values are not shown as current. They become available again as soon as the connection is back. Short disconnects, such as the server's nightly one, are not visible.
 - **Resource Efficient**: Long retry intervals prevent excessive CPU/network usage
 
 This strategy eliminates the need for manual integration reloads while maintaining robust connectivity to the Leakomatic API.
@@ -250,6 +250,7 @@ If you encounter any issues with the integration:
    - Stuck connections: Health monitoring will detect and recover from stuck connections automatically
 5. Reading the log:
    - The Leakomatic server closes the websocket on a schedule (typically once per night). The integration reconnects within seconds; this is logged at debug/info level and needs no action.
+   - `No connection to Leakomatic for 5 minutes, marking entities unavailable` (info) and `Connection to Leakomatic restored, entities are available again` (info) mark when the entities became unavailable and available again.
    - A warning such as `WebSocket reconnection failed 10 times, retrying every 6 hours (phase 2)` means the integration could not reconnect and has switched to longer retry intervals. Check your network connection and the Leakomatic service.
 
 ## Development Status
