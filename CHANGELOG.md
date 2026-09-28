@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- The attributes of Flow Test, Quick Test and Tightness Test (for example alarm delay and index limit) were shown with their raw keys, because their translations were in the wrong place. They are now shown with translated names in English and Swedish. The unused `translations/strings.json` is removed.
 - Mode select and Reset Alarms button: a failed mode change or alarm reset was only logged, and the caller (the UI, an automation or a script) was told it succeeded. It now fails with an error (translated to English and Swedish), so an automation that sets the mode stops at that step and its trace shows the error.
 - Online Status: when Leakomatic reported the device offline (`device_offline`), the sensor was set to online. It is now set to offline, and back to online with the next message from the device.
 - If Leakomatic could not be reached when Home Assistant started (network, DNS or server problems), the integration failed and stayed failed until it was reloaded by hand. Home Assistant now retries the setup automatically until Leakomatic can be reached.
@@ -24,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Login: if the user ID cannot be found on the page after login, the integration no longer fails with a misleading "invalid credentials" error. It logs a clear warning that real-time updates will not be available.
 
 ### Changed
+- English entity names: "Flow Duration" is now "Last Flow Duration" and "Tightness Period" is now "Longest Tightness Period", matching the Swedish names and the README. Existing entity IDs are kept; only new installations get IDs from the new names. Swedish: "Larmfördröjning" is used for all three alarm test sensors (two of them said "Alarmfördröjning").
 - Manifest: `iot_class` is now `cloud_push` (the previous value `push` is not valid and failed Home Assistant's manifest validation), `integration_type` is set to `hub`, `aiohttp` is no longer listed as a requirement (it is part of Home Assistant), and the minimum `websockets` version is 15.0.1 (the version whose API the integration uses, and Home Assistant's own minimum).
 - `hacs.json`: removed `filename`. It pointed to a zip file that the releases never contained.
 - Swedish: the state *clear* of Flow Test, Quick Test and Tightness Test is now shown as "OK" for all three (it was "Klar" for two and "Klart" for one).

@@ -123,7 +123,7 @@ async def test_disabled_entities_are_skipped(
     setup_integration.send(ws_message("flow_updated", "SERIAL-A", flow_duration=42, total_flow_volume=3000))
 
     assert hass.states.get("sensor.leakomatic_total_volume") is None
-    assert hass.states.get("sensor.leakomatic_flow_duration").state == "42"
+    assert hass.states.get("sensor.leakomatic_last_flow_duration").state == "42"
     assert not _errors(caplog)
 
 

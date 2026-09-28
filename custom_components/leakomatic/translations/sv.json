@@ -38,10 +38,7 @@
                 "name": "Total volym"
             },
             "quick_test_index": {
-                "name": "Snabbtestindex",
-                "state": {
-                    "unknown": "Okänd"
-                }
+                "name": "Snabbtestindex"
             },
             "quick_test": {
                 "name": "Snabbtest",
@@ -50,14 +47,17 @@
                     "warning": "Varning",
                     "alarm": "Larm"
                 },
-                "alarm_delay": "Larmfördröjning (timmar)",
-                "index_limit": "Indexgräns"
+                "state_attributes": {
+                    "alarm_delay": {
+                        "name": "Larmfördröjning (timmar)"
+                    },
+                    "index_limit": {
+                        "name": "Indexgräns"
+                    }
+                }
             },
             "longest_tightness_period": {
-                "name": "Längsta tätthetsperiod",
-                "state": {
-                    "unknown": "Okänd"
-                }
+                "name": "Längsta tätthetsperiod"
             },
             "flow_duration": {
                 "name": "Senaste flödestid"
@@ -78,9 +78,17 @@
                     "warning": "Varning",
                     "alarm": "Larm"
                 },
-                "duration_away": "Flödestid borta (sekunder)",
-                "duration_home": "Flödestid hemma (minuter)",
-                "alarm_delay": "Alarmfördröjning (minuter)"
+                "state_attributes": {
+                    "duration_away": {
+                        "name": "Flödestid borta (sekunder)"
+                    },
+                    "duration_home": {
+                        "name": "Flödestid hemma (minuter)"
+                    },
+                    "alarm_delay": {
+                        "name": "Larmfördröjning (minuter)"
+                    }
+                }
             },
             "tightness_test": {
                 "name": "Tätthetstest",
@@ -89,9 +97,17 @@
                     "warning": "Varning",
                     "alarm": "Larm"
                 },
-                "pulse_free_periods": "Pulsfria perioder",
-                "period_duration": "Pulsfri tid (minuter)",
-                "alarm_delay": "Alarmfördröjning (dagar)"
+                "state_attributes": {
+                    "pulse_free_periods": {
+                        "name": "Pulsfria perioder"
+                    },
+                    "period_duration": {
+                        "name": "Pulsfri tid (minuter)"
+                    },
+                    "alarm_delay": {
+                        "name": "Larmfördröjning (dagar)"
+                    }
+                }
             }
         },
         "binary_sensor": {
