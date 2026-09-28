@@ -7,6 +7,7 @@ from datetime import datetime
 
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.event import async_call_later
+from homeassistant.util import dt as dt_util
 
 from .const import UNAVAILABLE_AFTER_DISCONNECT
 
@@ -29,6 +30,9 @@ class ConnectionAvailability:
         """Initialize the tracker."""
         self._hass = hass
         self.available = True
+        # When the entities last became available: messages can only have
+        # arrived since then.
+        self.available_since = dt_util.utcnow()
         self._listeners: list[Callable[[], None]] = []
         self._unsub_timer: CALLBACK_TYPE | None = None
 
@@ -78,5 +82,7 @@ class ConnectionAvailability:
 
     def _set_available(self, available: bool) -> None:
         self.available = available
+        if available:
+            self.available_since = dt_util.utcnow()
         for listener in list(self._listeners):
             listener()

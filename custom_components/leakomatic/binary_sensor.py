@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any, Callable, Dict, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
@@ -19,8 +19,10 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.util import dt as dt_util
 
-from .const import MessageType
+from .const import DEVICE_OFFLINE_AFTER, MessageType
 from .common import LeakomaticEntity, MessageHandlerRegistry, LeakomaticMessageHandler, log_with_entity
 from .models import LeakomaticConfigEntry
 
@@ -268,10 +270,38 @@ class OnlineStatusBinarySensor(LeakomaticBinarySensor):
     It is updated through WebSocket updates with device_updated operation.
     
     The sensor will be set to online (True) when receiving any message from the device.
-    The sensor will be set to offline (False) when the device hasn't been seen for more than 5 minutes.
-    
+    It is set to offline (False) on a device_offline message, or when nothing
+    has been heard from the device for DEVICE_OFFLINE_AFTER seconds while the
+    connection to Leakomatic was up (the device reports every 5 minutes).
+
     The default state is unknown (None) until the first update is received.
     """
+
+    async def async_added_to_hass(self) -> None:
+        """Start checking for a silent device."""
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            async_track_time_interval(self.hass, self._async_check_silence, timedelta(minutes=1))
+        )
+
+    @callback
+    def _async_check_silence(self, _now: datetime) -> None:
+        """Turn off when the device has been silent too long."""
+        if self.is_on is False or not self.available or self._availability is None:
+            return
+        # Count the silence only while messages could have arrived
+        silent_since = self._availability.available_since
+        if self._last_seen is not None and self._last_seen > silent_since:
+            silent_since = self._last_seen
+        if dt_util.utcnow() - silent_since < timedelta(seconds=DEVICE_OFFLINE_AFTER):
+            return
+        log_with_entity(
+            _LOGGER, logging.INFO, self,
+            "Nothing heard from the device for %d minutes, marking it offline",
+            DEVICE_OFFLINE_AFTER // 60,
+        )
+        self._device_data = {"is_online": False}
+        self.async_write_ha_state()
 
     def __init__(
         self,
