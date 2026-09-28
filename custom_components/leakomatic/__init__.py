@@ -14,6 +14,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD, Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo, async_get as async_get_device_registry
 
 from .const import DOMAIN, LOGGER_NAME, DEFAULT_NAME, ERROR_INVALID_CREDENTIALS
@@ -49,6 +50,17 @@ def _migrate_entry(hass: HomeAssistant, entry: ConfigEntry, client: LeakomaticCl
     if updates:
         _LOGGER.debug("Updating config entry %s: %s", entry.entry_id, sorted(updates))
         hass.config_entries.async_update_entry(entry, **updates)
+
+
+@callback
+def _remove_stale_devices(hass: HomeAssistant, entry: ConfigEntry, device_ids: set[str]) -> None:
+    """Remove devices of this entry that are no longer on the Leakomatic account."""
+    device_registry = async_get_device_registry(hass)
+    for device in dr.async_entries_for_config_entry(device_registry, entry.entry_id):
+        leakomatic_ids = {identifier for domain, identifier in device.identifiers if domain == DOMAIN}
+        if leakomatic_ids and not leakomatic_ids & device_ids:
+            _LOGGER.info("Removing Leakomatic device %s: no longer on the account", device.name)
+            device_registry.async_update_device(device.id, remove_config_entry_id=entry.entry_id)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: LeakomaticConfigEntry) -> bool:
@@ -104,17 +116,17 @@ async def _async_setup(hass: HomeAssistant, entry: LeakomaticConfigEntry, client
     if not device_ids:
         raise ConfigEntryNotReady("No Leakomatic devices found in the account")
     
-    # Fetch initial device data for all devices
-    device_data = await client.async_get_device_data()
-    if not device_data:
-        raise ConfigEntryNotReady("Could not fetch device data from Leakomatic")
+    # Fetch every device's data. If one is missing, retry the whole setup
+    # rather than leave that device out until the next reload.
+    device_data: dict[str, dict[str, Any]] = {}
+    for device_id in device_ids:
+        data = await client.async_get_device_data(device_id)
+        if not data:
+            raise ConfigEntryNotReady(f"Could not fetch the data of Leakomatic device {device_id}")
+        device_data[device_id] = data
 
     # Create device entries for each device
     device_registry = async_get_device_registry(hass)
-    
-    # If we got data for a single device, convert it to a dict
-    if isinstance(device_data, dict) and "device_identifier" in device_data:
-        device_data = {device_ids[0]: device_data}
 
     device_infos: dict[str, DeviceInfo] = {}
     initial_device_data: dict[str, dict[str, Any]] = {}
@@ -195,6 +207,8 @@ async def _async_setup(hass: HomeAssistant, entry: LeakomaticConfigEntry, client
 
     if not device_infos:
         raise ConfigEntryNotReady("The device data from Leakomatic did not describe any usable device")
+
+    _remove_stale_devices(hass, entry, set(device_infos))
 
     entry.runtime_data = LeakomaticData(
         client=client,

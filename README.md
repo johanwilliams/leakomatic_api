@@ -235,7 +235,7 @@ Removing the integration does not change anything on the Leakomatic device or in
 4. Enter your email and password
 5. Click "Submit"
 
-One entry is created per Leakomatic account, named after the account's email; all devices on the account are added to it. Adding the same account twice is refused.
+One entry is created per Leakomatic account, named after the account's email; all devices on the account are added to it. Adding the same account twice is refused. A device added to or removed from the account in Leakomatic shows up or disappears the next time the integration is reloaded or Home Assistant restarts.
 
 The integration will automatically:
 - Connect to your Leakomatic devices

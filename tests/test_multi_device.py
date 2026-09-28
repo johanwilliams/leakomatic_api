@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import pytest
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
@@ -87,3 +88,39 @@ async def test_no_change_mode_service(hass: HomeAssistant, setup_integration: Mo
     """HA-200: the mode is changed with the select entity; the integration registers no services."""
     assert not hass.services.has_service("leakomatic", "change_mode")
     assert hass.services.async_services_for_domain("leakomatic") == {}
+
+
+async def test_data_fetched_per_device(hass: HomeAssistant, setup_integration: MockLeakomatic) -> None:
+    """HA-284: the device data is fetched with each device's ID, never "all devices"."""
+    calls = setup_integration.client.async_get_device_data.await_args_list
+    assert sorted(call.args for call in calls) == [("1001",), ("1002",)]
+
+
+async def test_one_device_missing_retries_setup(
+    hass: HomeAssistant, config_entry: MockConfigEntry, mock_leakomatic: MockLeakomatic
+) -> None:
+    """HA-284: if one device's data cannot be fetched, the setup is retried instead of leaving it out."""
+    async def only_first(device_id: str):
+        return TWO_DEVICES["1001"] if device_id == "1001" else None
+
+    mock_leakomatic.client.async_get_device_data.side_effect = only_first
+    config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert config_entry.state is ConfigEntryState.SETUP_RETRY
+
+
+async def test_device_no_longer_on_the_account_is_removed(
+    hass: HomeAssistant, config_entry: MockConfigEntry, mock_leakomatic: MockLeakomatic
+) -> None:
+    """HA-284: a device removed from the Leakomatic account disappears from Home Assistant at setup."""
+    config_entry.add_to_hass(hass)
+    registry = dr.async_get(hass)
+    registry.async_get_or_create(config_entry_id=config_entry.entry_id, identifiers={("leakomatic", "9999")}, name="Old")
+
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    names = sorted(d.name for d in dr.async_entries_for_config_entry(registry, config_entry.entry_id))
+    assert names == ["Aland", "Huddinge"]
