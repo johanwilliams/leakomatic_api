@@ -15,7 +15,7 @@ from homeassistant.components.select import (
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.entity import EntityCategory
+from homeassistant.const import EntityCategory
 
 from .const import DOMAIN, MessageType
 from .common import LeakomaticEntity, LeakomaticMessageHandler, MessageHandlerRegistry, log_with_entity
