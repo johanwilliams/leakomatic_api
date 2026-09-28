@@ -33,6 +33,16 @@ async def test_unload(
     setup_integration.client.stop_websocket.assert_awaited_once()
 
 
+async def test_unload_closes_the_client(
+    hass: HomeAssistant, config_entry: MockConfigEntry, setup_integration: MockLeakomatic
+) -> None:
+    """HA-205: the client's HTTP session is closed when the entry unloads."""
+    assert await hass.config_entries.async_unload(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    setup_integration.client.async_close.assert_awaited_once()
+
+
 async def test_unload_cancels_websocket_task(
     hass: HomeAssistant, config_entry: MockConfigEntry, setup_integration: MockLeakomatic
 ) -> None:
@@ -109,6 +119,8 @@ async def test_login_problem_is_retried(
 
     assert config_entry.state is ConfigEntryState.SETUP_RETRY
     assert not hass.config_entries.flow.async_progress()
+    # HA-205: the failed attempt's client is closed, not left open until shutdown
+    mock_leakomatic.client.async_close.assert_awaited_once()
 
 
 async def test_missing_device_data_is_retried(

@@ -22,6 +22,7 @@ def _client(auth_ok: bool = True, error_code: str | None = None, device_id: str 
     client.device_id = device_id
     client.device_ids = [device_id] if device_id else []
     client.user_id = USER_ID
+    client.async_close = AsyncMock()
     return client
 
 
@@ -100,7 +101,7 @@ async def test_reauth_updates_password(hass: HomeAssistant) -> None:
         result = await hass.config_entries.flow.async_configure(result["flow_id"], {"password": "new"})
         await hass.async_block_till_done()
 
-    client_cls.assert_called_once_with(EMAIL, "new")
+    client_cls.assert_called_once_with(EMAIL, "new", hass)
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reauth_successful"
     assert entry.data["password"] == "new"

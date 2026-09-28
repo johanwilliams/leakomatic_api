@@ -53,8 +53,10 @@ class LeakomaticConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            client = LeakomaticClient(user_input[CONF_EMAIL], user_input[CONF_PASSWORD])
-            if not await client.async_authenticate():
+            client = LeakomaticClient(user_input[CONF_EMAIL], user_input[CONF_PASSWORD], self.hass)
+            authenticated = await client.async_authenticate()
+            await client.async_close()
+            if not authenticated:
                 errors["base"] = client.error_code or "unknown"
             elif not client.device_ids:
                 errors["base"] = ERROR_NO_DEVICES_FOUND
@@ -85,8 +87,10 @@ class LeakomaticConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            client = LeakomaticClient(entry.data[CONF_EMAIL], user_input[CONF_PASSWORD])
-            if await client.async_authenticate():
+            client = LeakomaticClient(entry.data[CONF_EMAIL], user_input[CONF_PASSWORD], self.hass)
+            authenticated = await client.async_authenticate()
+            await client.async_close()
+            if authenticated:
                 return self.async_update_reload_and_abort(
                     entry,
                     data={**entry.data, CONF_PASSWORD: user_input[CONF_PASSWORD]},

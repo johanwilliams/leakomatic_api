@@ -91,6 +91,7 @@ class MockLeakomatic:
         client.async_get_websocket_token = AsyncMock(return_value="ws-token")
         client.connect_to_websocket = AsyncMock(side_effect=self._connect)
         client.stop_websocket = AsyncMock()
+        client.async_close = AsyncMock()
         client.async_change_mode = AsyncMock(return_value=True)
         client.async_reset_alarms = AsyncMock(return_value=True)
         client.register_connectivity_callback = MagicMock(side_effect=self._register_connectivity)
