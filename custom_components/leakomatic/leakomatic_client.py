@@ -908,9 +908,11 @@ class LeakomaticClient:
 
                 # Listen for messages
                 while self._ws_running:
+                    received = False
                     try:
                         # Use a timeout for receiving messages to prevent blocking
                         response = await asyncio.wait_for(websocket.recv(), timeout=30)
+                        received = True
                         parsed_response = json.loads(response)
                         
                         # Update last message timestamp
@@ -989,8 +991,14 @@ class LeakomaticClient:
                         _LOGGER.debug("Websocket connection closed by server")
                         return connected
                     except Exception as err:
+                        if not received:
+                            # recv() itself failed: the socket is in an unknown
+                            # state and would fail again at once. Leave, and let
+                            # the reconnection loop take over with its backoff.
+                            _LOGGER.warning("Error receiving from the websocket, reconnecting: %s", err)
+                            return connected
+                        # A message that could not be handled: skip it
                         _LOGGER.error("Error processing websocket message: %s", err)
-                        # Continue the loop to try to receive more messages
                         continue
 
             return connected
