@@ -149,6 +149,11 @@ UNAVAILABLE_AFTER_DISCONNECT = 300  # 5 minutes
 # when nothing has been heard from it for this long: two missed reports.
 DEVICE_OFFLINE_AFTER = 900  # 15 minutes
 
+# The server sends every websocket message twice, a few milliseconds apart
+# (byte-identical, including its own timestamps). A frame identical to one
+# received within this window is dropped.
+DUPLICATE_MESSAGE_WINDOW = 5  # seconds
+
 # Stale connection detection: ActionCable pings ~every 3s, so this much total
 # silence on an otherwise-open socket means the connection is dead.
 STALE_CONNECTION_TIMEOUT = 120  # seconds of total silence -> reconnect
