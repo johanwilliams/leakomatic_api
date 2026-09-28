@@ -70,22 +70,17 @@ The integration provides the following entities:
   - Updates in real-time through WebSocket events
   - Helps monitor system tightness and potential leaks
 
-- **Temperature**: Shows the current temperature reading from the device if available
-  - Measured in Celsius (°C)
-  - Updates in real-time through analog sensor messages
-  - Helps monitor ambient temperature conditions
+- **Temperature** and **Pressure**: Readings from a sensor connected to the device's analog input ("Analog In" in Leakomatic's settings)
+  - Measured in °C and bar, updated in real time
+  - Unknown when the sensor is not connected
+  - Disabled by default; only useful if such a sensor is installed
 
-- **Pressure**: Shows the current water pressure reading from the device if available
-  - Measured in bar
-  - Updates in real-time through analog sensor messages
-  - Helps monitor water pressure conditions
+- **Total Volume**: The reading of a water meter connected to the device's pulse input ("AUX In" with a pulse volume in Leakomatic's settings)
+  - Measured in cubic meters (m³), device class water, so it can be used as a water source in Home Assistant's Energy dashboard
+  - Updated on flow events, water meter calibration and device updates
+  - Disabled by default; devices without a water meter report 0
 
-- **Total Volume**: Shows the total water volume (water meter value) if available
-  - Measured in cubic meters (m³)
-  - Updates in real-time through WebSocket events
-  - Disabled by default (can be enabled in entity settings)
-  - Helps track total water consumption
-  - Updates on flow events and water meter calibration
+Temperature, Pressure and Total Volume follow the data Leakomatic sends, but have not been tested with real sensors or a real water meter connected. Reports are welcome.
 
 - **Pause Ends**: Shows when the pause mode ends and the device returns to its previous mode
   - A timestamp; Unknown when the device is not paused

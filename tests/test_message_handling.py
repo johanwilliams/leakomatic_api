@@ -90,18 +90,31 @@ async def test_mode_update_only_changes_matching_device(
     assert hass.states.get("select.leakomatic_b_mode").state == "home"
 
 
+TOTAL_VOLUME = "sensor.leakomatic_total_volume"
+
+
 @pytest.mark.usefixtures("entity_registry_enabled_by_default")
-async def test_total_volume_from_calibration_message(
-    hass: HomeAssistant, setup_integration: MockLeakomatic
-) -> None:
-    """HA-194: water_meter_calibration_updated updates total volume, and only for its device."""
-    assert hass.states.get("sensor.leakomatic_total_volume").state == "1.0"
+async def test_total_volume_units(hass: HomeAssistant, setup_integration: MockLeakomatic) -> None:
+    """HA-211: total_flow_volume is in m³; total_volume (flow and calibration messages) is in litres."""
+    state = hass.states.get(TOTAL_VOLUME)
+    assert state.state == "12.345"  # startup data, m³ as is
+    assert state.attributes["device_class"] == "water"
+    assert state.attributes["state_class"] == "total_increasing"
+    assert state.attributes["unit_of_measurement"] == "m³"
 
-    setup_integration.send(ws_message("water_meter_calibration_updated", "SERIAL-A", total_flow_volume=2500))
-    assert hass.states.get("sensor.leakomatic_total_volume").state == "2.5"
+    setup_integration.send(ws_message("flow_updated", "SERIAL-A", flow_mode=0, flow_duration=5, total_volume=12400))
+    assert hass.states.get(TOTAL_VOLUME).state == "12.4"
 
-    setup_integration.send(ws_message("water_meter_calibration_updated", "SERIAL-OTHER", total_flow_volume=9999))
-    assert hass.states.get("sensor.leakomatic_total_volume").state == "2.5"
+    setup_integration.send(ws_message("water_meter_calibration_updated", "SERIAL-A", total_volume=20000))
+    assert hass.states.get(TOTAL_VOLUME).state == "20.0"
+
+    setup_integration.send(device_updated_message("SERIAL-A", 1001, mode=0, total_flow_volume="20.125"))
+    assert hass.states.get(TOTAL_VOLUME).state == "20.125"
+
+    # Another device's meter does not touch this one; a flow message without a volume keeps it
+    setup_integration.send(ws_message("water_meter_calibration_updated", "SERIAL-OTHER", total_volume=99000))
+    setup_integration.send(ws_message("flow_updated", "SERIAL-A", flow_mode=1, flow_duration=0))
+    assert hass.states.get(TOTAL_VOLUME).state == "20.125"
 
 
 @pytest.mark.usefixtures("entity_registry_enabled_by_default")
@@ -109,10 +122,28 @@ async def test_invalid_total_volume_is_logged(
     hass: HomeAssistant, setup_integration: MockLeakomatic, caplog: pytest.LogCaptureFixture
 ) -> None:
     """HA-194: a value that is not a number is logged and the state is kept."""
-    setup_integration.send(ws_message("water_meter_calibration_updated", "SERIAL-A", total_flow_volume="n/a"))
+    setup_integration.send(ws_message("water_meter_calibration_updated", "SERIAL-A", total_volume="n/a"))
 
-    assert hass.states.get("sensor.leakomatic_total_volume").state == "1.0"
+    assert hass.states.get(TOTAL_VOLUME).state == "12.345"
     assert "Error updating total volume" in caplog.text
+
+
+@pytest.mark.usefixtures("entity_registry_enabled_by_default")
+async def test_analog_sensors(hass: HomeAssistant, setup_integration: MockLeakomatic) -> None:
+    """HA-211: analog_sensor_message; type 1 is pressure, 2 temperature; not connected is unknown."""
+    def analog(sensor_type, value, connected):
+        return ws_message(
+            "analog_sensor_message", "SERIAL-A", sensor_type=sensor_type, port=5, value=value, connected=connected
+        )
+
+    setup_integration.send(analog(2, 8.46, 1))
+    setup_integration.send(analog(1, 4.23, 1))
+    assert hass.states.get("sensor.leakomatic_temperature").state == "8.5"
+    assert hass.states.get("sensor.leakomatic_pressure").state == "4.2"
+
+    setup_integration.send(analog("2", 9.0, "0"))  # strings, sensor disconnected
+    assert hass.states.get("sensor.leakomatic_temperature").state == "unknown"
+    assert hass.states.get("sensor.leakomatic_pressure").state == "4.2"
 
 
 async def test_disabled_entities_are_skipped(
@@ -120,7 +151,7 @@ async def test_disabled_entities_are_skipped(
 ) -> None:
     """Entities disabled by default (e.g. total volume) are never written to."""
     # Total volume is disabled by default, flow duration is not; both get flow_updated.
-    setup_integration.send(ws_message("flow_updated", "SERIAL-A", flow_duration=42, total_flow_volume=3000))
+    setup_integration.send(ws_message("flow_updated", "SERIAL-A", flow_duration=42, total_volume=3000))
 
     assert hass.states.get("sensor.leakomatic_total_volume") is None
     assert hass.states.get("sensor.leakomatic_last_flow_duration").state == "42"

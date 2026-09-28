@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Total Volume showed a thousandth of the real value (the device's volume is already in m³ and was divided by 1000), and updates from flow events and water meter calibration never arrived (their volume, in litres, has a different field name). Both are fixed, and the sensor now also follows device updates. Its device class is now *water*, so it can be used in the Energy dashboard.
+- Temperature and Pressure become unknown when the analog sensor is reported as not connected, instead of keeping the last reading.
 - The attributes of Flow Test, Quick Test and Tightness Test (for example alarm delay and index limit) were shown with their raw keys, because their translations were in the wrong place. They are now shown with translated names in English and Swedish. The unused `translations/strings.json` is removed.
 - Mode select and Reset Alarms button: a failed mode change or alarm reset was only logged, and the caller (the UI, an automation or a script) was told it succeeded. It now fails with an error (translated to English and Swedish), so an automation that sets the mode stops at that step and its trace shows the error.
 - Online Status: when Leakomatic reported the device offline (`device_offline`), the sensor was set to online. It is now set to offline, and back to online with the next message from the device.
