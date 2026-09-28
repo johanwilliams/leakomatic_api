@@ -365,6 +365,34 @@ class LeakomaticValueSensor(LeakomaticSensor):
         log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.native_value)
 
 
+# configuration_added sends the durations in seconds; the configurations in
+# the device data (and Leakomatic's app) use these units. Divisor per field.
+_CONFIGURATION_MESSAGE_DIVISORS = {
+    "ft_warning_home": 60,  # minutes
+    "ft_alarm_delay": 60,  # minutes
+    "qt_alarm_delay": 3600,  # hours
+    "tt_length": 60,  # minutes
+    "tt_alarm_delay": 86400,  # days
+}
+
+
+def configuration_from_message(data: dict[str, Any]) -> dict[str, Any]:
+    """A configuration from configuration_added, in the units of the device data.
+
+    The index limit arrives as a 32-bit float (0.7 as 0.699999988079071) and is
+    rounded; the app sets it with one decimal.
+    """
+    configuration = dict(data)
+    for field, divisor in _CONFIGURATION_MESSAGE_DIVISORS.items():
+        value = configuration.get(field)
+        if isinstance(value, (int, float)):
+            converted = value / divisor
+            configuration[field] = int(converted) if converted == int(converted) else round(converted, 2)
+    if isinstance(configuration.get("qt_index_limit"), float):
+        configuration["qt_index_limit"] = round(configuration["qt_index_limit"], 2)
+    return configuration
+
+
 _ALARM_LEVEL_TO_STATE = {
     AlarmLevel.CLEAR.value: TestState.CLEAR.value,
     AlarmLevel.WARNING.value: TestState.WARNING.value,
@@ -472,7 +500,7 @@ class AlarmTestSensor(LeakomaticEntity, SensorEntity):
                 return
             self._state = self._state_for_level(data.get("alarm_level", ""))
         elif operation == MessageType.CONFIGURATION_ADDED.value:
-            self._configuration = data
+            self._configuration = configuration_from_message(data)
         elif isinstance(data.get("active_alarms"), list):
             # device_updated carries the full list of active alarms
             state = self._state_from_active_alarms(data["active_alarms"])
