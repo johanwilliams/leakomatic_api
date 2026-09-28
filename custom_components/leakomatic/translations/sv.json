@@ -139,5 +139,13 @@
                 "name": "Återställ larm"
             }
         }
+    },
+    "exceptions": {
+        "change_mode_failed": {
+            "message": "Kunde inte byta Leakomatic-läge till {mode}. Kontrollera loggen och anslutningen till Leakomatic."
+        },
+        "reset_alarms_failed": {
+            "message": "Kunde inte återställa Leakomatic-larmen. Kontrollera loggen och anslutningen till Leakomatic."
+        }
     }
-} 
+}

@@ -139,5 +139,13 @@
                 "name": "Reset alarms"
             }
         }
+    },
+    "exceptions": {
+        "change_mode_failed": {
+            "message": "Could not change the Leakomatic mode to {mode}. Check the log and the connection to Leakomatic."
+        },
+        "reset_alarms_failed": {
+            "message": "Could not reset the Leakomatic alarms. Check the log and the connection to Leakomatic."
+        }
     }
-} 
+}
