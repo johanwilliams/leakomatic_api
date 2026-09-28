@@ -218,6 +218,11 @@ def _whole_seconds(value: Any) -> int:
     return int(float(value))
 
 
+# What Leakomatic sends when there is no reading (for example "-" as the
+# temperature of a device without a temperature sensor): unknown, not invalid
+NO_READING = ("-", "")
+
+
 @dataclass(frozen=True, kw_only=True)
 class LeakomaticSensorEntityDescription(SensorEntityDescription):
     """A sensor whose value is one field, converted.
@@ -334,6 +339,8 @@ class LeakomaticValueSensor(LeakomaticSensor):
         """The converted value of the first field that is present."""
         description = self.entity_description
         raw = next((data[field] for field in description.fields if data.get(field) is not None), None)
+        if raw in NO_READING:
+            raw = None
         if raw is None:
             return self._value if description.keep_last_positive else None
         try:
