@@ -46,7 +46,7 @@
             "quick_test": {
                 "name": "Snabbtest",
                 "state": {
-                    "clear": "Klart",
+                    "clear": "OK",
                     "warning": "Varning",
                     "alarm": "Larm"
                 },
@@ -74,7 +74,7 @@
             "flow_test": {
                 "name": "Flödestest",
                 "state": {
-                    "clear": "Klar",
+                    "clear": "OK",
                     "warning": "Varning",
                     "alarm": "Larm"
                 },
@@ -85,7 +85,7 @@
             "tightness_test": {
                 "name": "Tätthetstest",
                 "state": {
-                    "clear": "Klar",
+                    "clear": "OK",
                     "warning": "Varning",
                     "alarm": "Larm"
                 },
