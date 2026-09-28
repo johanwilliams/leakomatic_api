@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Login: if the user ID cannot be found on the page after login, the integration no longer fails with a misleading "invalid credentials" error. It logs a clear warning that real-time updates will not be available.
 
 ### Changed
+- README: corrected claims that did not match the code (the stuck-connection check is 120 seconds of silence, not 10 minutes; there is no polling fallback), added installation with HACS and removal instructions, a no-restart way to toggle debug logging, and what the integration cannot do (control the valve directly, change the device configuration). Removed two stray files from the repository root.
 - English entity names: "Flow Duration" is now "Last Flow Duration" and "Tightness Period" is now "Longest Tightness Period", matching the Swedish names and the README. Existing entity IDs are kept; only new installations get IDs from the new names. Swedish: "Larmfördröjning" is used for all three alarm test sensors (two of them said "Alarmfördröjning").
 - Manifest: `iot_class` is now `cloud_push` (the previous value `push` is not valid and failed Home Assistant's manifest validation), `integration_type` is set to `hub`, `aiohttp` is no longer listed as a requirement (it is part of Home Assistant), and the minimum `websockets` version is 15.0.1 (the version whose API the integration uses, and Home Assistant's own minimum).
 - `hacs.json`: removed `filename`. It pointed to a zip file that the releases never contained.
