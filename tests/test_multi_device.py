@@ -83,8 +83,7 @@ async def test_commands_go_to_the_right_device(hass: HomeAssistant, setup_integr
     setup_integration.client.async_reset_alarms.assert_awaited_once_with("1001")
 
 
-async def test_change_mode_service_targets_one_device(hass: HomeAssistant, setup_integration: MockLeakomatic) -> None:
-    await hass.services.async_call(
-        "leakomatic", "change_mode", {"entity_id": "select.huddinge_mode", "mode": "pause"}, blocking=True
-    )
-    setup_integration.client.async_change_mode.assert_awaited_once_with("pause", "1001")
+async def test_no_change_mode_service(hass: HomeAssistant, setup_integration: MockLeakomatic) -> None:
+    """HA-200: the mode is changed with the select entity; the integration registers no services."""
+    assert not hass.services.has_service("leakomatic", "change_mode")
+    assert hass.services.async_services_for_domain("leakomatic") == {}

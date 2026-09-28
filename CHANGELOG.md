@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- **Breaking:** the `leakomatic.change_mode` action (service) is removed. Use the `select.select_option` action on the device's Mode entity instead, which does the same and reports errors:
+
+  ```yaml
+  action: select.select_option
+  target:
+    entity_id: select.leakomatic_mode
+  data:
+    option: pause   # home, away or pause
+  ```
+
+  The removed action also used the wrong account when several Leakomatic accounts were configured, was never removed when the integration was unloaded, and reported success even when the mode change failed.
+
 ### Fixed
 - If receiving from the websocket failed with an unexpected error that did not close the connection, the receive loop retried at once without pause, logging errors thousands of times per second. Such an error now ends the connection attempt (logged once as a warning) and the normal reconnection takes over. A single message that cannot be handled is still skipped.
 - Every websocket message was handled twice: Leakomatic's server sends each message twice, a few milliseconds apart. An identical copy received within 5 seconds is now dropped, so each event updates the entities once.

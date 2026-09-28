@@ -10,13 +10,12 @@ It provides real-time monitoring of device status, including:
 import logging
 from typing import Any
 
-from homeassistant.const import ATTR_ENTITY_ID, Platform
-from homeassistant.core import HomeAssistant, callback, ServiceCall
+from homeassistant.const import Platform
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.device_registry import DeviceInfo, async_get as async_get_device_registry
-from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 
-from .const import DOMAIN, LOGGER_NAME, DEFAULT_NAME, ERROR_INVALID_CREDENTIALS, DeviceMode
+from .const import DOMAIN, LOGGER_NAME, DEFAULT_NAME, ERROR_INVALID_CREDENTIALS
 from .leakomatic_client import LeakomaticClient
 from .availability import ConnectionAvailability
 from .models import LeakomaticConfigEntry, LeakomaticData
@@ -201,89 +200,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: LeakomaticConfigEntry) -
         "Leakomatic WebSocket Connection",
     )
     _LOGGER.debug("Started websocket connection task")
-    
-    # Register the change_mode service
-    async def async_change_mode(call: ServiceCall) -> None:
-        """Change the mode of a Leakomatic device.
-        
-        Args:
-            call: The service call data
-        """
-        mode = call.data.get("mode")
-        
-        if not mode:
-            _LOGGER.error("Missing required parameter: mode")
-            return
-            
-        # Validate the mode
-        try:
-            # This will raise ValueError if the mode is invalid
-            DeviceMode.from_string(mode)
-        except ValueError as err:
-            _LOGGER.error("Invalid mode: %s", err)
-            return
-            
-        # Get the entity registry using the proper import
-        entity_registry = async_get_entity_registry(hass)
-        
-        # Get entity IDs - first check target, then fall back to data
-        entity_ids = None
-        if hasattr(call, "target") and call.target and ATTR_ENTITY_ID in call.target:
-            entity_ids = call.target[ATTR_ENTITY_ID]
-        else:
-            entity_ids = call.data.get(ATTR_ENTITY_ID)
-            
-        if not entity_ids:
-            _LOGGER.error("Missing required parameter: entity_id")
-            return
-            
-        # Convert to list if it's a string
-        if isinstance(entity_ids, str):
-            entity_ids = [entity_ids]
-            
-        # Get the client from the config entry
-        client = entry.runtime_data.client
-        
-        # Change mode for each entity
-        for entity_id in entity_ids:
-            # Get the entity from the registry
-            entity = entity_registry.async_get(entity_id)
-            if not entity:
-                _LOGGER.error("Entity not found: %s", entity_id)
-                continue
-                
-            # Extract device_id from the entity's device_id
-            device_id = entity.device_id
-            if not device_id:
-                _LOGGER.error("Entity %s has no device_id", entity_id)
-                continue
-                
-            # Get the device entry to find the Leakomatic device_id
-            device_entry = device_registry.async_get(device_id)
-            if not device_entry:
-                _LOGGER.error("Device entry not found for %s", device_id)
-                continue
-                
-            # Find the Leakomatic device_id from the identifiers
-            leakomatic_device_id = None
-            for identifier in device_entry.identifiers:
-                if identifier[0] == DOMAIN:
-                    leakomatic_device_id = identifier[1]
-                    break
-                    
-            if not leakomatic_device_id:
-                _LOGGER.error("Could not find Leakomatic device_id for %s", device_id)
-                continue
-                
-            # Change the mode
-            success = await client.async_change_mode(mode, leakomatic_device_id)
-            if success:
-                _LOGGER.info("Successfully changed mode to %s for device %s", mode, leakomatic_device_id)
-            else:
-                _LOGGER.error("Failed to change mode for device %s", leakomatic_device_id)
-    
-    # Register the service
-    hass.services.async_register(DOMAIN, "change_mode", async_change_mode)
     
     _LOGGER.info("Leakomatic integration setup completed")
     return True
