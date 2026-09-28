@@ -77,7 +77,7 @@ class LeakomaticClient:
         self._device_data_cache_time: dict[str, datetime] = {}
         
         # New attributes for persistent reconnection
-        self._ws_connected = True
+        self._ws_connected = False
         self._last_ws_message: Optional[datetime] = None
         self._ws_token_expiry: Optional[datetime] = None
         self._reconnection_phase = 1  # 1=quick, 2=medium, 3=long
@@ -588,7 +588,13 @@ class LeakomaticClient:
         """
         # Special messages that use the top-level 'type' key
         msg_type = parsed_response.get("type")
-        if msg_type in (MessageType.PING.value, MessageType.CONFIRM_SUBSCRIPTION.value, MessageType.WELCOME.value):
+        if msg_type in (
+            MessageType.PING.value,
+            MessageType.WELCOME.value,
+            MessageType.CONFIRM_SUBSCRIPTION.value,
+            MessageType.REJECT_SUBSCRIPTION.value,
+            MessageType.DISCONNECT.value,
+        ):
             return msg_type
             
         # All other operational messages use 'message.operation'
@@ -895,16 +901,7 @@ class LeakomaticClient:
                 }
                 await websocket.send(json.dumps(msg_subscribe))
                 _LOGGER.debug("Sent subscription message")
-
-                # The connection is established here. Record it and reset the
-                # backoff state so a later drop is treated as a successful
-                # reconnection rather than a connection failure.
-                connected = True
-                self._ws_connected = True
                 self._last_ws_message = datetime.now(tz=timezone.utc)
-                self._reconnection_phase = 1
-                self._notify_connectivity_callbacks(True, self._reconnection_phase)
-                _LOGGER.info("WebSocket connection established successfully")
 
                 # Listen for messages
                 while self._ws_running:
@@ -926,7 +923,33 @@ class LeakomaticClient:
                             # Skip logging for ping messages
                             pass
                         elif msg_type == MessageType.CONFIRM_SUBSCRIPTION.value:
+                            # The connection counts as established only once the
+                            # server has accepted the subscription. Record it and
+                            # reset the backoff state so a later drop is treated
+                            # as a successful reconnection rather than a
+                            # connection failure.
                             _LOGGER.debug("Subscription confirmed")
+                            connected = True
+                            self._ws_connected = True
+                            self._reconnection_phase = 1
+                            self._notify_connectivity_callbacks(True, self._reconnection_phase)
+                            _LOGGER.info("WebSocket connection established successfully")
+                        elif msg_type == MessageType.REJECT_SUBSCRIPTION.value:
+                            # The server refused the subscription: no data will
+                            # arrive on this socket. Get a new token next time.
+                            _LOGGER.debug("Subscription rejected by the server")
+                            self._ws_token_expiry = None
+                            return connected
+                        elif msg_type == MessageType.DISCONNECT.value:
+                            # ActionCable's disconnect: reconnect=false means the
+                            # server will not accept this token again.
+                            reason = parsed_response.get("reason")
+                            if parsed_response.get("reconnect") is False:
+                                _LOGGER.debug("Server disconnected (%s), fetching a new token", reason)
+                                self._ws_token_expiry = None
+                            else:
+                                _LOGGER.debug("Server disconnected (%s)", reason)
+                            return connected
                         else:
                             # For all other message types, call all callbacks
                             if msg_type:

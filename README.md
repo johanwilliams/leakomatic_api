@@ -112,6 +112,7 @@ The integration provides the following entities:
 
 - **WebSocket Connectivity**: Shows the status of the WebSocket connection to the Leakomatic API
   - States: On (connected), Off (disconnected)
+  - Turns on only when the Leakomatic server has confirmed the subscription, so On means real-time updates are actually flowing
   - Category: Diagnostic
   - Updates in real-time when connection status changes
   - Includes reconnection phase information in state attributes

@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 import pytest
+import websockets
 import yarl
 
 from custom_components.leakomatic.const import MAX_QUICK_RETRIES
@@ -406,3 +407,109 @@ async def test_connection_error_does_not_call_auth_failed_callback() -> None:
         assert await client.async_authenticate() is False
 
     rejected.assert_not_called()
+
+
+# --- HA-270: the connection counts as established only when the server confirms it
+
+WELCOME = '{"type": "welcome"}'
+CONFIRM = '{"identifier": "{}", "type": "confirm_subscription"}'
+REJECT = '{"identifier": "{}", "type": "reject_subscription"}'
+
+
+class FakeWebSocket:
+    """Websocket that returns the given frames, then reports the connection closed."""
+
+    def __init__(self, frames: list[str]) -> None:
+        self._frames = list(frames)
+        self.sent: list[str] = []
+
+    async def send(self, data: str) -> None:
+        self.sent.append(data)
+
+    async def recv(self) -> str:
+        if self._frames:
+            return self._frames.pop(0)
+        raise websockets.ConnectionClosed(None, None)
+
+    async def __aenter__(self) -> "FakeWebSocket":
+        return self
+
+    async def __aexit__(self, *exc) -> None:
+        return None
+
+
+async def _connect_once(client: LeakomaticClient, frames: list[str]) -> tuple[bool, list[bool]]:
+    """Run one connection attempt against the frames; return its result and the connectivity reports."""
+    reports: list[bool] = []
+    client.register_connectivity_callback(lambda connected, phase: reports.append(connected))
+    with patch(
+        "custom_components.leakomatic.leakomatic_client.websockets.connect",
+        return_value=FakeWebSocket(frames),
+    ):
+        result = await client._attempt_websocket_connection("ws-token")
+    return result, reports
+
+
+async def test_new_client_reports_not_connected() -> None:
+    """HA-270: before any connection attempt the connectivity sensor is told 'not connected'."""
+    client = LeakomaticClient("user@example.com", "secret")
+    reports: list[bool] = []
+
+    client.register_connectivity_callback(lambda connected, phase: reports.append(connected))
+
+    assert reports == [False]
+
+
+async def test_confirmed_subscription_counts_as_connected() -> None:
+    client = _client_for_reconnect_tests()
+
+    result, reports = await _connect_once(client, [WELCOME, CONFIRM])
+
+    assert reports == [False, True]
+    assert result is True  # a live connection existed and then dropped
+
+
+async def test_welcome_without_confirmation_is_not_connected() -> None:
+    """HA-270: a socket that closes before the subscription is confirmed is a failed attempt."""
+    client = _client_for_reconnect_tests()
+
+    result, reports = await _connect_once(client, [WELCOME])
+
+    assert reports == [False]
+    assert result is False  # the caller applies backoff
+
+
+async def test_rejected_subscription_is_not_connected() -> None:
+    """HA-270: reject_subscription ends the attempt as failed and forces a new token."""
+    client = _client_for_reconnect_tests()
+
+    result, reports = await _connect_once(client, [WELCOME, REJECT, CONFIRM])
+
+    assert reports == [False]
+    assert result is False
+    assert client._should_refresh_token()
+
+
+async def test_disconnect_without_reconnect_forces_new_token() -> None:
+    """HA-270: ActionCable's disconnect with reconnect=false means the token is refused."""
+    client = _client_for_reconnect_tests()
+    refused = '{"type": "disconnect", "reason": "unauthorized", "reconnect": false}'
+
+    result, reports = await _connect_once(client, [refused])
+
+    assert reports == [False]
+    assert result is False
+    assert client._should_refresh_token()
+
+
+async def test_disconnect_with_reconnect_keeps_token(caplog: pytest.LogCaptureFixture) -> None:
+    """A server restart (reconnect=true) after a confirmed subscription is an ordinary drop."""
+    client = _client_for_reconnect_tests()
+    restart = '{"type": "disconnect", "reason": "server_restart", "reconnect": true}'
+
+    result, reports = await _connect_once(client, [WELCOME, CONFIRM, restart])
+
+    assert reports == [False, True]
+    assert result is True
+    assert not client._should_refresh_token()
+    assert not _warnings(caplog)
