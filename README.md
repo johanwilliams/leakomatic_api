@@ -63,9 +63,10 @@ Each Leakomatic device gets the entities below. The names are shown in English o
 | Longest tightness period | Sensor (s) | The longest period without any flow. |
 | Quick test index | Sensor | The current quick test index. |
 | Total volume | Sensor (m³) | The reading of a water meter on the device's pulse input. Usable as a water source in the Energy dashboard. *Disabled by default.* |
-| Temperature, Pressure | Sensor (°C, bar) | Readings from a sensor on the device's analog input. Unknown when the sensor is not connected. *Disabled by default.* |
+| Temperature | Sensor (°C) | Reading from a temperature sensor on the device's analog input. Unknown when the sensor is not connected. *Disabled by default.* |
+| Pressure | Sensor (bar) | Reading from a pressure sensor on the device's analog input. Unknown when the sensor is not connected. *Disabled by default.* |
 
-Total volume, temperature and pressure need an accessory connected and set up in Leakomatic's app (a water meter on "AUX In", a sensor on "Analog In"). They follow the data Leakomatic sends but have not been tested with real accessories; reports are welcome.
+Total volume, temperature and pressure need an accessory connected and set up in Leakomatic's app: a water meter on "AUX In", or a temperature or pressure sensor on "Analog In" (the input takes one sensor, so a device has either temperature or pressure). They follow the data Leakomatic sends but have not been tested with real accessories; reports are welcome.
 
 ### Leak tests
 
