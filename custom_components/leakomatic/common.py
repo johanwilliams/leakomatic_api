@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable, Dict, Optional, TypeVar, Generic, Type
 
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.device_registry import DeviceInfo
 
 from .availability import ConnectionAvailability
 

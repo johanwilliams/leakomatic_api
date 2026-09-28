@@ -21,10 +21,16 @@ from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorStateClass,
 )
-from homeassistant.const import UnitOfVolume
+from homeassistant.const import (
+    SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+    EntityCategory,
+    UnitOfPressure,
+    UnitOfTemperature,
+    UnitOfTime,
+    UnitOfVolume,
+)
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.typing import StateType
 
 from .const import DeviceMode, MessageType, TestState, AlarmType, AlarmLevel
@@ -297,7 +303,7 @@ class FlowDurationSensor(LeakomaticSensor):
             icon="mdi:clock-outline",
             device_class=SensorDeviceClass.DURATION,
             state_class=SensorStateClass.MEASUREMENT,
-            native_unit_of_measurement="s"
+            native_unit_of_measurement=UnitOfTime.SECONDS
         )
         self._last_known_duration: int | None = None
 
@@ -355,7 +361,7 @@ class SignalStrengthSensor(LeakomaticSensor):
             icon="mdi:wifi",
             device_class=SensorDeviceClass.SIGNAL_STRENGTH,
             state_class=SensorStateClass.MEASUREMENT,
-            native_unit_of_measurement="dBm"
+            native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT
         )
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
@@ -407,7 +413,7 @@ class LongestTightnessPeriodSensor(LeakomaticSensor):
             icon="mdi:water",
             device_class=SensorDeviceClass.DURATION,
             state_class=SensorStateClass.MEASUREMENT,
-            native_unit_of_measurement="s"
+            native_unit_of_measurement=UnitOfTime.SECONDS
         )
 
     @property
@@ -721,7 +727,7 @@ class TemperatureSensor(LeakomaticSensor):
             icon="mdi:thermometer-water",
             device_class=SensorDeviceClass.TEMPERATURE,
             state_class=SensorStateClass.MEASUREMENT,
-            native_unit_of_measurement="°C"
+            native_unit_of_measurement=UnitOfTemperature.CELSIUS
         )
         self._attr_entity_registry_enabled_default = False
 
@@ -776,7 +782,7 @@ class PressureSensor(LeakomaticSensor):
             icon="mdi:gauge",
             device_class=SensorDeviceClass.PRESSURE,
             state_class=SensorStateClass.MEASUREMENT,
-            native_unit_of_measurement="bar"
+            native_unit_of_measurement=UnitOfPressure.BAR
         )
         self._attr_entity_registry_enabled_default = False
 
