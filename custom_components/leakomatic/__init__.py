@@ -18,6 +18,7 @@ from homeassistant.helpers.entity_registry import async_get as async_get_entity_
 
 from .const import DOMAIN, LOGGER_NAME, DEFAULT_NAME, ERROR_INVALID_CREDENTIALS, DeviceMode
 from .leakomatic_client import LeakomaticClient
+from .availability import ConnectionAvailability
 from .models import LeakomaticConfigEntry, LeakomaticData
 
 # Set up logger
@@ -162,7 +163,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: LeakomaticConfigEntry) -
         client=client,
         device_infos=device_infos,
         device_data=initial_device_data,
+        availability=ConnectionAvailability(hass),
     )
+
+    # Mark the entities unavailable when the websocket stays disconnected.
+    client.register_connectivity_callback(entry.runtime_data.availability.async_connectivity_changed)
+    entry.async_on_unload(entry.runtime_data.availability.async_stop)
 
     # If Leakomatic rejects the credentials later (for example when the client
     # logs in again after the session expired), ask the user for a new password.

@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Logging: the server's scheduled websocket disconnect (typically nightly) and the reconnection that follows are logged at debug/info level instead of warning. A warning is now logged when the quick reconnection attempts fail and the longer retry intervals start (phase 2 and phase 3), which is when something is actually wrong. A failed token refresh during reconnection no longer logs both an error and a warning.
 
 ### Added
+- Entities become unavailable when the connection to Leakomatic has been down for 5 minutes, instead of showing their last values as if they were current (possibly for hours while the integration waits to reconnect). The WebSocket Connectivity sensor stays available and shows the connection state. Short disconnects, such as the server's nightly one, do not affect availability. Both changes are logged once at info level.
 - Reauthentication: if Leakomatic rejects the stored password (for example after you change it), Home Assistant asks for the new password instead of just failing.
 - Test suite based on `pytest-homeassistant-custom-component`, run on every pull request by a GitHub Actions workflow.
 

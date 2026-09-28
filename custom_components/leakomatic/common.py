@@ -9,6 +9,8 @@ from typing import Any, Callable, Dict, Optional, TypeVar, Generic, Type, Union
 
 from homeassistant.helpers.entity import DeviceInfo
 
+from .availability import ConnectionAvailability
+
 _LOGGER = logging.getLogger(__name__)
 
 # Type variable for the entity type
@@ -212,6 +214,18 @@ class LeakomaticEntity:
         self._attr_entity_registry_enabled_default = True
         self._attr_should_poll = False  # No polling needed with WebSocket
         self._attr_translation_key = key
+        self._availability: ConnectionAvailability | None = None
+
+    async def async_added_to_hass(self) -> None:
+        """Follow the connection's availability once added to Home Assistant."""
+        await super().async_added_to_hass()
+        self._availability = self.platform.config_entry.runtime_data.availability
+        self.async_on_remove(self._availability.async_add_listener(self.async_write_ha_state))
+
+    @property
+    def available(self) -> bool:
+        """Return False when the connection to Leakomatic has been down too long."""
+        return self._availability is None or self._availability.available
 
     @property
     def device_info(self) -> DeviceInfo:
