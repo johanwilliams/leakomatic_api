@@ -135,6 +135,8 @@ The integration provides the following entities:
 
 ### Alarm Test Sensors
 
+The three alarm test sensors are enum sensors (device class `enum`) with the options `clear`, `warning` and `alarm`. Use these values in automations; the UI shows them translated. If Leakomatic reports an alarm level the integration does not know, the sensor shows Unknown instead of keeping its previous state.
+
 - **Flow Test**: Monitors flow alarms and provides alarm state information
   - States: Clear, Warning, Alarm
   - Updates in real-time through WebSocket alarm events
