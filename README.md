@@ -101,6 +101,7 @@ The integration provides the following entities:
 
 - **Online Status**: Shows if the device is currently online
   - States: On (online), Off (offline), Unknown (after startup, until the first message from the device)
+  - Turns off when Leakomatic reports the device offline, and on again with the next message from the device
   - Updates in real-time through WebSocket events
   - Includes a last_seen attribute showing the timestamp of the last received message
   - Useful for monitoring device connectivity and troubleshooting connection issues

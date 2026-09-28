@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Online Status: when Leakomatic reported the device offline (`device_offline`), the sensor was set to online. It is now set to offline, and back to online with the next message from the device.
 - If Leakomatic could not be reached when Home Assistant started (network, DNS or server problems), the integration failed and stayed failed until it was reloaded by hand. Home Assistant now retries the setup automatically until Leakomatic can be reached.
 - If the websocket token could not be fetched at startup, real-time updates never started and all entities stayed at their startup values until Home Assistant was restarted. The reconnection loop now logs in and fetches the token itself, and keeps retrying with the normal backoff.
 - The login session with Leakomatic was never renewed. Once it expired, fetching device data and the websocket token failed, and changing the mode or resetting alarms was logged as successful without anything happening, until Home Assistant was restarted. An expired session is now detected (redirect to the login page, HTTP 401, or a web page where data was expected); the integration logs in again once and retries. If Leakomatic then rejects the password, Home Assistant asks you to re-authenticate.
