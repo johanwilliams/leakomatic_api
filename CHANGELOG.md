@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Login: if the user ID cannot be found on the page after login, the integration no longer fails with a misleading "invalid credentials" error. It logs a clear warning that real-time updates will not be available.
 
 ### Changed
+- Manifest: `iot_class` is now `cloud_push` (the previous value `push` is not valid and failed Home Assistant's manifest validation), `integration_type` is set to `hub`, `aiohttp` is no longer listed as a requirement (it is part of Home Assistant), and the minimum `websockets` version is 15.0.1 (the version whose API the integration uses, and Home Assistant's own minimum).
+- `hacs.json`: removed `filename`. It pointed to a zip file that the releases never contained.
 - Swedish: the state *clear* of Flow Test, Quick Test and Tightness Test is now shown as "OK" for all three (it was "Klar" for two and "Klart" for one).
 - Flow Test, Quick Test and Tightness Test are now enum sensors (device class `enum`, options `clear`, `warning`, `alarm`). The state values are unchanged, so automations keep working. An unknown alarm level now makes the sensor unknown; previously it was logged and the old state was kept.
 - Binary sensors show *unknown* instead of *off* when the data needed is missing or invalid. Flow Indicator is unknown after startup until the first flow event (it was forced to off). Online Status is unknown after startup until the first message from the device (it could show offline while the device was up). Valve is unknown if the valve state is missing or invalid (it showed closed).

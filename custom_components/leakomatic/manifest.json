@@ -1,16 +1,18 @@
 {
   "domain": "leakomatic",
   "name": "Leakomatic",
-  "documentation": "https://github.com/johanwilliams/leakomatic_api",
-  "issue_tracker": "https://github.com/johanwilliams/leakomatic_api/issues",
-  "dependencies": [],
-  "codeowners": ["@johanwilliams"],
-  "requirements": [
-    "aiohttp>=3.8.0",
-    "beautifulsoup4>=4.9.3",
-    "websockets>=13.1"
+  "codeowners": [
+    "@johanwilliams"
   ],
-  "version": "0.2.0b0",
-  "iot_class": "push",
-  "config_flow": true
-} 
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/johanwilliams/leakomatic_api",
+  "integration_type": "hub",
+  "iot_class": "cloud_push",
+  "issue_tracker": "https://github.com/johanwilliams/leakomatic_api/issues",
+  "requirements": [
+    "beautifulsoup4>=4.9.3",
+    "websockets>=15.0.1"
+  ],
+  "version": "0.2.0b0"
+}

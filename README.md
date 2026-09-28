@@ -46,10 +46,9 @@ Water damage is a common issue in properties that can lead to significant costs 
 ## Requirements
 
 - Home Assistant 2024.8.0 or newer (tested with 2026.9)
-- Python packages:
-  - aiohttp >= 3.8.0
+- Python packages (installed by Home Assistant from the manifest):
   - beautifulsoup4 >= 4.9.3
-  - websockets >= 13.1
+  - websockets >= 15.0.1
 
 ## Available Entities
 
