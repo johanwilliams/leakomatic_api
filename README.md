@@ -267,8 +267,7 @@ If you encounter any issues with the integration:
    - Connection issues: If Leakomatic cannot be reached when Home Assistant starts, the integration shows "Retrying setup" under Settings → Devices & services and keeps trying by itself. Check your network connection and firewall settings if it does not recover.
    - Missing updates: Check WebSocket connection status in the logs and the WebSocket Connectivity sensor
    - Sensor state issues: Verify device connectivity and data flow
-   - Service call failures: Check entity IDs and mode parameters
-   - Multiple device support: Ensure proper device selection when using services
+   - Changing the mode from an automation: use the `select.select_option` action on the device's Mode entity (for example `select.leakomatic_mode`). If Leakomatic does not accept the change, the action fails and the automation's trace shows the error.
    - Persistent disconnections: The integration will automatically retry with a multi-phase strategy
    - Stuck connections: a websocket that is silent for 120 seconds is reconnected automatically
 5. Reading the log:
