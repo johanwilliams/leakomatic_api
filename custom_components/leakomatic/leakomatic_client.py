@@ -13,6 +13,7 @@ import re
 import ssl
 import asyncio
 import random
+import time
 from typing import Any, Optional, Callable, Dict
 from datetime import datetime, timedelta, timezone
 
@@ -26,7 +27,7 @@ from .const import (
     LOGGER_NAME, START_URL, LOGIN_URL, STATUS_URL, WEBSOCKET_URL,
     MessageType, DEFAULT_HEADERS, WEBSOCKET_HEADERS, MAX_QUICK_RETRIES, INITIAL_RETRY_DELAY,
     MAX_RETRY_DELAY, RETRY_BACKOFF_FACTOR, MEDIUM_RETRY_INTERVAL, MAX_MEDIUM_RETRIES,
-    LONG_RETRY_INTERVAL, STALE_CONNECTION_TIMEOUT,
+    LONG_RETRY_INTERVAL, STALE_CONNECTION_TIMEOUT, DUPLICATE_MESSAGE_WINDOW,
     ERROR_AUTH_TOKEN_MISSING, ERROR_INVALID_CREDENTIALS, ERROR_XSRF_TOKEN_MISSING, ERROR_NO_DEVICES_FOUND,
     ERROR_CANNOT_CONNECT, LOGIN_REJECTED_STATUSES,
     XSRF_TOKEN_HEADER, DeviceMode, XSRF_TOKEN_PATTERN
@@ -82,6 +83,8 @@ class LeakomaticClient:
         self._ws_token_expiry: Optional[datetime] = None
         self._reconnection_phase = 1  # 1=quick, 2=medium, 3=long
         self._connectivity_callbacks: list[Callable[[bool, int], None]] = []
+        # Recently received device message frames (raw text -> monotonic time)
+        self._recent_frames: dict[str, float] = {}
         self._auth_failed_callback: Optional[Callable[[], None]] = None
 
     async def _create_session(self, headers: Optional[Dict[str, str]] = None) -> aiohttp.ClientSession:
@@ -952,7 +955,9 @@ class LeakomaticClient:
                             return connected
                         else:
                             # For all other message types, call all callbacks
-                            if msg_type:
+                            if msg_type and self._is_duplicate(response):
+                                _LOGGER.debug("Dropped duplicate %s message", msg_type)
+                            elif msg_type:
                                 device_identifier = parsed_response.get('message', {}).get('device', 'unknown')
                                 _LOGGER.debug("Device %s received message %s", device_identifier, msg_type)
                                 _LOGGER.debug("Message payload: %s", parsed_response)
@@ -992,6 +997,18 @@ class LeakomaticClient:
         except Exception as err:
             _LOGGER.debug("WebSocket connection attempt failed: %s", err)
             return connected
+
+    def _is_duplicate(self, frame: str) -> bool:
+        """Return True if the same frame was received within DUPLICATE_MESSAGE_WINDOW."""
+        now = time.monotonic()
+        self._recent_frames = {
+            text: seen for text, seen in self._recent_frames.items()
+            if now - seen < DUPLICATE_MESSAGE_WINDOW
+        }
+        if frame in self._recent_frames:
+            return True
+        self._recent_frames[frame] = now
+        return False
 
     def _should_refresh_token(self) -> bool:
         """Check if the WebSocket token should be refreshed."""

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Every websocket message was handled twice: Leakomatic's server sends each message twice, a few milliseconds apart. An identical copy received within 5 seconds is now dropped, so each event updates the entities once.
 - Total Volume showed a thousandth of the real value (the device's volume is already in m³ and was divided by 1000), and updates from flow events and water meter calibration never arrived (their volume, in litres, has a different field name). Both are fixed, and the sensor now also follows device updates. Its device class is now *water*, so it can be used in the Energy dashboard. If you had the sensor enabled with a water meter, its value jumps to the correct (1000 times larger) reading after the update, which the long-term statistics count as consumption once; correct that entry under Developer tools → Statistics.
 - Temperature and Pressure become unknown when the analog sensor is reported as not connected, instead of keeping the last reading.
 - The attributes of Flow Test, Quick Test and Tightness Test (for example alarm delay and index limit) were shown with their raw keys, because their translations were in the wrong place. They are now shown with translated names in English and Swedish. The unused `translations/strings.json` is removed.

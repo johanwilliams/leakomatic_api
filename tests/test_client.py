@@ -12,7 +12,7 @@ import pytest
 import websockets
 import yarl
 
-from custom_components.leakomatic.const import MAX_QUICK_RETRIES
+from custom_components.leakomatic.const import DUPLICATE_MESSAGE_WINDOW, MAX_QUICK_RETRIES
 from custom_components.leakomatic.leakomatic_client import LeakomaticClient
 
 LOGIN_PAGE_WITHOUT_USER_LINK = """
@@ -513,3 +513,36 @@ async def test_disconnect_with_reconnect_keeps_token(caplog: pytest.LogCaptureFi
     assert result is True
     assert not client._should_refresh_token()
     assert not _warnings(caplog)
+
+
+# --- HA-278: the server sends every message twice; the copy is dropped
+
+QUICK_TEST = '{"identifier": "{}", "message": {"operation": "quick_test_updated", "device": "SERIAL-A", "data": {"device_id": "SERIAL-A", "operation": "quick_test_updated", "value": 0.11}}}'
+QUICK_TEST_2 = QUICK_TEST.replace("0.11", "0.12")
+
+
+async def _received(client: LeakomaticClient, frames: list[str]) -> list[dict]:
+    received: list[dict] = []
+    client._ws_callbacks.append(received.append)
+    await _connect_once(client, [WELCOME, CONFIRM, *frames])
+    return received
+
+
+async def test_duplicate_message_is_dropped() -> None:
+    client = _client_for_reconnect_tests()
+
+    received = await _received(client, [QUICK_TEST, QUICK_TEST, QUICK_TEST_2, QUICK_TEST_2])
+
+    assert [m["message"]["data"]["value"] for m in received] == [0.11, 0.12]
+
+
+def test_same_message_after_the_window_is_delivered() -> None:
+    """Only copies close in time are duplicates; the same content later is a new event."""
+    client = LeakomaticClient("user@example.com", "secret")
+    monotonic = "custom_components.leakomatic.leakomatic_client.time.monotonic"
+
+    with patch(monotonic, return_value=100.0):
+        assert client._is_duplicate(QUICK_TEST) is False
+        assert client._is_duplicate(QUICK_TEST) is True
+    with patch(monotonic, return_value=100.0 + DUPLICATE_MESSAGE_WINDOW + 1):
+        assert client._is_duplicate(QUICK_TEST) is False
