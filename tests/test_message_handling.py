@@ -362,3 +362,36 @@ async def test_device_updated_active_alarms(hass: HomeAssistant, setup_integrati
 
     setup_integration.send(device_updated_message("SERIAL-A", 1001, mode=0, active_alarms=[]))
     assert hass.states.get(TIGHTNESS).state == "clear"
+
+
+@pytest.mark.parametrize("devices", [{"1001": make_device_data("1001", "SERIAL-A", configurations=[CONFIG_OLD])}])
+async def test_configuration_message_in_the_same_units_as_startup(
+    hass: HomeAssistant, setup_integration: MockLeakomatic
+) -> None:
+    """HA-292: configuration_added sends durations in seconds; the attributes keep the app's units.
+
+    The same settings as CONFIG_OLD (20 min, 5 min, 1 h, 15 min, 1 day), as the server sends them
+    over the websocket, must give the same attributes as at startup.
+    """
+    before = {entity: dict(hass.states.get(entity).attributes) for entity in (FLOW_TEST, QUICK, TIGHTNESS)}
+
+    in_seconds = {**CONFIG_OLD, "id": 3, "operation": "configuration_added", "ft_warning_home": 1200,
+                  "ft_alarm_delay": 300, "qt_alarm_delay": 3600, "tt_length": 900, "tt_alarm_delay": 86400,
+                  "qt_index_limit": 1.0}
+    message = ws_message("configuration_added", "SERIAL-A")
+    message["message"]["data"] = {"device_id": "SERIAL-A", **in_seconds}
+    setup_integration.send(message)
+
+    assert {entity: dict(hass.states.get(entity).attributes) for entity in before} == before
+
+    # New limits (as set in the house on 2026-09-28): 15 min, 20 min and an index limit of 0.7
+    changed = {**in_seconds, "id": 4, "ft_warning_home": 900, "tt_length": 1200, "qt_index_limit": 0.699999988079071}
+    message["message"]["data"] = {"device_id": "SERIAL-A", **changed}
+    setup_integration.send(message)
+
+    assert hass.states.get(FLOW_TEST).attributes["duration_home"] == 15
+    assert hass.states.get(FLOW_TEST).attributes["alarm_delay"] == 5
+    assert hass.states.get(QUICK).attributes["alarm_delay"] == 1
+    assert hass.states.get(QUICK).attributes["index_limit"] == 0.7
+    assert hass.states.get(TIGHTNESS).attributes["period_duration"] == 20
+    assert hass.states.get(TIGHTNESS).attributes["alarm_delay"] == 1
