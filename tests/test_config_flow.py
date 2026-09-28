@@ -10,7 +10,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.leakomatic.const import DOMAIN
 
-from .conftest import EMAIL, PASSWORD
+from .conftest import EMAIL, PASSWORD, USER_ID
 
 USER_INPUT = {"email": EMAIL, "password": PASSWORD}
 
@@ -20,6 +20,8 @@ def _client(auth_ok: bool = True, error_code: str | None = None, device_id: str 
     client.async_authenticate = AsyncMock(return_value=auth_ok)
     client.error_code = error_code
     client.device_id = device_id
+    client.device_ids = [device_id] if device_id else []
+    client.user_id = USER_ID
     return client
 
 
@@ -40,7 +42,9 @@ async def test_create_entry(hass: HomeAssistant) -> None:
         await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["data"]["email"] == EMAIL
+    assert result["title"] == EMAIL
+    assert result["data"] == {"email": EMAIL, "password": PASSWORD}  # no device_id
+    assert result["result"].unique_id == USER_ID
 
 
 async def test_invalid_credentials(hass: HomeAssistant) -> None:
@@ -58,7 +62,7 @@ async def test_invalid_credentials(hass: HomeAssistant) -> None:
 
 async def test_already_configured(hass: HomeAssistant) -> None:
     """The same account cannot be added twice."""
-    MockConfigEntry(domain=DOMAIN, data={"email": EMAIL, "password": PASSWORD}).add_to_hass(hass)
+    MockConfigEntry(domain=DOMAIN, unique_id=USER_ID, data={"email": EMAIL, "password": PASSWORD}).add_to_hass(hass)
 
     result = await _start(hass)
     with patch("custom_components.leakomatic.config_flow.LeakomaticClient", return_value=_client()):
@@ -116,3 +120,45 @@ async def test_reauth_wrong_password(hass: HomeAssistant) -> None:
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "invalid_credentials"}
     assert entry.data["password"] == "old"
+
+
+async def test_unique_id_falls_back_to_email(hass: HomeAssistant) -> None:
+    """If the user ID was not found at login, the email (lower case) identifies the account."""
+    client = _client()
+    client.user_id = None
+    result = await _start(hass)
+    with (
+        patch("custom_components.leakomatic.config_flow.LeakomaticClient", return_value=client),
+        patch("custom_components.leakomatic.async_setup_entry", return_value=True),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"email": "User@Example.com", "password": PASSWORD}
+        )
+
+    assert result["result"].unique_id == "user@example.com"
+
+
+async def test_old_entry_is_migrated_at_setup(hass: HomeAssistant, mock_leakomatic) -> None:
+    """HA-202: an entry from before 0.2.0 gets the unique ID and the email as title, and loses device_id."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Leakomatic Device 1001",
+        data={"email": EMAIL, "password": PASSWORD, "device_id": "1001"},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.unique_id == USER_ID
+    assert entry.title == EMAIL
+    assert entry.data == {"email": EMAIL, "password": PASSWORD}
+
+
+async def test_title_set_by_the_user_is_kept(hass: HomeAssistant, mock_leakomatic) -> None:
+    entry = MockConfigEntry(domain=DOMAIN, title="Huset", data={"email": EMAIL, "password": PASSWORD})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.title == "Huset"
+    assert entry.unique_id == USER_ID

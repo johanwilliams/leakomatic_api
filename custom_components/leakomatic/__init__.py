@@ -10,12 +10,14 @@ It provides real-time monitoring of device status, including:
 import logging
 from typing import Any
 
-from homeassistant.const import Platform
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_EMAIL, CONF_PASSWORD, Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.device_registry import DeviceInfo, async_get as async_get_device_registry
 
 from .const import DOMAIN, LOGGER_NAME, DEFAULT_NAME, ERROR_INVALID_CREDENTIALS
+from .config_flow import account_unique_id
 from .leakomatic_client import LeakomaticClient
 from .availability import ConnectionAvailability
 from .models import LeakomaticConfigEntry, LeakomaticData
@@ -24,6 +26,30 @@ from .models import LeakomaticConfigEntry, LeakomaticData
 _LOGGER = logging.getLogger(LOGGER_NAME)
 
 PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.SELECT, Platform.BUTTON]
+
+# Title that config entries created before 0.2.0 got automatically
+_OLD_TITLE_PREFIX = "Leakomatic Device "
+
+
+@callback
+def _migrate_entry(hass: HomeAssistant, entry: ConfigEntry, client: LeakomaticClient) -> None:
+    """Bring an entry created before 0.2.0 up to date, once logged in.
+
+    It gets the account's unique ID, loses the unused device_id, and its
+    automatic title ("Leakomatic Device <first device>") becomes the email.
+    A title the user has changed is kept.
+    """
+    updates: dict[str, Any] = {}
+    if entry.unique_id is None:
+        updates["unique_id"] = account_unique_id(client, entry.data[CONF_EMAIL])
+    if "device_id" in entry.data:
+        updates["data"] = {k: v for k, v in entry.data.items() if k != "device_id"}
+    if entry.title.startswith(_OLD_TITLE_PREFIX):
+        updates["title"] = entry.data[CONF_EMAIL]
+    if updates:
+        _LOGGER.debug("Updating config entry %s: %s", entry.entry_id, sorted(updates))
+        hass.config_entries.async_update_entry(entry, **updates)
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: LeakomaticConfigEntry) -> bool:
     """Set up Leakomatic from a config entry.
@@ -50,7 +76,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: LeakomaticConfigEntry) -
     _LOGGER.debug("Setting up Leakomatic integration with config entry: %s", entry.entry_id)
 
     # Initialize the client
-    client = LeakomaticClient(entry.data["email"], entry.data["password"], hass)
+    client = LeakomaticClient(entry.data[CONF_EMAIL], entry.data[CONF_PASSWORD], hass)
 
     # Authenticate to get the device IDs. Only rejected credentials start a
     # reauthentication; everything else is treated as temporary and retried.
@@ -60,6 +86,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: LeakomaticConfigEntry) -
         raise ConfigEntryNotReady(
             f"Could not log in to Leakomatic ({client.error_code or 'unknown error'})"
         )
+
+    _migrate_entry(hass, entry, client)
 
     # Get the device IDs
     device_ids = client.device_ids

@@ -1,8 +1,8 @@
 """Config flow for Leakomatic integration.
 
-This module handles the configuration flow for the Leakomatic integration,
-including user authentication and device discovery. It manages the setup
-process through the Home Assistant UI.
+This module handles the configuration flow for the Leakomatic integration:
+adding a Leakomatic account (all its devices) and asking for a new password
+when Leakomatic rejects the stored one.
 """
 from __future__ import annotations
 
@@ -11,141 +11,92 @@ from collections.abc import Mapping
 from typing import Any
 
 import voluptuous as vol
-import aiohttp
 
-from homeassistant import config_entries
-from homeassistant.data_entry_flow import FlowResult
+from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
+from homeassistant.helpers.selector import TextSelector, TextSelectorConfig, TextSelectorType
 
-from .const import DOMAIN, LOGGER_NAME
+from .const import DOMAIN, ERROR_NO_DEVICES_FOUND, LOGGER_NAME
 from .leakomatic_client import LeakomaticClient
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
 
-class LeakomaticConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+PASSWORD_SELECTOR = TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))
+
+STEP_USER_DATA_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_EMAIL): TextSelector(TextSelectorConfig(type=TextSelectorType.EMAIL)),
+        vol.Required(CONF_PASSWORD): PASSWORD_SELECTOR,
+    }
+)
+STEP_REAUTH_DATA_SCHEMA = vol.Schema({vol.Required(CONF_PASSWORD): PASSWORD_SELECTOR})
+
+
+def account_unique_id(client: LeakomaticClient, email: str) -> str:
+    """The config entry's unique ID: the Leakomatic user ID, or the email if it was not found."""
+    return client.user_id or email.strip().lower()
+
+
+class LeakomaticConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Leakomatic.
-    
-    This class guides the user through the setup process, validates their
-    credentials, and creates the necessary config entries in Home Assistant.
+
+    One config entry per Leakomatic account; the account's devices are found
+    at setup.
     """
 
     VERSION = 1
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Handle the initial step.
-        
-        This step collects and validates user credentials, tests the connection
-        to the Leakomatic API, and creates the config entry if successful.
-
-        Args:
-            user_input: Dictionary containing user provided configuration data.
-                       None if this is the first time showing the form.
-
-        Returns:
-            FlowResult: The result of the config flow step.
-        """
-        errors = {}
+    ) -> ConfigFlowResult:
+        """Ask for the account's email and password and check them."""
+        errors: dict[str, str] = {}
 
         if user_input is not None:
-            try:
-                _LOGGER.debug("Attempting to validate Leakomatic credentials")
-                
-                # Create a client and authenticate
-                client = LeakomaticClient(user_input["email"], user_input["password"])
-                auth_success = await client.async_authenticate()
-                
-                if not auth_success:
-                    _LOGGER.warning("Authentication failed")
-                    # Use the specific error code from the client if available
-                    error_code = client.error_code or "invalid_credentials"
-                    errors["base"] = error_code
-                    return self.async_show_form(
-                        step_id="user",
-                        data_schema=vol.Schema(
-                            {
-                                vol.Required("email"): str,
-                                vol.Required("password"): str,
-                            }
-                        ),
-                        errors=errors,
-                    )
-                
-                # Get the device ID
-                device_id = client.device_id
-                if not device_id:
-                    _LOGGER.warning("No device ID found after authentication")
-                    errors["base"] = "no_devices_found"
-                    return self.async_show_form(
-                        step_id="user",
-                        data_schema=vol.Schema(
-                            {
-                                vol.Required("email"): str,
-                                vol.Required("password"): str,
-                            }
-                        ),
-                        errors=errors,
-                    )
-                
-                # Check if this email is already configured
-                existing_entries = self._async_current_entries()
-                for entry in existing_entries:
-                    if entry.data.get("email") == user_input["email"]:
-                        _LOGGER.info("Account is already configured")
-                        return self.async_abort(reason="already_configured")
-                
-                # Store the device ID in the config entry data
-                user_input["device_id"] = device_id
-                
-                # Authentication successful, create the config entry
-                _LOGGER.info("Successfully configured Leakomatic device: %s", device_id)
+            client = LeakomaticClient(user_input[CONF_EMAIL], user_input[CONF_PASSWORD])
+            if not await client.async_authenticate():
+                errors["base"] = client.error_code or "unknown"
+            elif not client.device_ids:
+                errors["base"] = ERROR_NO_DEVICES_FOUND
+            else:
+                await self.async_set_unique_id(account_unique_id(client, user_input[CONF_EMAIL]))
+                self._abort_if_unique_id_configured()
+                _LOGGER.info("Configured Leakomatic account with %d device(s)", len(client.device_ids))
                 return self.async_create_entry(
-                    title=f"Leakomatic Device {device_id}",
-                    data=user_input,
+                    title=user_input[CONF_EMAIL],
+                    data={CONF_EMAIL: user_input[CONF_EMAIL], CONF_PASSWORD: user_input[CONF_PASSWORD]},
                 )
-            except aiohttp.ClientError:
-                _LOGGER.warning("Connection error during setup")
-                errors["base"] = "cannot_connect"
-            except Exception:  # pylint: disable=broad-except
-                _LOGGER.error("Unexpected error during setup")
-                errors["base"] = "unknown"
 
-        _LOGGER.debug("Showing config flow form")
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("email"): str,
-                    vol.Required("password"): str,
-                }
-            ),
+            data_schema=self.add_suggested_values_to_schema(STEP_USER_DATA_SCHEMA, user_input),
             errors=errors,
         )
 
-    async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> FlowResult:
+    async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:
         """Start reauthentication when Leakomatic has rejected the stored password."""
         return await self.async_step_reauth_confirm()
 
     async def async_step_reauth_confirm(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Ask for a new password and check it before updating the entry."""
         entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            client = LeakomaticClient(entry.data["email"], user_input["password"])
+            client = LeakomaticClient(entry.data[CONF_EMAIL], user_input[CONF_PASSWORD])
             if await client.async_authenticate():
                 return self.async_update_reload_and_abort(
                     entry,
-                    data={**entry.data, "password": user_input["password"]},
+                    data={**entry.data, CONF_PASSWORD: user_input[CONF_PASSWORD]},
                     reason="reauth_successful",
                 )
             errors["base"] = client.error_code or "unknown"
 
         return self.async_show_form(
             step_id="reauth_confirm",
-            data_schema=vol.Schema({vol.Required("password"): str}),
-            description_placeholders={"email": entry.data["email"]},
+            data_schema=STEP_REAUTH_DATA_SCHEMA,
+            description_placeholders={"email": entry.data[CONF_EMAIL]},
             errors=errors,
         )
