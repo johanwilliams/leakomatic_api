@@ -295,3 +295,70 @@ async def test_pause_end_cleared_by_zero_stoptime(hass: HomeAssistant, setup_int
 )
 async def test_pause_end_from_startup_data(hass: HomeAssistant, setup_integration: MockLeakomatic) -> None:
     assert hass.states.get(PAUSE_END).state == "2030-01-01T00:00:00+00:00"
+
+
+# --- HA-272: alarm state from active_alarms; the settings survive alarm messages
+
+QUICK = "sensor.leakomatic_quick_test"
+TIGHTNESS = "sensor.leakomatic_tightness_test"
+CONFIG_OLD = {"id": 1, "time": "2026-01-01T00:00:00.000Z", "ft_alarm_away": 5, "ft_warning_home": 20,
+              "ft_alarm_delay": 5, "qt_alarm_delay": 1, "qt_index_limit": 1.0, "tt_count": 1,
+              "tt_length": 15, "tt_alarm_delay": 1}
+CONFIG_NEW = {**CONFIG_OLD, "id": 2, "time": "2026-02-01T00:00:00.000Z", "ft_alarm_away": 10}
+
+
+def _active(alarm_type: int, level: int, active: bool = True) -> dict:
+    return {"alarm_id": 1, "alarm_type": alarm_type, "level": level, "is_active": active}
+
+
+@pytest.mark.parametrize(
+    "devices", [{"1001": make_device_data("1001", "SERIAL-A", configurations=[CONFIG_NEW, CONFIG_OLD])}]
+)
+async def test_settings_survive_alarm_messages(hass: HomeAssistant, setup_integration: MockLeakomatic) -> None:
+    """The attributes come from the latest configuration and stay after an alarm message."""
+    attrs = hass.states.get(FLOW_TEST).attributes
+    assert (attrs["duration_away"], attrs["duration_home"], attrs["alarm_delay"]) == (10, 20, 5)
+
+    setup_integration.send(_alarm("SERIAL-A", "0", "1"))
+    state = hass.states.get(FLOW_TEST)
+    assert state.state == "warning"
+    assert state.attributes["duration_away"] == 10
+
+    quick = hass.states.get(QUICK).attributes
+    assert (quick["alarm_delay"], quick["index_limit"]) == (1, 1.0)
+    tight = hass.states.get(TIGHTNESS).attributes
+    assert (tight["pulse_free_periods"], tight["period_duration"], tight["alarm_delay"]) == (1, 15, 1)
+
+
+@pytest.mark.parametrize("devices", [{"1001": make_device_data("1001", "SERIAL-A", configurations=[CONFIG_OLD])}])
+async def test_configuration_added_updates_settings(hass: HomeAssistant, setup_integration: MockLeakomatic) -> None:
+    """A setting changed in Leakomatic's app shows without a restart."""
+    assert hass.states.get(FLOW_TEST).attributes["duration_away"] == 5
+
+    changed = ws_message("configuration_added", "SERIAL-A", **{**CONFIG_OLD, "id": 3, "ft_alarm_away": 30})
+    changed["message"]["data"]["operation"] = "configuration_added"
+    setup_integration.send(changed)
+
+    assert hass.states.get(FLOW_TEST).attributes["duration_away"] == 30
+    assert hass.states.get(FLOW_TEST).state == "clear"
+
+
+@pytest.mark.parametrize(
+    "devices",
+    [{"1001": make_device_data("1001", "SERIAL-A", active_alarms=[_active(0, 1), _active(1, 2), _active(2, 2, False)])}],
+)
+async def test_several_active_alarms_at_startup(hass: HomeAssistant, setup_integration: MockLeakomatic) -> None:
+    """Two tests alarming at the same time both show; an inactive alarm does not count."""
+    assert hass.states.get(FLOW_TEST).state == "warning"
+    assert hass.states.get(QUICK).state == "alarm"
+    assert hass.states.get(TIGHTNESS).state == "clear"
+
+
+async def test_device_updated_active_alarms(hass: HomeAssistant, setup_integration: MockLeakomatic) -> None:
+    """device_updated carries the full list: an alarm appears, and an empty list clears it (reset)."""
+    setup_integration.send(device_updated_message("SERIAL-A", 1001, mode=0, active_alarms=[_active(2, 1), _active(2, 2)]))
+    assert hass.states.get(TIGHTNESS).state == "alarm"  # the highest level
+    assert hass.states.get(FLOW_TEST).state == "clear"
+
+    setup_integration.send(device_updated_message("SERIAL-A", 1001, mode=0, active_alarms=[]))
+    assert hass.states.get(TIGHTNESS).state == "clear"

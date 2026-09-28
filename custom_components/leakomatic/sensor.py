@@ -72,7 +72,8 @@ def handle_device_update(message: dict, sensors: list[LeakomaticSensor]) -> None
     LeakomaticMessageHandler.handle_device_update(
         message,
         sensors,
-        (PauseEndSensor, TotalVolumeSensor),  # the mode, total_flow_volume
+        # the mode, total_flow_volume, active_alarms
+        (PauseEndSensor, TotalVolumeSensor, FlowTestSensor, QuickTestSensor, TightnessTestSensor),
         None   # No online sensor
     )
 
@@ -148,6 +149,12 @@ def handle_analog_sensor_message(message: dict, sensors: list[LeakomaticSensor])
             update_data={"value": value if connected == 1 else None}
         )
 
+def handle_configuration_added(message: dict, sensors: list[LeakomaticSensor]) -> None:
+    """A new device configuration: the alarm test sensors show its settings."""
+    LeakomaticMessageHandler.update_matching_entities(
+        message, sensors, (FlowTestSensor, QuickTestSensor, TightnessTestSensor), None
+    )
+
 def handle_default(message: dict, sensors: list[LeakomaticSensor]) -> None:
     """Handle any other message type."""
     LeakomaticMessageHandler.handle_default(message, sensors)
@@ -161,6 +168,7 @@ message_registry.register(MessageType.STATUS_MESSAGE.value, handle_status_update
 message_registry.register(MessageType.ALARM_TRIGGERED.value, handle_alarm_triggered)
 message_registry.register(MessageType.WATER_METER_CALIBRATION_UPDATED.value, handle_water_meter_calibration)
 message_registry.register(MessageType.ANALOG_SENSOR_MESSAGE.value, handle_analog_sensor_message)
+message_registry.register(MessageType.CONFIGURATION_ADDED.value, handle_configuration_added)
 message_registry.register_default(handle_default)
 
 async def async_setup_entry(
@@ -440,17 +448,24 @@ _ALARM_LEVEL_TO_STATE = {
 
 class AlarmTestSensor(LeakomaticEntity, SensorEntity):
     """Base class for Leakomatic alarm test sensors.
-    
+
     This sensor monitors test status and changes state based on alarm levels:
     - CLEAR: No alarm
     - WARNING: Warning threshold exceeded
     - ALARM: Alarm threshold exceeded
 
     An alarm level outside these makes the state unknown.
+
+    The state comes from the list of active alarms (startup data and every
+    device_updated) and from alarm_triggered. The test's settings, shown as
+    attributes, come from the latest configuration (startup data and
+    configuration_added) and are kept separately from the alarm data.
     """
 
     _attr_device_class = SensorDeviceClass.ENUM
     _attr_options = [state.value for state in TestState]
+    # Attribute name -> field in the device configuration
+    _config_attributes: dict[str, str] = {}
 
     def __init__(
         self,
@@ -460,7 +475,6 @@ class AlarmTestSensor(LeakomaticEntity, SensorEntity):
         *,
         key: str,
         alarm_type: str,
-        log_prefix: str,
     ) -> None:
         """Initialize the alarm test sensor."""
         super().__init__(
@@ -470,15 +484,22 @@ class AlarmTestSensor(LeakomaticEntity, SensorEntity):
             key=key,
             icon="mdi:water-alert",
         )
-        self._state: str | None = TestState.CLEAR.value
         self._alarm_type = alarm_type
-        self._log_prefix = log_prefix
-        
-        # Check for current alarm in device data
-        if device_data and "current_alarm" in device_data:
-            current_alarm = device_data["current_alarm"]
-            if current_alarm and current_alarm.get("alarm_type") == int(self._alarm_type):
+        data = device_data or {}
+        self._state: str | None = TestState.CLEAR.value
+        if isinstance(data.get("active_alarms"), list):
+            self._state = self._state_from_active_alarms(data["active_alarms"])
+        elif data.get("current_alarm"):
+            current_alarm = data["current_alarm"]
+            if str(current_alarm.get("alarm_type")) == self._alarm_type:
                 self._state = self._state_for_level(current_alarm.get("level", AlarmLevel.CLEAR.value))
+
+        configurations = data.get("configurations")
+        self._configuration: dict[str, Any] = {}
+        if isinstance(configurations, list) and configurations:
+            self._configuration = max(
+                configurations, key=lambda c: (c.get("time") or "", c.get("id") or 0)
+            )
 
     def _state_for_level(self, alarm_level: Any) -> str | None:
         """Return the state for an alarm level, or None (unknown) for an unknown level."""
@@ -487,34 +508,71 @@ class AlarmTestSensor(LeakomaticEntity, SensorEntity):
             log_with_entity(_LOGGER, logging.WARNING, self, "Unknown alarm level received: %s", alarm_level)
         return state
 
+    def _state_from_active_alarms(self, active_alarms: list[dict[str, Any]]) -> str | None:
+        """The state from the active alarms: the highest level of this test's alarms, or clear."""
+        levels = [
+            alarm.get("level")
+            for alarm in active_alarms
+            if str(alarm.get("alarm_type")) == self._alarm_type and alarm.get("is_active", True)
+        ]
+        if not levels:
+            return TestState.CLEAR.value
+        states = [self._state_for_level(level) for level in levels]
+        if None in states:
+            return None  # an unknown level: the guard does not know
+        order = [TestState.CLEAR.value, TestState.WARNING.value, TestState.ALARM.value]
+        return max(states, key=order.index)
+
     @property
     def native_value(self) -> StateType:
         """Return the state of the sensor."""
         return self._state
 
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """The test's settings from the latest device configuration."""
+        return {
+            name: self._configuration[field]
+            for name, field in self._config_attributes.items()
+            if self._configuration.get(field) is not None
+        }
+
     @callback
     def handle_update(self, data: dict[str, Any]) -> None:
-        """Handle updated data from WebSocket."""
-        # Check if this is an alarm message
-        if data.get("operation") == "alarm_triggered":
-            
-            # Verify this is the correct alarm type
-            if data.get("alarm_type") == self._alarm_type:
-                self._state = self._state_for_level(data.get("alarm_level", ""))
-                self._device_data = data
-                self.async_write_ha_state()
-                # Add state change log message
-                log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.native_value)
+        """Handle alarm_triggered, device_updated and configuration_added."""
+        operation = data.get("operation")
+        if operation == MessageType.ALARM_TRIGGERED.value:
+            if str(data.get("alarm_type")) != self._alarm_type:
+                return
+            self._state = self._state_for_level(data.get("alarm_level", ""))
+        elif operation == MessageType.CONFIGURATION_ADDED.value:
+            self._configuration = data
+        elif isinstance(data.get("active_alarms"), list):
+            # device_updated carries the full list of active alarms
+            state = self._state_from_active_alarms(data["active_alarms"])
+            if state == self._state:
+                return
+            self._state = state
+        else:
+            return
+        self.async_write_ha_state()
+        log_with_entity(_LOGGER, logging.DEBUG, self, "Value updated: %s", self.native_value)
 
 
 class FlowTestSensor(AlarmTestSensor):
     """Representation of a Leakomatic Flow Test sensor.
-    
+
     This sensor monitors the flow duration and changes state based on configured thresholds:
     - CLEAR: No flow or flow duration below warning threshold
     - WARNING: Flow duration exceeds warning threshold
     - ALARM: Flow duration exceeds alarm threshold
     """
+
+    _config_attributes = {
+        "duration_away": "ft_alarm_away",
+        "duration_home": "ft_warning_home",
+        "alarm_delay": "ft_alarm_delay",
+    }
 
     def __init__(
         self,
@@ -524,53 +582,23 @@ class FlowTestSensor(AlarmTestSensor):
     ) -> None:
         """Initialize the flow test sensor."""
         super().__init__(
-            device_info=device_info,
-            device_id=device_id,
-            device_data=device_data,
-            key="flow_test",
-            alarm_type=AlarmType.FLOW_TEST.value,
-            log_prefix="FlowTestSensor",
+            device_info, device_id, device_data, key="flow_test", alarm_type=AlarmType.FLOW_TEST.value
         )
-        self._attr_translation_key = "flow_test"
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        """Return extra state attributes for flow test thresholds and delays if available."""
-        attrs = super().extra_state_attributes or {}
-        configurations = self._device_data.get("configurations") if self._device_data else None
-        duration_away = None
-        duration_home = None
-        alarm_delay = None
-        if configurations and isinstance(configurations, list):
-            latest_config = max(
-                configurations,
-                key=lambda c: (c.get("time") or "", c.get("id") or 0),
-                default=None
-            )
-            if latest_config:
-                if "ft_alarm_away" in latest_config:
-                    duration_away = latest_config["ft_alarm_away"]
-                if "ft_warning_home" in latest_config:
-                    duration_home = latest_config["ft_warning_home"]
-                if "ft_alarm_delay" in latest_config:
-                    alarm_delay = latest_config["ft_alarm_delay"]
-        if duration_away is not None:
-            attrs["duration_away"] = duration_away
-        if duration_home is not None:
-            attrs["duration_home"] = duration_home
-        if alarm_delay is not None:
-            attrs["alarm_delay"] = alarm_delay
-        return attrs
 
 
 class QuickTestSensor(AlarmTestSensor):
     """Representation of a Leakomatic Quick Test sensor.
-    
+
     This sensor monitors the quick test status and changes state based on alarm levels:
     - CLEAR: No alarm
     - WARNING: Quick test warning threshold exceeded
     - ALARM: Quick test alarm threshold exceeded
     """
+
+    _config_attributes = {
+        "alarm_delay": "qt_alarm_delay",
+        "index_limit": "qt_index_limit",
+    }
 
     def __init__(
         self,
@@ -580,49 +608,24 @@ class QuickTestSensor(AlarmTestSensor):
     ) -> None:
         """Initialize the quick test sensor."""
         super().__init__(
-            device_info=device_info,
-            device_id=device_id,
-            device_data=device_data,
-            key="quick_test",
-            alarm_type=AlarmType.QUICK_TEST.value,
-            log_prefix="QuickTestSensor",
+            device_info, device_id, device_data, key="quick_test", alarm_type=AlarmType.QUICK_TEST.value
         )
-        self._attr_translation_key = "quick_test"
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        """Return extra state attributes, including alarm delay and index limit if available."""
-        attrs = super().extra_state_attributes or {}
-        configurations = self._device_data.get("configurations") if self._device_data else None
-        alarm_delay = None
-        index_limit = None
-        if configurations and isinstance(configurations, list):
-            # Find the configuration with the latest 'time' (ISO8601 string)
-            latest_config = max(
-                configurations,
-                key=lambda c: (c.get("time") or "", c.get("id") or 0),
-                default=None
-            )
-            if latest_config:
-                if "qt_alarm_delay" in latest_config:
-                    alarm_delay = latest_config["qt_alarm_delay"]
-                if "qt_index_limit" in latest_config:
-                    index_limit = latest_config["qt_index_limit"]
-        if alarm_delay is not None:
-            attrs["alarm_delay"] = alarm_delay
-        if index_limit is not None:
-            attrs["index_limit"] = index_limit
-        return attrs
 
 
 class TightnessTestSensor(AlarmTestSensor):
     """Representation of a Leakomatic Tightness Test sensor.
-    
+
     This sensor monitors the tightness test status and changes state based on alarm levels:
     - CLEAR: No alarm
     - WARNING: Tightness test warning threshold exceeded
     - ALARM: Tightness test alarm threshold exceeded
     """
+
+    _config_attributes = {
+        "pulse_free_periods": "tt_count",
+        "period_duration": "tt_length",
+        "alarm_delay": "tt_alarm_delay",
+    }
 
     def __init__(
         self,
@@ -632,43 +635,8 @@ class TightnessTestSensor(AlarmTestSensor):
     ) -> None:
         """Initialize the tightness test sensor."""
         super().__init__(
-            device_info=device_info,
-            device_id=device_id,
-            device_data=device_data,
-            key="tightness_test",
-            alarm_type=AlarmType.TIGHTNESS_TEST.value,
-            log_prefix="TightnessTestSensor",
+            device_info, device_id, device_data, key="tightness_test", alarm_type=AlarmType.TIGHTNESS_TEST.value
         )
-        self._attr_translation_key = "tightness_test"
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        """Return extra state attributes for tightness test configuration if available."""
-        attrs = super().extra_state_attributes or {}
-        configurations = self._device_data.get("configurations") if self._device_data else None
-        pulse_free_periods = None
-        period_duration = None
-        alarm_delay = None
-        if configurations and isinstance(configurations, list):
-            latest_config = max(
-                configurations,
-                key=lambda c: (c.get("time") or "", c.get("id") or 0),
-                default=None
-            )
-            if latest_config:
-                if "tt_count" in latest_config:
-                    pulse_free_periods = latest_config["tt_count"]
-                if "tt_length" in latest_config:
-                    period_duration = latest_config["tt_length"]
-                if "tt_alarm_delay" in latest_config:
-                    alarm_delay = latest_config["tt_alarm_delay"]
-        if pulse_free_periods is not None:
-            attrs["pulse_free_periods"] = pulse_free_periods
-        if period_duration is not None:
-            attrs["period_duration"] = period_duration
-        if alarm_delay is not None:
-            attrs["alarm_delay"] = alarm_delay
-        return attrs
 
 
 class TotalVolumeSensor(LeakomaticSensor):

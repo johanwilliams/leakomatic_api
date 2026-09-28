@@ -136,7 +136,7 @@ Temperature, Pressure and Total Volume follow the data Leakomatic sends, but hav
 
 ### Alarm Test Sensors
 
-The three alarm test sensors are enum sensors (device class `enum`) with the options `clear`, `warning` and `alarm`. Use these values in automations; the UI shows them translated. If Leakomatic reports an alarm level the integration does not know, the sensor shows Unknown instead of keeping its previous state.
+The three alarm test sensors are enum sensors (device class `enum`) with the options `clear`, `warning` and `alarm`. Use these values in automations; the UI shows them translated. If Leakomatic reports an alarm level the integration does not know, the sensor shows Unknown instead of keeping its previous state. Each sensor also shows the test's settings as attributes (for example the flow test's alarm delay); they follow changes made in Leakomatic's app without a restart.
 
 - **Flow Test**: Monitors flow alarms and provides alarm state information
   - States: Clear, Warning, Alarm
