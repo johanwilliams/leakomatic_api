@@ -7,18 +7,17 @@ It provides select entities for:
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Dict, Optional
+from typing import Any
 
 from homeassistant.components.select import (
     SelectEntity,
-    SelectEntityDescription,
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import EntityCategory
 
-from .const import DOMAIN, MessageType, DeviceMode
+from .const import DOMAIN, MessageType
 from .common import LeakomaticEntity, LeakomaticMessageHandler, MessageHandlerRegistry, log_with_entity
 from .models import LeakomaticConfigEntry
 

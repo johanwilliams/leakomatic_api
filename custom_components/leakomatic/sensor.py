@@ -13,7 +13,7 @@ The sensors are updated through real-time WebSocket updates.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Dict, Optional
+from typing import Any
 
 from homeassistant.components.sensor import (
     SensorEntity,
