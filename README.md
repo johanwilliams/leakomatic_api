@@ -235,8 +235,10 @@ Removing the integration does not change anything on the Leakomatic device or in
 4. Enter your email and password
 5. Click "Submit"
 
+One entry is created per Leakomatic account, named after the account's email; all devices on the account are added to it. Adding the same account twice is refused.
+
 The integration will automatically:
-- Connect to your Leakomatic device
+- Connect to your Leakomatic devices
 - Set up real-time monitoring via WebSocket
 - Create all necessary entities
 

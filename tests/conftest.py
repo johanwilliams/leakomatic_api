@@ -18,6 +18,7 @@ from custom_components.leakomatic.const import DOMAIN
 
 EMAIL = "user@example.com"
 PASSWORD = "secret"
+USER_ID = "2001"
 
 
 @pytest.fixture(autouse=True)
@@ -83,6 +84,7 @@ class MockLeakomatic:
         client = self.client
         client.device_ids = list(devices)
         client.device_id = next(iter(devices))
+        client.user_id = USER_ID
         client.error_code = None
         client.async_authenticate = AsyncMock(return_value=True)
         client.async_get_device_data = AsyncMock(side_effect=self._device_data)

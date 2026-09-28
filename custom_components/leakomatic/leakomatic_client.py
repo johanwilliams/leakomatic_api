@@ -179,6 +179,11 @@ class LeakomaticClient:
         return self._device_ids
 
     @property
+    def user_id(self) -> Optional[str]:
+        """The Leakomatic user ID found at login, if any."""
+        return self._user_id
+
+    @property
     def device_id(self) -> Optional[str]:
         """Get the first device ID for backward compatibility."""
         return self._device_ids[0] if self._device_ids else None
