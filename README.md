@@ -101,7 +101,7 @@ The integration provides the following entities:
 
 - **Online Status**: Shows if the device is currently online
   - States: On (online), Off (offline), Unknown (after startup, until the first message from the device)
-  - Turns off when Leakomatic reports the device offline, and on again with the next message from the device
+  - Turns off when Leakomatic reports the device offline, or when nothing has been heard from the device for 15 minutes while the connection to Leakomatic was up (the device reports every 5 minutes). Turns on again with the next message from the device
   - Updates in real-time through WebSocket events
   - Includes a last_seen attribute showing the timestamp of the last received message
   - Useful for monitoring device connectivity and troubleshooting connection issues
@@ -251,6 +251,7 @@ If you encounter any issues with the integration:
    - Stuck connections: Health monitoring will detect and recover from stuck connections automatically
 5. Reading the log:
    - The Leakomatic server closes the websocket on a schedule (typically once per night). The integration reconnects within seconds; this is logged at debug/info level and needs no action.
+   - `Online Status - Nothing heard from the device for 15 minutes, marking it offline` (info) means the device has stopped reporting while the connection to Leakomatic works. Check the device's power and network.
    - `No connection to Leakomatic for 5 minutes, marking entities unavailable` (info) and `Connection to Leakomatic restored, entities are available again` (info) mark when the entities became unavailable and available again.
    - A warning such as `WebSocket reconnection failed 10 times, retrying every 6 hours (phase 2)` means the integration could not reconnect and has switched to longer retry intervals. Check your network connection and the Leakomatic service.
 

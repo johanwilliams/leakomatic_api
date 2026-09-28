@@ -145,6 +145,10 @@ LONG_RETRY_INTERVAL = 43200  # 12 hours in seconds
 # server's scheduled (nightly) disconnect is reconnected within seconds.
 UNAVAILABLE_AFTER_DISCONNECT = 300  # 5 minutes
 
+# The device reports (quick test) every 5 minutes. Online Status turns off
+# when nothing has been heard from it for this long: two missed reports.
+DEVICE_OFFLINE_AFTER = 900  # 15 minutes
+
 # Health check interval
 HEALTH_CHECK_INTERVAL = 300  # 5 minutes
 

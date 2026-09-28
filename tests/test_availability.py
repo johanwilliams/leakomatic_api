@@ -10,9 +10,9 @@ from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
-from custom_components.leakomatic.const import UNAVAILABLE_AFTER_DISCONNECT
+from custom_components.leakomatic.const import DEVICE_OFFLINE_AFTER, UNAVAILABLE_AFTER_DISCONNECT
 
-from .conftest import MockLeakomatic
+from .conftest import MockLeakomatic, ws_message
 
 CONNECTIVITY = "binary_sensor.leakomatic_websocket_connectivity"
 
@@ -98,3 +98,75 @@ async def test_unload_stops_the_timer(
     await hass.async_block_till_done()
 
     assert availability._unsub_timer is None
+
+
+# --- HA-198: Online Status turns off when the device has been silent too long
+
+ONLINE = "binary_sensor.leakomatic_online_status"
+
+
+async def _tick(hass: HomeAssistant, freezer, seconds: float) -> None:
+    freezer.tick(timedelta(seconds=seconds))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+
+def _device_message(mock: MockLeakomatic) -> None:
+    mock.send(ws_message("quick_test_updated", "SERIAL-A", current_quick_test=0.1))
+
+
+async def test_online_turns_off_after_silence(
+    hass: HomeAssistant, setup_integration: MockLeakomatic, freezer, caplog: pytest.LogCaptureFixture
+) -> None:
+    setup_integration.set_connected(True)
+    _device_message(setup_integration)
+    assert hass.states.get(ONLINE).state == "on"
+
+    # Reports every 5 minutes keep it on
+    for _ in range(4):
+        await _tick(hass, freezer, 300)
+        _device_message(setup_integration)
+    assert hass.states.get(ONLINE).state == "on"
+
+    await _tick(hass, freezer, DEVICE_OFFLINE_AFTER - 60)
+    assert hass.states.get(ONLINE).state == "on"
+
+    await _tick(hass, freezer, 120)
+    assert hass.states.get(ONLINE).state == "off"
+    assert "marking it offline" in caplog.text
+
+    _device_message(setup_integration)
+    assert hass.states.get(ONLINE).state == "on"
+
+
+async def test_unknown_turns_off_when_device_never_reports(
+    hass: HomeAssistant, setup_integration: MockLeakomatic, freezer
+) -> None:
+    """After startup the sensor is unknown; with no report at all it turns off after the timeout."""
+    setup_integration.set_connected(True)
+    assert hass.states.get(ONLINE).state == "unknown"
+
+    await _tick(hass, freezer, DEVICE_OFFLINE_AFTER + 60)
+
+    assert hass.states.get(ONLINE).state == "off"
+
+
+async def test_connection_outage_does_not_mark_device_offline(
+    hass: HomeAssistant, setup_integration: MockLeakomatic, freezer
+) -> None:
+    """Silence while the websocket was down says nothing about the device."""
+    setup_integration.set_connected(True)
+    _device_message(setup_integration)
+
+    setup_integration.set_connected(False)
+    await _tick(hass, freezer, UNAVAILABLE_AFTER_DISCONNECT + 60)
+    await _tick(hass, freezer, DEVICE_OFFLINE_AFTER)
+    assert hass.states.get(ONLINE).state == STATE_UNAVAILABLE
+
+    setup_integration.set_connected(True)
+    await _tick(hass, freezer, 60)
+    assert hass.states.get(ONLINE).state == "on"
+
+    # The timeout counts from when the connection came back
+    await _tick(hass, freezer, DEVICE_OFFLINE_AFTER)
+    assert hass.states.get(ONLINE).state == "off"
