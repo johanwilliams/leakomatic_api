@@ -163,3 +163,17 @@ async def test_invalid_values_are_unknown(
     assert hass.states.get(VALVE).state == "unknown"
     assert "Invalid value: garbage" in caplog.text
     assert "Invalid port state value: garbage" in caplog.text
+
+
+async def test_device_offline_marks_device_offline(hass: HomeAssistant, setup_integration: MockLeakomatic) -> None:
+    """HA-279: device_offline sets the online sensor to off; the next message sets it on again."""
+    setup_integration.send(ws_message("status_message", "SERIAL-A", port_state=0, rssi=-60))
+    last_seen = hass.states.get(ONLINE).attributes["last_seen"]
+
+    setup_integration.send(ws_message("device_offline", "SERIAL-A"))
+    offline = hass.states.get(ONLINE)
+    assert offline.state == "off"
+    assert offline.attributes["last_seen"] == last_seen  # not a sign of life
+
+    setup_integration.send(ws_message("status_message", "SERIAL-A", port_state=0, rssi=-60))
+    assert hass.states.get(ONLINE).state == "on"
