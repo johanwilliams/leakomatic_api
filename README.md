@@ -95,18 +95,18 @@ The integration provides the following entities:
 ### Binary Sensors
 
 - **Flow Indicator**: Shows if water is currently flowing
-  - States: On (water flowing), Off (no water flow)
+  - States: On (water flowing), Off (no water flow), Unknown (after startup, until the first flow event; the startup data from Leakomatic does not tell whether water is flowing)
   - Updates in real-time through WebSocket flow events
   - Useful for tracking active water usage and flow patterns
 
 - **Online Status**: Shows if the device is currently online
-  - States: On (online), Off (offline), Unknown (initial state)
+  - States: On (online), Off (offline), Unknown (after startup, until the first message from the device)
   - Updates in real-time through WebSocket events
   - Includes a last_seen attribute showing the timestamp of the last received message
   - Useful for monitoring device connectivity and troubleshooting connection issues
 
 - **Valve**: Shows the current state of the water valve
-  - States: On (valve open), Off (valve closed)
+  - States: On (valve open), Off (valve closed), Unknown (valve state missing or invalid)
   - Updates in real-time through WebSocket events
   - Helps monitor valve operation and status
 

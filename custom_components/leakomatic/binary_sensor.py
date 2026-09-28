@@ -208,8 +208,9 @@ class FlowIndicatorBinarySensor(LeakomaticBinarySensor):
     It is updated through WebSocket updates.
     
     Note: There appears to be a bug in the API where flow_mode is always 1
-    regardless of actual water flow. Therefore, we initialize the sensor as
-    unknown and only update its state through WebSocket flow_updated events.
+    regardless of actual water flow. Therefore, the sensor ignores flow_mode
+    in the initial data: it is unknown until the first WebSocket
+    flow_updated event.
     
     Attributes:
         _device_info: Information about the physical device
@@ -227,10 +228,10 @@ class FlowIndicatorBinarySensor(LeakomaticBinarySensor):
         device_data: dict[str, Any] | None,
     ) -> None:
         """Initialize the flow indicator binary sensor."""
-        # Initialize with flow_mode = 0 since the API always sends 1 in initial data
+        # The API always sends flow_mode 1 in the initial data: leave it out,
+        # so the state is unknown until a flow_updated event
         if device_data is not None:
-            device_data = device_data.copy()
-            device_data["flow_mode"] = 0
+            device_data = {k: v for k, v in device_data.items() if k != "flow_mode"}
             
         super().__init__(
             device_info=device_info,
@@ -242,21 +243,16 @@ class FlowIndicatorBinarySensor(LeakomaticBinarySensor):
         )
 
     @property
-    def is_on(self) -> bool:
-        """Return true if flow is detected."""
-        if not self._device_data:
-            return False
-        
-        # Get the flow mode value
+    def is_on(self) -> bool | None:
+        """Return true if flow is detected, None if unknown."""
         flow_mode = self._device_data.get("flow_mode")
-        if flow_mode is not None:
-            try:
-                return int(flow_mode) == 1
-            except (ValueError, TypeError):
-                log_with_entity(_LOGGER, logging.WARNING, self, "Invalid value: %s", flow_mode)
-                return False
-        
-        return False
+        if flow_mode is None:
+            return None
+        try:
+            return int(flow_mode) == 1
+        except (ValueError, TypeError):
+            log_with_entity(_LOGGER, logging.WARNING, self, "Invalid value: %s", flow_mode)
+            return None
 
     @callback
     def handle_update(self, data: dict[str, Any]) -> None:
@@ -284,6 +280,11 @@ class OnlineStatusBinarySensor(LeakomaticBinarySensor):
         device_data: dict[str, Any] | None,
     ) -> None:
         """Initialize the online status binary sensor."""
+        # is_online in the REST data does not reliably tell whether the device
+        # is up right now (after a reload it said offline while the device was
+        # up). The state is unknown until the first message from the device.
+        if device_data is not None:
+            device_data = {k: v for k, v in device_data.items() if k != "is_online"}
         super().__init__(
             device_info=device_info,
             device_id=device_id,
@@ -306,21 +307,12 @@ class OnlineStatusBinarySensor(LeakomaticBinarySensor):
                 log_with_entity(_LOGGER, logging.WARNING, self, "Failed to parse last_seen_at from device data: %s", err)
 
     @property
-    def is_on(self) -> bool:
-        """Return true if device is online."""
-        if not self._device_data:
-            return False
-        
-        # Get the online status
+    def is_on(self) -> bool | None:
+        """Return true if device is online, None if unknown."""
         is_online = self._device_data.get("is_online")
-        if is_online is not None:
-            try:
-                return bool(is_online)
-            except (ValueError, TypeError):
-                log_with_entity(_LOGGER, logging.WARNING, self, "Invalid value: %s", is_online)
-                return False
-        
-        return False
+        if is_online is None:
+            return None
+        return bool(is_online)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -390,11 +382,8 @@ class ValveBinarySensor(LeakomaticBinarySensor):
         self._previous_state: bool | None = None
 
     @property
-    def is_on(self) -> bool:
-        """Return true if valve is open."""
-        if not self._device_data:
-            return False
-        
+    def is_on(self) -> bool | None:
+        """Return true if valve is open, None if unknown."""
         # Get the port state value
         port_state = self._device_data.get("port_state")
         if port_state is not None:
@@ -413,9 +402,9 @@ class ValveBinarySensor(LeakomaticBinarySensor):
                 return is_open
             except (ValueError, TypeError):
                 log_with_entity(_LOGGER, logging.WARNING, self, "Invalid port state value: %s", port_state)
-                return False
-        
-        return False
+                return None
+
+        return None
 
     @callback
     def handle_update(self, data: dict[str, Any]) -> None:
