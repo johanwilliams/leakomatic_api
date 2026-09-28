@@ -99,38 +99,22 @@ If Leakomatic does not accept a mode change or an alarm reset, the action fails 
 
 Replace the entity IDs with yours: open **Settings → Devices & services → Leakomatic** and select the device. The examples use the automation syntax of Home Assistant 2024.10 and later (`triggers:`, `actions:`).
 
-### Away mode when the house is empty, home mode when someone is back
+### Away mode when nobody is home
 
-In away mode the flow test allows only a very short flow, so a leak is caught within seconds when nobody is there to notice it. This automation switches to away when the alarm is armed away or everyone has left, and back to home when the alarm is disarmed or someone comes home:
+In away mode the flow test allows only a short flow, so a leak is caught quickly when nobody is there to notice it. Switch to away when the last person leaves and back to home when someone arrives:
 
 ```yaml
 automation:
-  - alias: Leak guard follows the house
-    mode: queued
+  - alias: Leak guard follows presence
     triggers:
-      - trigger: state
-        entity_id: alarm_control_panel.house
-        to: armed_away
-        id: away
-      - trigger: state
+      - trigger: numeric_state
         entity_id: zone.home
-        to: "0"
+        below: 1
         id: away
-      - trigger: state
-        entity_id: alarm_control_panel.house
-        to: disarmed
-        id: home
       - trigger: numeric_state
         entity_id: zone.home
         above: 0
         id: home
-    conditions:
-      # Leave a pause (for example during irrigation) alone
-      - condition: not
-        conditions:
-          - condition: state
-            entity_id: select.leakomatic_mode
-            state: pause
     actions:
       - action: select.select_option
         target:
@@ -139,9 +123,11 @@ automation:
           option: "{{ trigger.id }}"
 ```
 
+`zone.home` counts the people at home. You can trigger on your alarm system instead, for example when it is armed away and disarmed.
+
 ### Pause during irrigation
 
-Watering the lawn can run longer than the flow test allows in home mode (20 minutes by default), which would raise a flow alarm. Pause the leak guard just before the irrigation starts and switch back to home when it is done:
+A long, continuous flow such as watering the lawn can run longer than the flow test allows in home mode, which would raise a flow alarm. Pause the leak guard just before the irrigation starts and switch back to home when it is done:
 
 ```yaml
 automation:
