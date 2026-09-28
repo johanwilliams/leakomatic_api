@@ -21,6 +21,7 @@ from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorStateClass,
 )
+from homeassistant.const import UnitOfVolume
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import EntityCategory
@@ -71,7 +72,7 @@ def handle_device_update(message: dict, sensors: list[LeakomaticSensor]) -> None
     LeakomaticMessageHandler.handle_device_update(
         message,
         sensors,
-        PauseEndSensor,  # the mode
+        (PauseEndSensor, TotalVolumeSensor),  # the mode, total_flow_volume
         None   # No online sensor
     )
 
@@ -124,24 +125,27 @@ def handle_water_meter_calibration(message: dict, sensors: list[LeakomaticSensor
     """Handle water_meter_calibration_updated messages."""
     LeakomaticMessageHandler.update_matching_entities(message, sensors, TotalVolumeSensor, None)
 
+def _as_int(value: Any) -> int | None:
+    """The analog sensor fields can arrive as numbers or strings."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
 def handle_analog_sensor_message(message: dict, sensors: list[LeakomaticSensor]) -> None:
     """Handle analog_sensor_message messages."""
     data = message.get("message", {}).get("data", {})
-    sensor_type = data.get("sensor_type")
-    connected = data.get("connected")
+    sensor_type = _as_int(data.get("sensor_type"))
+    connected = _as_int(data.get("connected"))
     value = data.get("value")
-    
-    # Update temperature sensor if sensor_type is 2 and connected is 1
-    if sensor_type == 2 and connected == 1:
+
+    # sensor_type 1 is pressure, 2 is temperature. A sensor that is not
+    # connected has no reading: its value becomes unknown.
+    target = {1: PressureSensor, 2: TemperatureSensor}.get(sensor_type)
+    if target is not None:
         LeakomaticMessageHandler.update_matching_entities(
-            message, sensors, TemperatureSensor, None,
-            update_data={"value": value}
-        )
-    # Update pressure sensor if sensor_type is 1 and connected is 1
-    elif sensor_type == 1 and connected == 1:
-        LeakomaticMessageHandler.update_matching_entities(
-            message, sensors, PressureSensor, None,
-            update_data={"value": value}
+            message, sensors, target, None,
+            update_data={"value": value if connected == 1 else None}
         )
 
 def handle_default(message: dict, sensors: list[LeakomaticSensor]) -> None:
@@ -669,9 +673,12 @@ class TightnessTestSensor(AlarmTestSensor):
 
 class TotalVolumeSensor(LeakomaticSensor):
     """Representation of a Leakomatic Total Volume sensor.
-    
-    This sensor represents the total water volume (water meter value) of the Leakomatic device.
-    It is updated through WebSocket updates and device data.
+
+    The reading of a water meter connected to the device (pulse input), in m³.
+    Leakomatic sends it in two forms:
+    - total_flow_volume (startup data, device_updated): already in m³
+    - total_volume (flow_updated, water_meter_calibration_updated): in litres
+    Devices without a water meter report 0. Disabled by default.
     """
 
     def __init__(
@@ -687,39 +694,40 @@ class TotalVolumeSensor(LeakomaticSensor):
             device_data=device_data,
             key="total_volume",
             icon="mdi:counter",
-            device_class=SensorDeviceClass.VOLUME,
+            device_class=SensorDeviceClass.WATER,
             state_class=SensorStateClass.TOTAL_INCREASING,
-            native_unit_of_measurement="m³",
+            native_unit_of_measurement=UnitOfVolume.CUBIC_METERS,
         )
         self._attr_entity_registry_enabled_default = False
+        self._volume: float | None = None
+        if device_data and device_data.get("total_flow_volume") is not None:
+            self._volume = self._parse(device_data["total_flow_volume"], 1)
 
     @property
     def native_value(self) -> StateType:
-        """Return the state of the sensor."""
-        if not self._device_data:
+        """Return the meter reading in m³."""
+        return self._volume
+
+    def _parse(self, raw: Any, divisor: float) -> float | None:
+        try:
+            return round(float(raw) / divisor, 3)
+        except (ValueError, TypeError) as err:
+            log_with_entity(_LOGGER, logging.WARNING, self, "Error updating total volume: %s", err)
             return None
-        
-        value = self._device_data.get("total_flow_volume")
-        if value is not None:
-            try:
-                return float(value) / 1000  # Convert to m³
-            except (ValueError, TypeError):
-                return None
-        return None
 
     @callback
     def handle_update(self, data: dict[str, Any]) -> None:
-        """Handle updates from WebSocket messages."""
-        if "total_flow_volume" in data:
-            try:
-                raw_value = float(data["total_flow_volume"])
-            except (ValueError, TypeError) as e:
-                log_with_entity(_LOGGER, logging.WARNING, self, "Error updating total volume: %s", e)
-                return
-            # Replace the dict instead of mutating it: the initial device data is
-            # shared with the other entities. native_value converts to m³.
-            self._device_data = {**self._device_data, "total_flow_volume": raw_value}
-            self.async_write_ha_state()
+        """Take total_volume (litres) or total_flow_volume (m³) from a message."""
+        if data.get("total_volume") is not None:
+            volume = self._parse(data["total_volume"], 1000)
+        elif data.get("total_flow_volume") is not None:
+            volume = self._parse(data["total_flow_volume"], 1)
+        else:
+            return
+        if volume is None:
+            return  # invalid value: logged, keep the last reading
+        self._volume = volume
+        self.async_write_ha_state()
 
 
 class TemperatureSensor(LeakomaticSensor):

@@ -48,7 +48,7 @@ def make_device_data(device_id: str, serial: str, name: str = "Leakomatic", **ov
         "rssi": -60,
         "current_alarm": None,
         "configurations": [],
-        "total_flow_volume": 1000,
+        "total_flow_volume": "12.345",  # m³, a string with three decimals like the server sends
     }
     data.update(overrides)
     return data
