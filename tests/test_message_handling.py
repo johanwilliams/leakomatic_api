@@ -224,3 +224,43 @@ async def test_unknown_alarm_level_is_unknown(
 )
 async def test_alarm_state_from_startup_data(hass: HomeAssistant, setup_integration: MockLeakomatic) -> None:
     assert hass.states.get(FLOW_TEST).state == "warning"
+
+
+# --- HA-283: when the pause mode ends
+
+PAUSE_END = "sensor.leakomatic_pause_ends"
+STOPTIME = 1_893_456_000  # 2030-01-01 00:00:00 UTC
+
+
+def _status(serial: str, **data) -> dict:
+    return ws_message("status_message", serial, port_state=0, rssi=-60, **data)
+
+
+async def test_pause_end_follows_mode_and_stoptime(hass: HomeAssistant, setup_integration: MockLeakomatic) -> None:
+    assert hass.states.get(PAUSE_END).state == "unknown"  # home mode at startup
+
+    setup_integration.send(device_updated_message("SERIAL-A", 1001, mode=2))
+    setup_integration.send(_status("SERIAL-A", mode_stoptime=STOPTIME))
+    state = hass.states.get(PAUSE_END)
+    assert state.state == "2030-01-01T00:00:00+00:00"
+    assert state.attributes["device_class"] == "timestamp"
+
+    # Back to home: no pause end, even before a status message clears the time
+    setup_integration.send(device_updated_message("SERIAL-A", 1001, mode=0))
+    assert hass.states.get(PAUSE_END).state == "unknown"
+
+
+async def test_pause_end_cleared_by_zero_stoptime(hass: HomeAssistant, setup_integration: MockLeakomatic) -> None:
+    setup_integration.send(device_updated_message("SERIAL-A", 1001, mode=2))
+    setup_integration.send(_status("SERIAL-A", mode_stoptime=str(STOPTIME)))  # sometimes a string
+    assert hass.states.get(PAUSE_END).state == "2030-01-01T00:00:00+00:00"
+
+    setup_integration.send(_status("SERIAL-A", mode_stoptime=0))
+    assert hass.states.get(PAUSE_END).state == "unknown"
+
+
+@pytest.mark.parametrize(
+    "devices", [{"1001": make_device_data("1001", "SERIAL-A", mode=2, mode_stoptime=STOPTIME)}]
+)
+async def test_pause_end_from_startup_data(hass: HomeAssistant, setup_integration: MockLeakomatic) -> None:
+    assert hass.states.get(PAUSE_END).state == "2030-01-01T00:00:00+00:00"

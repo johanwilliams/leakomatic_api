@@ -108,6 +108,9 @@
                         "name": "Alarm delay (days)"
                     }
                 }
+            },
+            "pause_end": {
+                "name": "Pause Ends"
             }
         },
         "binary_sensor": {
