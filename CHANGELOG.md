@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-02
+
 ### Fixed
 - Flow Test, Quick Test and Tightness Test: after a setting was changed in Leakomatic's app, their attributes switched to seconds (for example the flow test's home duration 20 became 1200) until the next restart. Leakomatic sends the new configuration in seconds, while the device data uses the app's units (minutes, hours, days). The attributes now always use the app's units, and the quick test's index limit is rounded (0.7, not 0.699999988079071).
 
