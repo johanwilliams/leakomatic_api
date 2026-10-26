@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-26
+
+### Added
+- The integration ships its own icon and logos in `custom_components/leakomatic/brand/` (`icon.png`, `logo.png`, `dark_logo.png`), as Home Assistant expects from 2026.3. They are the same images as before, so nothing changes in how the integration looks.
+
 ## [0.2.1] - 2026-10-02
 
 ### Fixed
