@@ -28,15 +28,24 @@ All devices on the account are added. Temperature, pressure and water volume nee
 
 ## Installation
 
-### With HACS (recommended)
+### From the Marketplace or HACS (recommended)
 
-Leakomatic is in the HACS default catalog.
+Leakomatic is in the community catalog: the Marketplace built into Home Assistant 2026.11 and newer, and HACS on older versions. The button opens Leakomatic in either of them:
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=johanwilliams&repository=leakomatic_api&category=integration)
 
-1. Search for **Leakomatic** in HACS and download it, or use the button above to open it in HACS directly.
-2. Restart Home Assistant.
+**Home Assistant 2026.11 and newer:**
+
+1. Go to **Settings → Marketplace**, search for **Leakomatic** and select **Install**.
+2. The setup opens when the installation is done; continue as described under [Configuration](#configuration). No restart is needed.
+
+**Home Assistant 2026.10 and older, with HACS:**
+
+1. Search for **Leakomatic** in HACS and download it.
+2. Restart Home Assistant. HACS shows that a restart is needed under **Settings → System → Repairs**, not as a notification.
 3. Add the integration as described under [Configuration](#configuration).
+
+**Updates** show up under **Settings → Updates**. Restart Home Assistant after updating; a repair under **Settings → System → Repairs** reminds you (in the Marketplace, it can also restart for you). If you upgrade Home Assistant from HACS to the Marketplace, Leakomatic stays installed and keeps getting updates.
 
 ### Manually
 
@@ -267,7 +276,7 @@ Common situations:
 ## Removal
 
 1. Go to **Settings → Devices & services → Leakomatic**, open the menu (⋮) on the entry and choose **Delete**.
-2. Remove the integration in HACS, or delete `custom_components/leakomatic` if you installed it manually.
+2. Remove Leakomatic in the Marketplace (or HACS), or delete `custom_components/leakomatic` if you installed it manually.
 3. Restart Home Assistant.
 
 Removing the integration changes nothing on the Leakomatic device or in your Leakomatic account.

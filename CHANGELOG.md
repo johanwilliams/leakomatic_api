@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `custom_components/leakomatic/brand/icon@2x.png` (512×512), the high-resolution icon Home Assistant uses on high-DPI screens. It is `icon.png` scaled up, so the icon looks the same.
 
 ### Changed
-- README: Leakomatic is in the HACS default catalog, so the installation starts with searching for **Leakomatic** in HACS (or the new *Open in HACS* button) instead of adding a custom repository. The "HACS Custom" badge is removed.
+- README: Leakomatic is in the community catalog, so the installation starts with searching for **Leakomatic** in the Marketplace (Home Assistant 2026.11 and newer) or HACS (older versions), or with the new *Open in HACS* button, which opens either. Adding a custom repository is no longer needed, and the "HACS Custom" badge is removed. The README also says where the restart reminder appears (Repairs).
 
 ## [0.2.2] - 2026-10-26
 
