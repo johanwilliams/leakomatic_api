@@ -1,6 +1,5 @@
 # Leakomatic for Home Assistant
 
-[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/docs/faq/custom_repositories/)
 [![Release](https://img.shields.io/github/v/release/johanwilliams/leakomatic_api)](https://github.com/johanwilliams/leakomatic_api/releases)
 [![Tests](https://github.com/johanwilliams/leakomatic_api/actions/workflows/tests.yml/badge.svg)](https://github.com/johanwilliams/leakomatic_api/actions/workflows/tests.yml)
 [![Validate](https://github.com/johanwilliams/leakomatic_api/actions/workflows/validate.yml/badge.svg)](https://github.com/johanwilliams/leakomatic_api/actions/workflows/validate.yml)
@@ -31,9 +30,13 @@ All devices on the account are added. Temperature, pressure and water volume nee
 
 ### With HACS (recommended)
 
-1. In HACS, open the menu (⋮) → **Custom repositories**, add `https://github.com/johanwilliams/leakomatic_api` with the type **Integration**.
-2. Search for **Leakomatic** in HACS and download it.
-3. Restart Home Assistant.
+Leakomatic is in the HACS default catalog.
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=johanwilliams&repository=leakomatic_api&category=integration)
+
+1. Search for **Leakomatic** in HACS and download it, or use the button above to open it in HACS directly.
+2. Restart Home Assistant.
+3. Add the integration as described under [Configuration](#configuration).
 
 ### Manually
 
